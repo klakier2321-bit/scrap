@@ -4,4 +4,5 @@ __pycache__/
 .venv/
 logs/
 user_data/
+trading/freqtrade/user_data/config.json
 .DS_Store

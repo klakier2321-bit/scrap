@@ -40,8 +40,6 @@ services:
     working_dir: /freqtrade
     volumes:
       - ./trading/freqtrade/user_data:/freqtrade/user_data
-    ports:
-      - "8080:8080"
     command:
       - webserver
       - --config
