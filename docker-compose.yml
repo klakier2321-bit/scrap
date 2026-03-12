@@ -33,6 +33,20 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
 
+  freqtrade:
+    image: freqtradeorg/freqtrade:stable
+    container_name: crypto_freqtrade
+    restart: "no"
+    working_dir: /freqtrade
+    volumes:
+      - ./trading/freqtrade/user_data:/freqtrade/user_data
+    ports:
+      - "8080:8080"
+    command:
+      - webserver
+      - --config
+      - /freqtrade/user_data/config.json
+
 volumes:
   postgres_data:
   redis_data:
