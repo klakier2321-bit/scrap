@@ -5,4 +5,5 @@ __pycache__/
 logs/
 user_data/
 trading/freqtrade/user_data/config.json
+trading/freqtrade/user_data/config.backtest.local.json
 .DS_Store
