@@ -8,8 +8,14 @@ Agenci mają pomagać w rozwoju systemu, ale nie wykonują bezpośrednio transak
 ## Core rule
 
 Agenci rozwijają warstwy systemu, a nie zastępują zasad bezpieczeństwa, review i decyzji operatora.
+`system_lead_agent` jest szefem warstwy agentowej, ale nie zastępuje runtime control layer i nie wykonuje trade.
 
 ## Planned agents
+
+### system_lead_agent
+
+Odpowiada za nadrzędną koordynację warstwy agentowej, kolejność prac, delegowanie zadań i pilnowanie zgodności działań agentów z architekturą projektu.
+Nie zastępuje control layer runtime, nie wykonuje trade i nie omija zasad bezpieczeństwa.
 
 ### architecture_agent
 
@@ -48,12 +54,14 @@ Odpowiada za przegląd zmian, kontrolę jakości, wykrywanie ryzyk i pilnowanie 
 Kolejność wdrażania agentów od najbezpieczniejszych do najbardziej wpływających na system:
 
 1. `review_agent`
-2. `architecture_agent`
-3. `monitoring_agent`
-4. `control_layer_agent`
-5. `strategy_agent`
-6. `integration_agent`
-7. `api_agent`
-8. `gui_agent`
+2. `system_lead_agent`
+3. `architecture_agent`
+4. `monitoring_agent`
+5. `control_layer_agent`
+6. `strategy_agent`
+7. `integration_agent`
+8. `api_agent`
+9. `gui_agent`
 
 Najpierw wdrażamy agentów, którzy analizują i porządkują system, a dopiero później tych, którzy wpływają na logikę integracji i warstwy użytkowe.
+`system_lead_agent` zarządza kolejnością prac agentów, ale nie przejmuje odpowiedzialności wykonawczej za ich warstwy.
