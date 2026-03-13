@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timezone
+import hashlib
+import json
 import logging
 from pathlib import Path
 from time import monotonic
@@ -11,11 +13,14 @@ import uuid
 from typing import Any
 
 from ai_agents.runtime.service import AgentRuntimeService
+from opentelemetry import trace
 
 from .bot_manager import BotManager
 from .config import AppSettings
 from .metrics import (
     record_blocked_call,
+    record_cache_hit,
+    record_cache_miss,
     record_human_escalation,
     record_review_required,
     record_run_created,
@@ -30,6 +35,7 @@ from .strategy_manager import StrategyManager
 
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class Orchestrator:
@@ -40,7 +46,8 @@ class Orchestrator:
         self.bot_manager = BotManager(docker_base_url=settings.docker_socket_path)
         self.risk_manager = RiskManager()
         self.strategy_manager = StrategyManager(
-            user_data_dir=settings.freqtrade_user_data_path
+            user_data_dir=settings.freqtrade_user_data_path,
+            reports_dir=settings.strategy_reports_dir,
         )
         self.store = RunStore(settings.database_path)
         stale_runs = self.store.reconcile_stale_runs()
@@ -84,6 +91,56 @@ class Orchestrator:
     def get_bot_logs(self, bot_id: str, tail: int | None = None) -> list[str]:
         return self.bot_manager.get_bot_logs(bot_id, tail=tail)
 
+    def get_latest_strategy_report(self, strategy_name: str | None = None) -> dict[str, Any] | None:
+        return self.strategy_manager.latest_strategy_report(strategy_name=strategy_name)
+
+    def get_latest_strategy_report_with_assessment(
+        self,
+        strategy_name: str | None = None,
+    ) -> dict[str, Any] | None:
+        report = self.strategy_manager.latest_strategy_report(strategy_name=strategy_name)
+        if report is None:
+            return None
+        assessment = self.strategy_manager.latest_strategy_assessment(
+            strategy_name=report["strategy_name"]
+        )
+        if (
+            assessment is None
+            or assessment.get("source_run_id") != report.get("source_run_id")
+            or assessment.get("source_archive") != report.get("source_archive")
+        ):
+            assessment = self.generate_strategy_assessment(strategy_name=report["strategy_name"])
+        return self.strategy_manager.merge_report_with_assessment(report, assessment)
+
+    def list_strategy_report_history(
+        self,
+        strategy_name: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        history = self.strategy_manager.list_strategy_reports(
+            strategy_name=strategy_name,
+            limit=limit,
+        )
+        merged: list[dict[str, Any]] = []
+        for report in history:
+            assessment = self.strategy_manager.get_assessment_for_report(
+                report["strategy_name"],
+                report.get("source_run_id"),
+                report.get("source_archive"),
+            )
+            merged.append(self.strategy_manager.merge_report_with_assessment(report, assessment))
+        return merged
+
+    def generate_strategy_assessment(
+        self,
+        strategy_name: str | None = None,
+    ) -> dict[str, Any]:
+        report = self.strategy_manager.latest_strategy_report(strategy_name=strategy_name)
+        if report is None:
+            raise KeyError("No strategy report is available yet.")
+        assessment = self.agent_runtime.generate_strategy_assessment(report)
+        return self.strategy_manager.persist_strategy_assessment(report, assessment)
+
     def list_agents(self) -> list[dict[str, Any]]:
         return self.agent_runtime.list_agents()
 
@@ -97,10 +154,85 @@ class Orchestrator:
         return run
 
     def create_agent_run(self, request_payload: dict[str, Any]) -> dict[str, Any]:
-        if self.settings.agent_kill_switch:
+        with tracer.start_as_current_span("Orchestrator.create_agent_run") as span:
+            span.set_attribute("crypto.agent_name", request_payload["agent_name"])
+            request_fingerprint = self._compute_request_fingerprint(request_payload)
+            existing_run = self.store.find_active_run_by_fingerprint(request_fingerprint)
+            if existing_run is not None:
+                span.set_attribute("crypto.idempotent_hit", True)
+                span.set_attribute("crypto.run_id", existing_run["run_id"])
+                return existing_run
+            span.set_attribute("crypto.idempotent_hit", False)
+
+            if self.settings.agent_kill_switch:
+                run_id = str(uuid.uuid4())
+                task_id = f"task-{uuid.uuid4()}"
+                now = datetime.now(timezone.utc).isoformat()
+                record = {
+                    "run_id": run_id,
+                    "task_id": task_id,
+                    "agent_name": request_payload["agent_name"],
+                    "goal": request_payload["goal"],
+                    "business_reason": request_payload.get("business_reason", ""),
+                    "payload_json": request_payload,
+                    "request_fingerprint": request_fingerprint,
+                    "status": "blocked",
+                    "risk_level": request_payload["risk_level"],
+                    "model": None,
+                    "model_tier": None,
+                    "review_required": True,
+                    "human_decision_required": True,
+                    "approval_required": False,
+                    "approval_granted": False,
+                    "stop_requested": False,
+                    "cross_layer": bool(request_payload.get("cross_layer")),
+                    "does_touch_contract": bool(request_payload.get("does_touch_contract")),
+                    "does_touch_runtime": bool(request_payload.get("does_touch_runtime")),
+                    "estimated_cost_usd": 0.0,
+                    "warnings_json": ["Agent kill switch is enabled."],
+                    "blocked_reason": "kill_switch_enabled",
+                    "max_iterations": 0,
+                    "max_retry_limit": 0,
+                    "created_at": now,
+                    "started_at": None,
+                    "finished_at": now,
+                    "result_json": None,
+                    "review_json": None,
+                    "error": "AI control layer is disabled by kill switch.",
+                }
+                self.store.create_run(record)
+                record_run_created(record["agent_name"], "blocked")
+                record_blocked_call(record["agent_name"], "kill_switch_enabled")
+                record_human_escalation(record["agent_name"])
+                return self.get_run(run_id)
+
+            current_agent_spend = self.store.get_today_spend(request_payload["agent_name"])
+            current_total_spend = self.store.get_today_total_spend()
+            risk_decision = self.risk_manager.evaluate_request_risk(request_payload)
+            sensitive_paths = self.risk_manager.validate_requested_paths(
+                request_payload.get("requested_paths", [])
+            )
+            for _ in sensitive_paths:
+                record_scope_violation(request_payload["agent_name"])
+
+            decision = self.agent_runtime.prepare_run(
+                request_payload=request_payload,
+                current_agent_spend=current_agent_spend,
+                current_total_spend=current_total_spend,
+                risk_overrides=risk_decision,
+                sensitive_path_violations=sensitive_paths,
+            )
+
             run_id = str(uuid.uuid4())
             task_id = f"task-{uuid.uuid4()}"
             now = datetime.now(timezone.utc).isoformat()
+
+            status = "queued"
+            if not decision["allowed"]:
+                status = "blocked"
+            elif decision["approval_required"]:
+                status = "awaiting_approval"
+
             record = {
                 "run_id": run_id,
                 "task_id": task_id,
@@ -108,108 +240,46 @@ class Orchestrator:
                 "goal": request_payload["goal"],
                 "business_reason": request_payload.get("business_reason", ""),
                 "payload_json": request_payload,
-                "status": "blocked",
+                "request_fingerprint": request_fingerprint,
+                "status": status,
                 "risk_level": request_payload["risk_level"],
-                "model": None,
-                "model_tier": None,
-                "review_required": True,
-                "human_decision_required": True,
-                "approval_required": False,
+                "model": decision["selected_model"],
+                "model_tier": decision["selected_model_tier"],
+                "review_required": decision["review_required"],
+                "human_decision_required": decision["human_decision_required"],
+                "approval_required": decision["approval_required"],
                 "approval_granted": False,
                 "stop_requested": False,
                 "cross_layer": bool(request_payload.get("cross_layer")),
                 "does_touch_contract": bool(request_payload.get("does_touch_contract")),
                 "does_touch_runtime": bool(request_payload.get("does_touch_runtime")),
-                "estimated_cost_usd": 0.0,
-                "warnings_json": ["Agent kill switch is enabled."],
-                "blocked_reason": "kill_switch_enabled",
-                "max_iterations": 0,
-                "max_retry_limit": 0,
+                "estimated_cost_usd": decision["estimated_cost_usd"],
+                "warnings_json": decision["warnings"],
+                "blocked_reason": decision["blocked_reason"],
+                "max_iterations": decision["max_iterations"],
+                "max_retry_limit": decision["max_retry_limit"],
                 "created_at": now,
                 "started_at": None,
-                "finished_at": now,
+                "finished_at": None,
                 "result_json": None,
                 "review_json": None,
-                "error": "AI control layer is disabled by kill switch.",
+                "error": None,
             }
             self.store.create_run(record)
-            record_run_created(record["agent_name"], "blocked")
-            record_blocked_call(record["agent_name"], "kill_switch_enabled")
-            record_human_escalation(record["agent_name"])
+            record_run_created(record["agent_name"], status)
+
+            if decision["review_required"]:
+                record_review_required(record["agent_name"])
+            if decision["human_decision_required"]:
+                record_human_escalation(record["agent_name"])
+            if not decision["allowed"]:
+                record_blocked_call(record["agent_name"], decision["blocked_reason"] or "blocked")
+                return self.get_run(run_id)
+
+            if status == "queued":
+                self._submit_run(run_id)
+            span.set_attribute("crypto.run_id", run_id)
             return self.get_run(run_id)
-
-        current_agent_spend = self.store.get_today_spend(request_payload["agent_name"])
-        current_total_spend = self.store.get_today_total_spend()
-        risk_decision = self.risk_manager.evaluate_request_risk(request_payload)
-        sensitive_paths = self.risk_manager.validate_requested_paths(
-            request_payload.get("requested_paths", [])
-        )
-        for path_value in sensitive_paths:
-            record_scope_violation(request_payload["agent_name"])
-
-        decision = self.agent_runtime.prepare_run(
-            request_payload=request_payload,
-            current_agent_spend=current_agent_spend,
-            current_total_spend=current_total_spend,
-            risk_overrides=risk_decision,
-            sensitive_path_violations=sensitive_paths,
-        )
-
-        run_id = str(uuid.uuid4())
-        task_id = f"task-{uuid.uuid4()}"
-        now = datetime.now(timezone.utc).isoformat()
-
-        status = "queued"
-        if not decision["allowed"]:
-            status = "blocked"
-        elif decision["approval_required"]:
-            status = "awaiting_approval"
-
-        record = {
-            "run_id": run_id,
-            "task_id": task_id,
-            "agent_name": request_payload["agent_name"],
-            "goal": request_payload["goal"],
-            "business_reason": request_payload.get("business_reason", ""),
-            "payload_json": request_payload,
-            "status": status,
-            "risk_level": request_payload["risk_level"],
-            "model": decision["selected_model"],
-            "model_tier": decision["selected_model_tier"],
-            "review_required": decision["review_required"],
-            "human_decision_required": decision["human_decision_required"],
-            "approval_required": decision["approval_required"],
-            "approval_granted": False,
-            "stop_requested": False,
-            "cross_layer": bool(request_payload.get("cross_layer")),
-            "does_touch_contract": bool(request_payload.get("does_touch_contract")),
-            "does_touch_runtime": bool(request_payload.get("does_touch_runtime")),
-            "estimated_cost_usd": decision["estimated_cost_usd"],
-            "warnings_json": decision["warnings"],
-            "blocked_reason": decision["blocked_reason"],
-            "max_iterations": decision["max_iterations"],
-            "max_retry_limit": decision["max_retry_limit"],
-            "created_at": now,
-            "started_at": None,
-            "finished_at": None,
-            "result_json": None,
-            "review_json": None,
-            "error": None,
-        }
-        self.store.create_run(record)
-        record_run_created(record["agent_name"], status)
-
-        if decision["review_required"]:
-            record_review_required(record["agent_name"])
-        if decision["human_decision_required"]:
-            record_human_escalation(record["agent_name"])
-        if not decision["allowed"]:
-            record_blocked_call(record["agent_name"], decision["blocked_reason"] or "blocked")
-            return self.get_run(run_id)
-
-        if status == "queued":
-            self._submit_run(run_id)
-        return self.get_run(run_id)
 
     def approve_run(self, run_id: str) -> dict[str, Any]:
         run = self.get_run(run_id)
@@ -270,12 +340,17 @@ class Orchestrator:
         record_run_started(run["agent_name"])
 
         try:
+            cache_enabled = self._is_cacheable_run(run)
             result = self.agent_runtime.execute(
                 run_record=self.get_run(run_id),
                 stop_requested_callback=lambda: bool(
                     (self.store.get_run(run_id) or {}).get("stop_requested")
                 )
                 or monotonic() >= deadline,
+                cache_lookup=self.store.get_cached_response if cache_enabled else None,
+                cache_store=self.store.set_cached_response if cache_enabled else None,
+                cache_hit_callback=record_cache_hit if cache_enabled else None,
+                cache_miss_callback=record_cache_miss if cache_enabled else None,
             )
             finished_at = datetime.now(timezone.utc)
             duration_seconds = max((finished_at - started_at).total_seconds(), 0.0)
@@ -290,6 +365,7 @@ class Orchestrator:
                 completion_tokens=result["completion_tokens"],
                 total_tokens=result["total_tokens"],
                 successful_requests=result["successful_requests"],
+                retry_like_requests=result["retry_like_requests"],
                 duration_seconds=duration_seconds,
                 error=None,
             )
@@ -301,6 +377,7 @@ class Orchestrator:
                 completion_tokens=result["completion_tokens"],
                 total_tokens=result["total_tokens"],
                 successful_requests=result["successful_requests"],
+                retry_like_requests=result["retry_like_requests"],
                 estimated_cost_usd=result["actual_cost_usd"],
             )
             logger.info(
@@ -337,3 +414,28 @@ class Orchestrator:
             )
         finally:
             self.futures.pop(run_id, None)
+
+    @staticmethod
+    def _compute_request_fingerprint(request_payload: dict[str, Any]) -> str:
+        metadata = request_payload.get("metadata") or {}
+        idempotency_key = metadata.get("idempotency_key")
+        if idempotency_key:
+            raw_value = f"idempotency_key:{idempotency_key}"
+        else:
+            raw_value = json.dumps(
+                request_payload,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        return hashlib.sha256(raw_value.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _is_cacheable_run(run: dict[str, Any]) -> bool:
+        return (
+            run.get("risk_level") == "low"
+            and not run.get("cross_layer")
+            and not run.get("does_touch_runtime")
+            and not run.get("human_decision_required")
+            and not run.get("approval_required")
+            and run.get("model_tier") == "cheap"
+        )

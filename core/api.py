@@ -3,26 +3,44 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import logging
+import os
 from pathlib import Path
+from time import monotonic
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
+from crewai.events.listeners.tracing.utils import mark_first_execution_done
 
 from .config import get_settings
 from .logging_utils import setup_logging
 from .metrics import render_metrics
 from .orchestrator import Orchestrator
-from .schemas import ActionResult, AgentRunRecord, AgentRunRequest, BotStatus, BotSummary, HealthResponse
+from .schemas import (
+    ActionResult,
+    AgentRunRecord,
+    AgentRunRequest,
+    BotStatus,
+    BotSummary,
+    HealthResponse,
+    StrategyReportResponse,
+)
+from .tracing import setup_tracing
 
 
 settings = get_settings()
 templates = Jinja2Templates(directory=str(Path(__file__).with_name("templates")))
+request_logger = logging.getLogger("crypto_system.control_api")
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     setup_logging(settings)
+    if os.getenv("CREWAI_TRACING_ENABLED", "").lower() != "true":
+        # Prevent CrewAI's one-time interactive trace prompt inside the server runtime.
+        mark_first_execution_done(user_consented=False)
+    setup_tracing(app, settings)
     yield
 
 
@@ -37,6 +55,35 @@ app.state.orchestrator = Orchestrator(settings=settings)
 
 def get_orchestrator() -> Orchestrator:
     return app.state.orchestrator
+
+
+@app.middleware("http")
+async def log_control_api_requests(request: Request, call_next):
+    start = monotonic()
+    response = None
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        if request.url.path == "/metrics":
+            continue_logging = False
+        else:
+            continue_logging = True
+        if not continue_logging:
+            pass
+        else:
+            duration_ms = round((monotonic() - start) * 1000, 2)
+            request_logger.info(
+                "Control API request handled.",
+                extra={
+                    "run_id": request.path_params.get("run_id"),
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": getattr(response, "status_code", 500),
+                    "duration_ms": duration_ms,
+                    "event": "control_api_request",
+                },
+            )
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -115,7 +162,11 @@ async def bot_logs(
 
 @app.get("/metrics", include_in_schema=False)
 async def metrics() -> PlainTextResponse:
-    payload, content_type = render_metrics(get_orchestrator().list_bots())
+    payload, content_type = render_metrics(
+        get_orchestrator().list_bots(),
+        get_orchestrator().get_latest_strategy_report(),
+        get_orchestrator().list_strategy_report_history(limit=20),
+    )
     return PlainTextResponse(payload.decode("utf-8"), media_type=content_type)
 
 
@@ -170,3 +221,51 @@ async def ops_control_logs(
         return JSONResponse({"logs": []})
     lines = log_file.read_text(encoding="utf-8").splitlines()
     return JSONResponse({"logs": lines[-tail:]})
+
+
+@app.get(
+    "/ops/strategy-report/latest",
+    response_model=StrategyReportResponse,
+    include_in_schema=False,
+)
+async def ops_latest_strategy_report(
+    strategy_name: str | None = Query(default=None),
+) -> StrategyReportResponse:
+    report = get_orchestrator().get_latest_strategy_report_with_assessment(
+        strategy_name=strategy_name
+    )
+    if report is None:
+        raise HTTPException(status_code=404, detail="No strategy report is available yet.")
+    return StrategyReportResponse(**report)
+
+
+@app.get("/ops/strategy-report/history", include_in_schema=False)
+async def ops_strategy_report_history(
+    strategy_name: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> JSONResponse:
+    history = get_orchestrator().list_strategy_report_history(
+        strategy_name=strategy_name,
+        limit=limit,
+    )
+    return JSONResponse({"reports": history})
+
+
+@app.post(
+    "/ops/strategy-report/generate",
+    response_model=StrategyReportResponse,
+    include_in_schema=False,
+)
+async def ops_generate_strategy_report(
+    strategy_name: str | None = Query(default=None),
+) -> StrategyReportResponse:
+    try:
+        get_orchestrator().generate_strategy_assessment(strategy_name=strategy_name)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    merged = get_orchestrator().get_latest_strategy_report_with_assessment(
+        strategy_name=strategy_name
+    )
+    if merged is None:
+        raise HTTPException(status_code=404, detail="No strategy report is available yet.")
+    return StrategyReportResponse(**merged)

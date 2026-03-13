@@ -13,14 +13,8 @@ class AppSettings(BaseSettings):
 
     agent_use_mock_llm: bool = True
     agent_mode: str = "plan_first"
-    agent_default_model: str = "openai/gpt-4o-mini"
-    agent_cheap_model: str = "openai/gpt-4o-mini"
-    agent_strong_model: str = "openai/gpt-4.1"
     agent_litellm_base_url: str = "http://litellm:4000/v1"
     agent_litellm_api_key: str = "change_me"
-    litellm_master_key: str = "change_me"
-    openai_api_key: str | None = None
-    openai_project_id: str | None = None
     control_api_host: str = "0.0.0.0"
     control_api_port: int = 8000
     control_api_log_level: str = "INFO"
@@ -35,9 +29,11 @@ class AppSettings(BaseSettings):
     agent_allow_mock_fallback: bool = True
     agent_kill_switch: bool = False
     crewai_disable_telemetry: bool = True
+    agent_tracing_enabled: bool = True
+    agent_otlp_http_endpoint: str = "http://tempo:4318/v1/traces"
 
     model_config = SettingsConfigDict(
-        env_file=".env.ai.local",
+        env_file=".env.ai.control.local",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -71,6 +67,10 @@ class AppSettings(BaseSettings):
     @property
     def database_path(self) -> Path:
         return self.data_dir / "ai_control.db"
+
+    @property
+    def strategy_reports_dir(self) -> Path:
+        return self.data_dir / "strategy_reports"
 
 
 @lru_cache(maxsize=1)

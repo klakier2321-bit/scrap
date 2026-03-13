@@ -24,4 +24,4 @@ COPY CONFIGURATION_POLICY.md /app/CONFIGURATION_POLICY.md
 COPY RISK_RULES.md /app/RISK_RULES.md
 COPY README.md /app/README.md
 
-CMD ["uvicorn", "core.api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "core.api:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

@@ -1,353 +1,358 @@
 # CrewAI Implementation Plan
 
+Ostatni audyt: `2026-03-13`
+
 ## Cel planu
 
-Ten plan opisuje bezpieczne wdrożenie warstwy `CrewAI` do projektu `crypto-system`.
-Kolejność jest celowo ostrożna:
+Ten plan opisuje bezpieczne wdrozenie warstwy `CrewAI` do projektu `crypto-system`.
+Kolejnosc jest celowo ostrozna:
 
-- najpierw kontrola kosztów i bezpieczeństwo
-- potem obserwowalność i dashboardy
-- potem mała warstwa operacyjna
-- dopiero na końcu właściwi agenci i automatyzacja
+- najpierw kontrola kosztow i bezpieczenstwo
+- potem obserwowalnosc i dashboardy
+- potem mala warstwa operacyjna
+- dopiero na koncu wlasciwi agenci i automatyzacja
 
-Plan ma pasować do obecnego repo:
+Plan pasuje do obecnego repo:
 
 - `Freqtrade` pozostaje execution engine
 - system startuje od `dry_run`
-- AI nie wykonuje bezpośrednio live trade
-- sekrety i runtime configi pozostają lokalne
-- `docker-compose.yml` pozostaje plikiem wrażliwym
+- AI nie wykonuje bezposrednio live trade
+- sekrety i runtime configi pozostaja lokalne
+- `docker-compose.yml` pozostaje plikiem wrazliwym
 
-## Zasady nadrzędne
+## Zasady nadrzedne
 
-- [ ] Nie podpinamy agentów bezpośrednio pod surowy klucz OpenAI.
-- [ ] Nie uruchamiamy wielu agentów równolegle na starcie.
-- [ ] Nie budujemy najpierw dużego GUI ani dużego multi-agent loop.
-- [ ] Najpierw wdrażamy koszty, limity, review i monitoring.
-- [ ] Każdy agent działa tylko w swoim `owned scope`.
-- [ ] `system_lead_agent` ma pełną kontrolę planistyczną, ale nie omija granic bezpieczeństwa.
-- [ ] Wszystkie zmiany wysokiego ryzyka dalej wymagają człowieka.
+- [x] Nie podpinamy agentow bezposrednio pod surowy klucz OpenAI.
+- [x] Nie uruchamiamy wielu agentow rownolegle na starcie.
+- [x] Nie budujemy najpierw duzego GUI ani duzego multi-agent loop.
+- [x] Najpierw wdrazamy koszty, limity, review i monitoring.
+- [x] Kazdy agent dziala tylko w swoim `owned scope`.
+- [x] `system_lead_agent` ma pelna kontrole planistyczna, ale nie omija granic bezpieczenstwa.
+- [x] Wszystkie zmiany wysokiego ryzyka dalej wymagaja czlowieka.
 
-## Definicja gotowości do startu CrewAI
+## Definicja gotowosci do startu CrewAI
 
-Przed pierwszym prawdziwym uruchomieniem agentów powinny być gotowe:
+Przed pierwszym prawdziwym uruchomieniem agentow powinny byc gotowe:
 
-- [ ] projektowe `.venv`
-- [ ] przypięta wersja `CrewAI`
-- [ ] czytelna konfiguracja modeli i sekretów dla warstwy agentowej
-- [ ] twardy gate kosztów przed modelem
-- [ ] monitoring kosztów, tokenów i statusów agentów
-- [ ] minimalny panel operatorski
-- [ ] pierwszy prosty workflow `plan -> review -> write`
+- [x] projektowe `.venv`
+- [x] przypieta wersja `CrewAI`
+- [x] czytelna konfiguracja modeli i sekretow dla warstwy agentowej
+- [x] twardy gate kosztow przed modelem
+- [x] monitoring kosztow, tokenow i statusow agentow
+- [x] minimalny panel operatorski
+- [x] pierwszy prosty workflow `plan -> review -> write`
 
-## Etap 1: Domknięcie warstwy konfiguracji AI
+## Etap 1: Domkniecie warstwy konfiguracji AI
 
 Cel:
-- rozdzielić konfigurację agentów od runtime tradingowego
+- rozdzielic konfiguracje agentow od runtime tradingowego
 
 Do wykonania:
-- [ ] utworzyć lokalny plik `.env` lub `.env.ai.local` tylko dla warstwy agentowej
-- [ ] trzymać tam wyłącznie sekrety AI i monitoringu agentów
-- [ ] przygotować `.env.ai.example` z placeholderami
-- [ ] rozdzielić sekrety AI od sekretów Freqtrade i infrastruktury
-- [ ] przypiąć modele do ról agentów, zamiast zostawiać dowolny wybór
+- [x] utworzyc lokalny plik `.env` lub `.env.ai.local` tylko dla warstwy agentowej
+- [x] trzymac tam wylacznie sekrety AI i monitoringu agentow
+- [x] przygotowac `.env.ai.example` z placeholderami
+- [x] rozdzielic sekrety AI od sekretow Freqtrade i infrastruktury
+- [x] przypiac modele do rol agentow, zamiast zostawiac dowolny wybor
 
-Ważne pola do przewidzenia:
-- [ ] `OPENAI_API_KEY` lub docelowy klucz do gatewaya LLM
-- [ ] `OPENAI_PROJECT_ID` lub osobny projekt dla agentów
-- [ ] `DEFAULT_MODEL`
-- [ ] `CHEAP_MODEL`
-- [ ] `STRONG_MODEL`
-- [ ] `AGENT_MODE=plan_first`
-- [ ] `CREWAI_DISABLE_TELEMETRY=true`, jeśli chcemy ograniczyć zewnętrzną telemetrię
+Wazne pola do przewidzenia:
+- [x] `OPENAI_API_KEY` lub docelowy klucz do gatewaya LLM
+- [x] `OPENAI_PROJECT_ID` lub osobny projekt dla agentow
+- [x] `DEFAULT_MODEL`
+- [x] `CHEAP_MODEL`
+- [x] `STRONG_MODEL`
+- [x] `AGENT_MODE=plan_first`
+- [x] `CREWAI_DISABLE_TELEMETRY=true`, jesli chcemy ograniczyc zewnetrzna telemetrie
 
 Definition of done:
-- [ ] konfiguracja AI jest odseparowana od runtime tradingowego
-- [ ] żaden sekret AI nie trafia do Git
-- [ ] wiadomo, który model jest tani, a który mocny
+- [x] konfiguracja AI jest odseparowana od runtime tradingowego
+- [x] zaden sekret AI nie trafia do Git
+- [x] wiadomo, ktory model jest tani, a ktory mocny
 
-## Etap 2: Bramka kosztów i dostępu do modeli
+## Etap 2: Bramka kosztow i dostepu do modeli
 
 Cel:
-- odciąć agentów od bezpośredniego dostępu do modeli
+- odciac agentow od bezposredniego dostepu do modeli
 
-Rekomendowane rozwiązanie:
-- [ ] wdrożyć gateway LLM, najlepiej `LiteLLM Proxy`
+Rekomendowane rozwiazanie:
+- [x] wdrozyc gateway LLM, najlepiej `LiteLLM Proxy`
 
-Dlaczego to jest ważne:
-- [ ] budżety i rate limits nie mogą zależeć wyłącznie od samego OpenAI
-- [ ] OpenAI budget traktujemy jako dodatkowy alert, nie jako jedyny bezpiecznik
-- [ ] każdy agent powinien mieć osobny identyfikator, klucz wirtualny albo logiczny scope kosztowy
+Dlaczego to jest wazne:
+- [x] budzety i rate limits nie moga zalezec wylacznie od samego OpenAI
+- [x] OpenAI budget traktujemy jako dodatkowy alert, nie jako jedyny bezpiecznik
+- [x] kazdy agent powinien miec osobny identyfikator, klucz wirtualny albo logiczny scope kosztowy
 
 Do wykonania:
-- [ ] zaplanować osobny kontener lub usługę dla gatewaya LLM
-- [ ] zdefiniować allowlistę modeli
-- [ ] zdefiniować limity per agent
-- [ ] zdefiniować limity per dzień
-- [ ] zdefiniować limit tokenów na pojedynczy request
-- [ ] zdefiniować limit iteracji na task
-- [ ] zdefiniować blokadę drogich modeli bez zgody
+- [x] zaplanowac osobny kontener lub usluge dla gatewaya LLM
+- [x] zdefiniowac allowliste modeli
+- [x] zdefiniowac limity per agent
+- [x] zdefiniowac limity per dzien
+- [x] zdefiniowac limit tokenow na pojedynczy request
+- [x] zdefiniowac limit iteracji na task
+- [x] zdefiniowac blokade drogich modeli bez zgody
 
 Minimalne limity startowe:
-- [ ] `system_lead_agent` z małym budżetem dziennym
-- [ ] `review_agent` tylko tani model
-- [ ] pozostali agenci uruchamiani pojedynczo
-- [ ] brak nieograniczonych retry
+- [x] `system_lead_agent` z malym budzetem dziennym
+- [x] `review_agent` tylko tani model
+- [x] pozostali agenci uruchamiani pojedynczo
+- [x] brak nieograniczonych retry
 
 Definition of done:
-- [ ] żaden agent nie używa bezpośrednio prawdziwego klucza modelu
-- [ ] można zobaczyć koszt per agent
-- [ ] można zablokować request przed jego wykonaniem
+- [x] zaden agent nie uzywa bezposrednio prawdziwego klucza modelu
+- [x] mozna zobaczyc koszt per agent
+- [x] mozna zablokowac request przed jego wykonaniem
 
-## Etap 3: Observability pod agentów
+## Etap 3: Observability pod agentow
 
 Cel:
-- mieć pełny podgląd pracy agentów, kosztów i błędów
+- miec pelny podglad pracy agentow, kosztow i bledow
 
 Rekomendowany kierunek:
-- [ ] `Grafana` jako centralny dashboard
-- [ ] `Prometheus` dla metryk
-- [ ] `Loki` dla logów
-- [ ] opcjonalnie `Tempo` lub inny tracing dla przepływów agentowych
+- [x] `Grafana` jako centralny dashboard
+- [x] `Prometheus` dla metryk
+- [x] `Loki` dla logow
+- [x] `Tempo` lub inny tracing dla przeplywow agentowych
 
 Do wykonania:
-- [ ] zdefiniować metryki agentowe
-- [ ] zdefiniować format logów z `run_id`, `task_id`, `agent_name`, `model`, `status`
-- [ ] zdefiniować źródła danych do Grafany
-- [ ] przygotować podstawowe dashboardy
-- [ ] przygotować alerty kosztowe i alerty bezpieczeństwa
+- [x] zdefiniowac metryki agentowe
+- [x] zdefiniowac format logow z `run_id`, `task_id`, `agent_name`, `model`, `status`
+- [x] zdefiniowac zrodla danych do Grafany
+- [x] przygotowac podstawowe dashboardy
+- [x] przygotowac alerty kosztowe i alerty bezpieczenstwa
 
 Minimalne metryki:
-- [ ] `agent_runs_total`
-- [ ] `agent_run_duration_seconds`
-- [ ] `llm_calls_total`
-- [ ] `prompt_tokens_total`
-- [ ] `completion_tokens_total`
-- [ ] `estimated_cost_usd_total`
-- [ ] `blocked_calls_total`
-- [ ] `review_required_total`
-- [ ] `human_escalations_total`
-- [ ] `scope_violations_total`
+- [x] `agent_runs_total`
+- [x] `agent_run_duration_seconds`
+- [x] `llm_calls_total`
+- [x] `prompt_tokens_total`
+- [x] `completion_tokens_total`
+- [x] `estimated_cost_usd_total`
+- [x] `blocked_calls_total`
+- [x] `review_required_total`
+- [x] `human_escalations_total`
+- [x] `scope_violations_total`
 
 Minimalne dashboardy:
-- [ ] `Agent Overview`
-- [ ] `Token & Cost Dashboard`
-- [ ] `Safety Dashboard`
-- [ ] `Trading + AI Overview`
+- [x] `Agent Overview` wdrozone jako `Przeglad Agentow`
+- [x] `Token & Cost Dashboard` wdrozone jako `Koszty i Tokeny`
+- [x] `Safety Dashboard` wdrozone jako `Bezpieczenstwo`
+- [x] `Trading + AI Overview` wdrozone jako `Trading i AI`
 
 Minimalne alerty:
-- [ ] 50% budżetu dziennego
-- [ ] 80% budżetu dziennego
-- [ ] 95% budżetu dziennego
-- [ ] zbyt dużo retry jednego taska
-- [ ] próba wyjścia poza `owned scope`
-- [ ] użycie modelu spoza allowlisty
+- [x] 50% budzetu dziennego
+- [x] 80% budzetu dziennego
+- [x] 95% budzetu dziennego
+- [x] zbyt duzo retry jednego taska
+- [x] proba wyjscia poza `owned scope`
+- [x] uzycie modelu spoza allowlisty
 
 Definition of done:
-- [ ] w Grafanie widać kto pracuje, ile trwa i ile kosztuje
-- [ ] mamy alert zanim agent przepali większy budżet
+- [x] w Grafanie widac kto pracuje, ile trwa i ile kosztuje
+- [x] mamy alert zanim agent przepali wiekszy budzet
 
 ## Etap 4: Minimalna aplikacja operatorska
 
 Cel:
-- mieć prostą aplikację do uruchamiania i kontroli agentów bez marnowania tokenów
+- miec prosta aplikacje do uruchamiania i kontroli agentow bez marnowania tokenow
 
 Zasada:
-- [ ] to ma być panel operatorski, nie rozbudowany chat z całym systemem
+- [x] to ma byc panel operatorski, nie rozbudowany chat z calym systemem
 
 Minimalne funkcje GUI:
-- [ ] lista agentów
-- [ ] status agentów
-- [ ] aktualny task
-- [ ] koszt taska
-- [ ] użyty model
-- [ ] liczba iteracji
-- [ ] przycisk `start`
-- [ ] przycisk `stop`
-- [ ] przycisk `approve expensive run`
-- [ ] link do logów i trace
+- [x] lista agentow
+- [x] status agentow
+- [x] aktualny task
+- [x] koszt taska
+- [x] uzyty model
+- [x] liczba iteracji
+- [x] przycisk `start`
+- [x] przycisk `stop`
+- [x] przycisk `approve expensive run`
+- [x] link do logow i trace
 
-Ważne decyzje:
-- [ ] GUI komunikuje się z control/API layer, nie bezpośrednio z giełdą
-- [ ] GUI nie może nadawać agentom szerszego scope niż w manifestach
-- [ ] GUI nie uruchamia live tradingu
+Wazne decyzje:
+- [x] GUI komunikuje sie z control/API layer, nie bezposrednio z gielda
+- [x] GUI nie moze nadawac agentom szerszego scope niz w manifestach
+- [x] GUI nie uruchamia live tradingu
 
 Definition of done:
-- [ ] operator widzi co się dzieje bez zaglądania do terminala
-- [ ] operator może zatrzymać drogi lub zły task
+- [x] operator widzi co sie dzieje bez zagladania do terminala
+- [x] operator moze zatrzymac drogi lub zly task
 
 ## Etap 5: Bazowy runtime CrewAI
 
 Cel:
-- uruchomić `CrewAI` w sposób przewidywalny i ograniczony
+- uruchomic `CrewAI` w sposob przewidywalny i ograniczony
 
 Preferowany model:
-- [ ] używać `Flow` jako nadrzędnego orchestratora
-- [ ] uruchamiać małe `Crew` tylko wtedy, gdy to potrzebne
-- [ ] nie zaczynać od dużej hierarchii agentów działającej stale
+- [x] uzywac `Flow` jako nadrzednego orchestratora
+- [x] uruchamiac male `Crew` tylko wtedy, gdy to potrzebne
+- [x] nie zaczynac od duzej hierarchii agentow dzialajacej stale
 
 Do wykonania:
-- [ ] utworzyć mały moduł runtime dla agentów
-- [ ] podpiąć `CrewAI` do gatewaya LLM, nie bezpośrednio do OpenAI
-- [ ] włączyć `LLM hooks`
-- [ ] włączyć `Execution hooks`
-- [ ] rejestrować metryki i logi w każdym przebiegu
-- [ ] wprowadzić `run_id` i `task_id` jako standard
+- [x] utworzyc maly modul runtime dla agentow
+- [x] podpiac `CrewAI` do gatewaya LLM, nie bezposrednio do OpenAI
+- [x] wlaczyc `LLM hooks`
+- [x] wlaczyc `Execution hooks`
+- [x] rejestrowac metryki i logi w kazdym przebiegu
+- [x] wprowadzic `run_id` i `task_id` jako standard
 
-Ważne bezpieczniki:
-- [ ] twardy limit iteracji
-- [ ] brak samoczynnych pętli bez końca
-- [ ] brak równoległych ekip na starcie
-- [ ] brak pamięci i vector DB, dopóki nie ma realnej potrzeby
+Wazne bezpieczniki:
+- [x] twardy limit iteracji
+- [x] brak samoczynnych petli bez konca
+- [x] brak rownoleglych ekip na starcie
+- [x] brak pamieci i vector DB, dopoki nie ma realnej potrzeby
 
 Definition of done:
-- [ ] da się uruchomić jeden mały workflow agentowy
-- [ ] każdy krok jest widoczny w logach i metrykach
-- [ ] agent nie może ominąć `plan -> review -> write`
+- [x] da sie uruchomic jeden maly workflow agentowy
+- [x] kazdy krok jest widoczny w logach i metrykach
+- [x] agent nie moze ominac `plan -> review -> write`
 
-## Etap 6: Pierwsi agenci w produkcyjnej kolejności
+## Etap 6: Pierwsi agenci w produkcyjnej kolejnosci
 
 Cel:
-- wdrażać agentów od najbezpieczniejszych do najbardziej wpływowych
+- wdrazac agentow od najbezpieczniejszych do najbardziej wplywowych
 
-Kolejność:
-- [ ] `review_agent`
-- [ ] `system_lead_agent`
-- [ ] `architecture_agent`
-- [ ] `monitoring_agent`
-- [ ] `control_layer_agent`
-- [ ] `strategy_agent`
-- [ ] `integration_agent`
-- [ ] `api_agent`
-- [ ] `gui_agent`
+Status sekcji:
+- [x] rollout produkcyjny jest wdrozony w bezpiecznym modelu smoke-testowym dla wszystkich agentow
+
+Kolejnosc:
+- [x] `review_agent`
+- [x] `system_lead_agent`
+- [x] `architecture_agent`
+- [x] `monitoring_agent`
+- [x] `control_layer_agent`
+- [x] `strategy_agent`
+- [x] `integration_agent`
+- [x] `api_agent`
+- [x] `gui_agent`
 
 Dlaczego tak:
-- [ ] najpierw kontrola jakości i koordynacja
-- [ ] potem warstwy organizujące system
-- [ ] dopiero później strategie i warstwy użytkowe
+- [x] najpierw kontrola jakosci i koordynacja
+- [x] potem warstwy organizujace system
+- [x] dopiero pozniej strategie i warstwy uzytkowe
 
 Definition of done:
-- [ ] każdy agent ma własny prompt, task template i review path
-- [ ] każdy agent ma przypisany model i limit kosztowy
-- [ ] każdy agent ma jasno określony scope
+- [x] kazdy agent ma wlasny prompt, task template i review path
+- [x] kazdy agent ma przypisany model i limit kosztowy
+- [x] kazdy agent ma jasno okreslony scope
 
-## Etap 7: Control API dla agentów i GUI
+## Etap 7: Control API dla agentow i GUI
 
 Cel:
-- zbudować jedno wejście do kontroli systemu
+- zbudowac jedno wejscie do kontroli systemu
 
 Zasada:
-- [ ] agenci i GUI rozmawiają z systemem przez control layer
-- [ ] `Freqtrade` nie staje się głównym mózgiem systemu
+- [x] agenci i GUI rozmawiaja z systemem przez control layer
+- [x] `Freqtrade` nie staje sie glownym mozgiem systemu
 
 Minimalny zakres:
-- [ ] `GET /health`
-- [ ] `GET /bots`
-- [ ] `POST /bots/{bot_id}/start`
-- [ ] `POST /bots/{bot_id}/stop`
-- [ ] `GET /bots/{bot_id}/status`
-- [ ] `GET /bots/{bot_id}/logs`
+- [x] `GET /health`
+- [x] `GET /bots`
+- [x] `POST /bots/{bot_id}/start`
+- [x] `POST /bots/{bot_id}/stop`
+- [x] `GET /bots/{bot_id}/status`
+- [x] `GET /bots/{bot_id}/logs`
 
 Do wykonania:
-- [ ] zachować zgodność z `docs/openapi.yaml`
-- [ ] najpierw aktualizować kontrakt, potem implementację
-- [ ] logować każde wywołanie control API
+- [x] zachowac zgodnosc z `docs/openapi.yaml`
+- [x] najpierw aktualizowac kontrakt, potem implementacje
+- [x] logowac kazde wywolanie control API
 
 Definition of done:
-- [ ] GUI i agenci mają jedno kontrolowane wejście do systemu
-- [ ] żadna warstwa AI nie rozmawia bezpośrednio z giełdą
+- [x] GUI i agenci maja jedno kontrolowane wejscie do systemu
+- [x] zadna warstwa AI nie rozmawia bezposrednio z gielda
 
 ## Etap 8: Integracja z backtestami i feedback loop
 
 Cel:
-- sprawić, by agenci pracowali na danych i wynikach, a nie na domysłach
+- sprawic, by agenci pracowali na danych i wynikach, a nie na domyslach
 
 Do wykonania:
-- [ ] zdefiniować standard wejścia dla wyników backtestu
-- [ ] zdefiniować raport strategii jako artefakt
-- [ ] zdefiniować minimalne metryki oceny strategii
-- [ ] zdefiniować próg odrzucenia strategii
-- [ ] zdefiniować próg przejścia do kolejnego etapu
+- [x] zdefiniowac standard wejscia dla wynikow backtestu
+- [x] zdefiniowac raport strategii jako artefakt
+- [x] zdefiniowac minimalne metryki oceny strategii
+- [x] zdefiniowac prog odrzucenia strategii
+- [x] zdefiniowac prog przejscia do kolejnego etapu
 
 Minimalne metryki strategii:
-- [ ] profit %
-- [ ] absolute profit
-- [ ] drawdown
-- [ ] liczba trade
-- [ ] win rate
-- [ ] stabilność wyniku między okresami
+- [x] profit %
+- [x] absolute profit
+- [x] drawdown
+- [x] liczba trade
+- [x] win rate
+- [x] stabilnosc wyniku miedzy okresami
 
-Ważne zasady:
-- [ ] dobry profit nie może przykrywać złego drawdownu
-- [ ] AI nie promuje strategii do `paper` lub `live` bez review
-- [ ] ryzyko dalej jest ważniejsze niż agresja
+Wazne zasady:
+- [x] dobry profit nie moze przykrywac zlego drawdownu
+- [x] AI nie promuje strategii do `paper` lub `live` bez review
+- [x] ryzyko dalej jest wazniejsze niz agresja
 
 Definition of done:
-- [ ] agent strategii generuje raport oparty na realnych wynikach
-- [ ] monitoring widzi historię wyników strategii
+- [x] agent strategii generuje raport oparty na realnych wynikach
+- [x] monitoring widzi historie wynikow strategii
 
-## Etap 9: Zasady kosztowe i bezpieczeństwo operacyjne
+## Etap 9: Zasady kosztowe i bezpieczenstwo operacyjne
 
 Cel:
-- domknąć ochronę przed przepalaniem tokenów i złym użyciem agentów
+- domknac ochrone przed przepalaniem tokenow i zlym uzyciem agentow
 
 Do wykonania:
-- [ ] osobny budżet dzienny dla warstwy agentowej
-- [ ] osobny budżet per agent
-- [ ] osobny budżet per task
-- [ ] blokada droższych modeli bez approval
-- [ ] limit maksymalnego kontekstu dla taska
-- [ ] zakaz wrzucania całego repo do promptu
-- [ ] cache dla stabilnych odpowiedzi, jeśli pojawi się realna potrzeba
+- [x] osobny budzet dzienny dla warstwy agentowej
+- [x] osobny budzet per agent
+- [x] osobny budzet per task
+- [x] blokada drozszych modeli bez approval
+- [x] limit maksymalnego kontekstu dla taska
+- [x] zakaz wrzucania calego repo do promptu
+- [x] cache dla stabilnych odpowiedzi, jesli pojawi sie realna potrzeba
 
-Rzeczy, o których łatwo zapomnieć:
-- [ ] wersjonowanie promptów agentów
-- [ ] wersjonowanie kontraktów
-- [ ] logowanie decyzji `approve / revise / escalate`
-- [ ] jawny `kill switch` dla całej warstwy agentowej
-- [ ] fallback, gdy gateway LLM nie działa
-- [ ] idempotencja tasków operatorskich
-- [ ] limit czasu na pojedynczy run
+Rzeczy, o ktorych latwo zapomniec:
+- [x] wersjonowanie promptow agentow
+- [x] wersjonowanie kontraktow
+- [x] logowanie decyzji `approve / revise / escalate`
+- [x] jawny `kill switch` dla calej warstwy agentowej
+- [x] fallback, gdy gateway LLM nie dziala
+- [x] idempotencja taskow operatorskich
+- [x] limit czasu na pojedynczy run
 
 Definition of done:
-- [ ] można zatrzymać całą warstwę agentową jednym przełącznikiem
-- [ ] koszt i ryzyko są ograniczane zanim poleci request do modelu
+- [x] mozna zatrzymac cala warstwe agentowa jednym przelacznikiem
+- [x] koszt i ryzyko sa ograniczane zanim poleci request do modelu
 
-## Etap 10: Czego nie robić na starcie
+## Etap 10: Czego nie robic na starcie
 
-- [ ] nie budować od razu pełnej autonomii multi-agent
-- [ ] nie wdrażać live tradingu przez agentów
-- [ ] nie dawać agentom dostępu do sekretów
-- [ ] nie łączyć od razu GUI, API, strategii i monitoringu w jeden duży sprint
-- [ ] nie używać najmocniejszego modelu do wszystkiego
-- [ ] nie pozwalać agentom samym decydować o zwiększaniu własnego budżetu
-- [ ] nie dokładać pamięci długoterminowej bez potrzeby i bez limitów
+- [x] nie budowac od razu pelnej autonomii multi-agent
+- [x] nie wdrazac live tradingu przez agentow
+- [x] nie dawac agentom dostepu do sekretow
+- [x] nie laczyc od razu GUI, API, strategii i monitoringu w jeden duzy sprint
+- [x] nie uzywac najmocniejszego modelu do wszystkiego
+- [x] nie pozwalac agentom samym decydowac o zwiekszaniu wlasnego budzetu
+- [x] nie dokladac pamieci dlugoterminowej bez potrzeby i bez limitow
 
-## Proponowana kolejność wdrażania w praktyce
+## Proponowana kolejnosc wdrazania w praktyce
 
-Realna kolejność prac dla tego repo:
+Realna kolejnosc prac dla tego repo:
 
-1. [ ] dopracować lokalną konfigurację AI i pliki `.example`
-2. [ ] zaplanować gateway LLM i limity kosztowe
-3. [ ] wdrożyć monitoring agentów do Grafany
-4. [ ] przygotować minimalną aplikację operatorską
-5. [ ] uruchomić bazowy runtime `CrewAI`
-6. [ ] wdrożyć `review_agent`
-7. [ ] wdrożyć `system_lead_agent`
-8. [ ] wdrożyć `architecture_agent`
-9. [ ] wdrożyć `monitoring_agent`
-10. [ ] wdrożyć `control_layer_agent`
-11. [ ] dopiero potem wejść w `strategy_agent`
-12. [ ] po stabilizacji rozwijać API i GUI
+1. [x] dopracowac lokalna konfiguracje AI i pliki `.example`
+2. [x] zaplanowac gateway LLM i limity kosztowe
+3. [x] wdrozyc monitoring agentow do Grafany
+4. [x] przygotowac minimalna aplikacje operatorska
+5. [x] uruchomic bazowy runtime `CrewAI`
+6. [x] wdrozyc `review_agent`
+7. [x] wdrozyc `system_lead_agent`
+8. [x] wdrozyc `architecture_agent`
+9. [x] wdrozyc `monitoring_agent`
+10. [x] wdrozyc `control_layer_agent`
+11. [x] dopiero potem wejsc w `strategy_agent`
+12. [x] po stabilizacji rozwijac API i GUI
 
-## Kryterium zakończenia wdrożenia podstawowego
+## Kryterium zakonczenia wdrozenia podstawowego
 
-Możemy uznać podstawowe wdrożenie `CrewAI` za gotowe dopiero wtedy, gdy:
+Mozemy uznac podstawowe wdrozenie `CrewAI` za gotowe dopiero wtedy, gdy:
 
-- [ ] agenci działają tylko przez kontrolowane modele i gateway
-- [ ] koszty są mierzone i limitowane
-- [ ] Grafana pokazuje status agentów i koszty
-- [ ] operator ma prosty panel kontroli
-- [ ] `system_lead_agent` działa, ale nie omija zasad bezpieczeństwa
-- [ ] `review_agent` działa przed zmianami średniego i wysokiego ryzyka
-- [ ] żadna warstwa AI nie ma bezpośredniej ścieżki do live tradingu
+- [x] agenci dzialaja tylko przez kontrolowane modele i gateway
+- [x] koszty sa mierzone i limitowane
+- [x] Grafana pokazuje status agentow i koszty
+- [x] operator ma prosty panel kontroli
+- [x] `system_lead_agent` dziala, ale nie omija zasad bezpieczenstwa
+- [x] `review_agent` dziala przed zmianami sredniego i wysokiego ryzyka
+- [x] zadna warstwa AI nie ma bezposredniej sciezki do live tradingu

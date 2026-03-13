@@ -76,6 +76,7 @@ agents:
     role: trading_strategy
     owned_scope:
       - trading/
+      - data/ai_control/strategy_reports/
     read_only_scope:
       - docs/
       - core/
@@ -92,6 +93,8 @@ agents:
     role: api_contracts
     owned_scope:
       - docs/openapi.yaml
+      - core/api.py
+      - core/schemas.py
     read_only_scope:
       - docs/
       - core/
@@ -107,6 +110,7 @@ agents:
     role: gui
     owned_scope:
       - docs/
+      - core/templates/
     read_only_scope:
       - core/
       - trading/

@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS agent_runs (
     goal TEXT NOT NULL,
     business_reason TEXT,
     payload_json TEXT NOT NULL,
+    request_fingerprint TEXT,
     status TEXT NOT NULL,
     risk_level TEXT NOT NULL,
     model TEXT,
@@ -37,6 +38,7 @@ CREATE TABLE IF NOT EXISTS agent_runs (
     completion_tokens INTEGER DEFAULT 0,
     total_tokens INTEGER DEFAULT 0,
     successful_requests INTEGER DEFAULT 0,
+    retry_like_requests INTEGER DEFAULT 0,
     warnings_json TEXT,
     blocked_reason TEXT,
     max_iterations INTEGER DEFAULT 0,
@@ -49,6 +51,18 @@ CREATE TABLE IF NOT EXISTS agent_runs (
     result_json TEXT,
     review_json TEXT,
     error TEXT
+);
+
+CREATE TABLE IF NOT EXISTS agent_response_cache (
+    cache_key TEXT PRIMARY KEY,
+    agent_name TEXT NOT NULL,
+    selected_model TEXT NOT NULL,
+    step_type TEXT NOT NULL,
+    prompt_hash TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    response_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
 );
 """
 
@@ -74,6 +88,18 @@ class RunStore:
     def _init_db(self) -> None:
         with self._lock, self._connection() as connection:
             connection.executescript(SCHEMA_SQL)
+            existing_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(agent_runs)").fetchall()
+            }
+            if "retry_like_requests" not in existing_columns:
+                connection.execute(
+                    "ALTER TABLE agent_runs ADD COLUMN retry_like_requests INTEGER DEFAULT 0"
+                )
+            if "request_fingerprint" not in existing_columns:
+                connection.execute(
+                    "ALTER TABLE agent_runs ADD COLUMN request_fingerprint TEXT"
+                )
             connection.commit()
 
     def create_run(self, record: dict[str, Any]) -> None:
@@ -85,6 +111,7 @@ class RunStore:
             "goal": record["goal"],
             "business_reason": record.get("business_reason", ""),
             "payload_json": json.dumps(record.get("payload_json", {})),
+            "request_fingerprint": record.get("request_fingerprint"),
             "status": record["status"],
             "risk_level": record["risk_level"],
             "model": record.get("model"),
@@ -103,6 +130,7 @@ class RunStore:
             "completion_tokens": int(record.get("completion_tokens", 0)),
             "total_tokens": int(record.get("total_tokens", 0)),
             "successful_requests": int(record.get("successful_requests", 0)),
+            "retry_like_requests": int(record.get("retry_like_requests", 0)),
             "warnings_json": json.dumps(record.get("warnings_json", [])),
             "blocked_reason": record.get("blocked_reason"),
             "max_iterations": int(record.get("max_iterations", 0)),
@@ -121,20 +149,22 @@ class RunStore:
                 """
                 INSERT INTO agent_runs (
                     run_id, task_id, agent_name, goal, business_reason, payload_json,
+                    request_fingerprint,
                     status, risk_level, model, model_tier, review_required,
                     human_decision_required, approval_required, approval_granted,
                     stop_requested, cross_layer, does_touch_contract, does_touch_runtime,
                     estimated_cost_usd, actual_cost_usd, prompt_tokens, completion_tokens,
-                    total_tokens, successful_requests, warnings_json, blocked_reason,
+                    total_tokens, successful_requests, retry_like_requests, warnings_json, blocked_reason,
                     max_iterations, max_retry_limit, duration_seconds, created_at,
                     started_at, finished_at, updated_at, result_json, review_json, error
                 ) VALUES (
                     :run_id, :task_id, :agent_name, :goal, :business_reason, :payload_json,
+                    :request_fingerprint,
                     :status, :risk_level, :model, :model_tier, :review_required,
                     :human_decision_required, :approval_required, :approval_granted,
                     :stop_requested, :cross_layer, :does_touch_contract, :does_touch_runtime,
                     :estimated_cost_usd, :actual_cost_usd, :prompt_tokens, :completion_tokens,
-                    :total_tokens, :successful_requests, :warnings_json, :blocked_reason,
+                    :total_tokens, :successful_requests, :retry_like_requests, :warnings_json, :blocked_reason,
                     :max_iterations, :max_retry_limit, :duration_seconds, :created_at,
                     :started_at, :finished_at, :updated_at, :result_json, :review_json, :error
                 )
@@ -161,6 +191,7 @@ class RunStore:
             "completion_tokens",
             "total_tokens",
             "successful_requests",
+            "retry_like_requests",
             "warnings_json",
             "blocked_reason",
             "max_iterations",
@@ -228,6 +259,87 @@ class RunStore:
                 (limit,),
             ).fetchall()
         return [self._row_to_dict(row) for row in rows]
+
+    def find_active_run_by_fingerprint(
+        self,
+        request_fingerprint: str,
+    ) -> dict[str, Any] | None:
+        with self._lock, self._connection() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM agent_runs
+                WHERE request_fingerprint = ?
+                  AND status IN ('queued', 'awaiting_approval', 'running')
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (request_fingerprint,),
+            ).fetchone()
+        return self._row_to_dict(row) if row else None
+
+    def get_cached_response(self, cache_key: str) -> dict[str, Any] | None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                "DELETE FROM agent_response_cache WHERE expires_at <= ?",
+                (now,),
+            )
+            row = connection.execute(
+                """
+                SELECT response_json
+                FROM agent_response_cache
+                WHERE cache_key = ?
+                  AND expires_at > ?
+                """,
+                (cache_key, now),
+            ).fetchone()
+            connection.commit()
+        if row is None:
+            return None
+        return json.loads(row["response_json"])
+
+    def set_cached_response(
+        self,
+        *,
+        cache_key: str,
+        agent_name: str,
+        selected_model: str,
+        step_type: str,
+        prompt_hash: str,
+        payload_hash: str,
+        response: dict[str, Any],
+        ttl_hours: int = 24,
+    ) -> None:
+        created_at = datetime.now(timezone.utc)
+        expires_at = created_at.timestamp() + ttl_hours * 3600
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO agent_response_cache (
+                    cache_key,
+                    agent_name,
+                    selected_model,
+                    step_type,
+                    prompt_hash,
+                    payload_hash,
+                    response_json,
+                    created_at,
+                    expires_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    cache_key,
+                    agent_name,
+                    selected_model,
+                    step_type,
+                    prompt_hash,
+                    payload_hash,
+                    json.dumps(response),
+                    created_at.isoformat(),
+                    datetime.fromtimestamp(expires_at, timezone.utc).isoformat(),
+                ),
+            )
+            connection.commit()
 
     def reconcile_stale_runs(self) -> dict[str, int]:
         """Mark orphaned queued or running runs after a service restart."""

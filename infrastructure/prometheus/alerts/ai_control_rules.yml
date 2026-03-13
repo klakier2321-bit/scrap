@@ -48,3 +48,19 @@ groups:
           severity: warning
         annotations:
           summary: "Warstwa agentowa notuje serie zablokowanych wywolan"
+
+      - alert: AgentRetryPressure
+        expr: increase(crypto_ai_retry_like_requests_total[15m]) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Warstwa agentowa wykonuje zbyt duzo dodatkowych retry"
+
+      - alert: AgentModelAllowlistViolation
+        expr: increase(crypto_ai_model_allowlist_violations_total[15m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Wykryto probe uzycia modelu spoza allowlisty"

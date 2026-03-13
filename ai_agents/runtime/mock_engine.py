@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .schemas import PlanOutput, ReviewOutput, StepUsage
+from .schemas import PlanOutput, ReviewOutput, StepUsage, StrategyAssessmentOutput
 
 
 class MockExecutionEngine:
@@ -72,6 +72,53 @@ class MockExecutionEngine:
             StepUsage(
                 agent_name="review_agent",
                 model="mock/review",
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                successful_requests=0,
+                estimated_cost_usd=0.0,
+            ),
+        )
+
+    def run_strategy_assessment_agent(
+        self,
+        strategy_report: dict,
+        run_context: dict,
+    ) -> tuple[StrategyAssessmentOutput, StepUsage]:
+        evaluation_status = strategy_report.get("evaluation_status", "needs_manual_review")
+        stage_candidate = bool(strategy_report.get("stage_candidate"))
+        drawdown_pct = float(strategy_report.get("drawdown_pct", 0.0))
+        if evaluation_status == "rejected":
+            recommendation = "reject"
+            risk_level = "high"
+        elif stage_candidate:
+            recommendation = "promote_after_human_review"
+            risk_level = "low" if drawdown_pct <= 0.03 else "medium"
+        else:
+            recommendation = "needs_manual_review"
+            risk_level = "medium"
+
+        assessment = StrategyAssessmentOutput(
+            summary=(
+                f"Mock assessment for {strategy_report['strategy_name']} based on the latest backtest "
+                f"({strategy_report.get('timeframe', 'unknown')}): profit {strategy_report.get('profit_pct', 0.0):.2%}, "
+                f"drawdown {drawdown_pct:.2%}, trades {strategy_report.get('total_trades', 0)}."
+            ),
+            recommendation=recommendation,
+            risk_level=risk_level,
+            rationale=[
+                f"Profit ratio: {strategy_report.get('profit_pct', 0.0):.4f}.",
+                f"Drawdown ratio: {drawdown_pct:.4f}.",
+                f"Win rate: {strategy_report.get('win_rate', 0.0):.4f}.",
+                f"Evaluation status from strategy report: {evaluation_status}.",
+            ],
+            stage_candidate=stage_candidate,
+        )
+        return (
+            assessment,
+            StepUsage(
+                agent_name="strategy_agent",
+                model=run_context["selected_model"],
                 prompt_tokens=0,
                 completion_tokens=0,
                 total_tokens=0,

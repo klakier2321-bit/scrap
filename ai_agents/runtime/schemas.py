@@ -27,6 +27,20 @@ class ReviewOutput(BaseModel):
     required_changes: list[str] = Field(default_factory=list)
 
 
+class StrategyAssessmentOutput(BaseModel):
+    """Structured assessment produced by strategy_agent from backtest evidence."""
+
+    summary: str
+    recommendation: Literal[
+        "reject",
+        "needs_manual_review",
+        "promote_after_human_review",
+    ]
+    risk_level: Literal["low", "medium", "high"] = "medium"
+    rationale: list[str] = Field(default_factory=list)
+    stage_candidate: bool = False
+
+
 class StepUsage(BaseModel):
     """Usage metrics for a single runtime step."""
 

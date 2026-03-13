@@ -13,6 +13,11 @@ CROSS_LAYER_COORDINATORS = {
     "integration_agent",
     "review_agent",
 }
+REPO_WIDE_PATH_MARKERS = {"", ".", "./", "/", "*", "**", "../", ".."}
+MAX_REQUESTED_PATHS = 10
+MAX_CONTEXT_TEXT_CHARS = 4000
+MAX_REQUESTED_PATHS_CHARS = 1000
+MAX_ESTIMATED_PROMPT_TOKENS = 1500
 
 
 @dataclass(frozen=True)
@@ -56,6 +61,11 @@ def _estimate_prompt_tokens(request_payload: dict[str, Any]) -> int:
     return max(300, len(joined) // 4 + 200)
 
 
+def _is_repo_wide_request(path_value: str) -> bool:
+    normalized = path_value.strip()
+    return normalized in REPO_WIDE_PATH_MARKERS or normalized.startswith("../")
+
+
 def _estimate_cost(
     model_profile: ModelProfile,
     prompt_tokens: int,
@@ -84,12 +94,81 @@ def evaluate_request(
     warnings = list(risk_overrides.get("warnings", []))
 
     requested_paths = request_payload.get("requested_paths", [])
+    combined_context_length = len(request_payload.get("goal", "")) + len(
+        request_payload.get("business_reason", "")
+    )
+    requested_paths_chars = sum(len(path_value) for path_value in requested_paths)
     owned_scope = scope_manifest["agents"][agent_profile.name]["owned_scope"]
     path_outside_scope = [
         path_value
         for path_value in requested_paths
         if not any(_matches_scope(path_value, rule) for rule in owned_scope)
     ]
+
+    if any(_is_repo_wide_request(path_value) for path_value in requested_paths):
+        warnings.append("Repo-wide or parent-directory path requests are not allowed.")
+        return PolicyDecision(
+            allowed=False,
+            blocked_reason="repo_scope_request",
+            review_required=True,
+            human_decision_required=True,
+            approval_required=False,
+            selected_model_tier=agent_profile.model_tier,
+            selected_model=models.get(agent_profile.model_tier, next(iter(models.values()))).model,
+            estimated_cost_usd=0.0,
+            max_iterations=budget_profile.max_iterations,
+            max_retry_limit=budget_profile.max_retry_limit,
+            warnings=warnings,
+        )
+
+    if len(requested_paths) > MAX_REQUESTED_PATHS:
+        warnings.append("Requested path count exceeds the configured maximum.")
+        return PolicyDecision(
+            allowed=False,
+            blocked_reason="requested_paths_limit_exceeded",
+            review_required=True,
+            human_decision_required=True,
+            approval_required=False,
+            selected_model_tier=agent_profile.model_tier,
+            selected_model=models.get(agent_profile.model_tier, next(iter(models.values()))).model,
+            estimated_cost_usd=0.0,
+            max_iterations=budget_profile.max_iterations,
+            max_retry_limit=budget_profile.max_retry_limit,
+            warnings=warnings,
+        )
+
+    if combined_context_length > MAX_CONTEXT_TEXT_CHARS or requested_paths_chars > MAX_REQUESTED_PATHS_CHARS:
+        warnings.append("Task context exceeds the configured maximum size.")
+        return PolicyDecision(
+            allowed=False,
+            blocked_reason="context_too_large",
+            review_required=True,
+            human_decision_required=True,
+            approval_required=False,
+            selected_model_tier=agent_profile.model_tier,
+            selected_model=models.get(agent_profile.model_tier, next(iter(models.values()))).model,
+            estimated_cost_usd=0.0,
+            max_iterations=budget_profile.max_iterations,
+            max_retry_limit=budget_profile.max_retry_limit,
+            warnings=warnings,
+        )
+
+    estimated_prompt_tokens = _estimate_prompt_tokens(request_payload)
+    if estimated_prompt_tokens > MAX_ESTIMATED_PROMPT_TOKENS:
+        warnings.append("Estimated prompt token usage exceeds the configured maximum.")
+        return PolicyDecision(
+            allowed=False,
+            blocked_reason="context_too_large",
+            review_required=True,
+            human_decision_required=True,
+            approval_required=False,
+            selected_model_tier=agent_profile.model_tier,
+            selected_model=models.get(agent_profile.model_tier, next(iter(models.values()))).model,
+            estimated_cost_usd=0.0,
+            max_iterations=budget_profile.max_iterations,
+            max_retry_limit=budget_profile.max_retry_limit,
+            warnings=warnings,
+        )
 
     if sensitive_path_violations:
         warnings.append(
@@ -152,12 +231,27 @@ def evaluate_request(
         )
     ):
         selected_model_tier = "strong"
+    if selected_model_tier not in models:
+        warnings.append("Selected model tier is not allowed by the current allowlist.")
+        return PolicyDecision(
+            allowed=False,
+            blocked_reason="model_not_allowed",
+            review_required=True,
+            human_decision_required=True,
+            approval_required=False,
+            selected_model_tier=selected_model_tier,
+            selected_model=selected_model_tier,
+            estimated_cost_usd=0.0,
+            max_iterations=budget_profile.max_iterations,
+            max_retry_limit=budget_profile.max_retry_limit,
+            warnings=warnings,
+        )
     model_profile = models[selected_model_tier]
 
     review_required = bool(risk_overrides.get("review_required"))
     human_decision_required = bool(risk_overrides.get("human_decision_required"))
 
-    prompt_tokens = _estimate_prompt_tokens(request_payload)
+    prompt_tokens = estimated_prompt_tokens
     completion_tokens = max(model_profile.max_output_tokens // 2, 400)
     estimated_cost = _estimate_cost(model_profile, prompt_tokens, completion_tokens)
 

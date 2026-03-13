@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 .env
 .env.ai.local
+.env.ai.gateway.local
+.env.ai.control.local
 .venv/
 logs/
 user_data/

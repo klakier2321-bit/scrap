@@ -205,6 +205,7 @@
           <a href="/docs" target="_blank" rel="noreferrer">Dokumentacja API</a>
           <a id="grafana-link" href="http://localhost:3000" target="_blank" rel="noreferrer">Grafana</a>
           <a id="prometheus-link" href="http://localhost:9090" target="_blank" rel="noreferrer">Prometheus</a>
+          <a id="grafana-trace-link" href="http://localhost:3000/explore" target="_blank" rel="noreferrer">Trace</a>
           <button id="refresh-all" class="primary">Odśwież wszystko</button>
         </div>
       </section>
@@ -295,6 +296,26 @@
         </section>
 
         <section class="panel large">
+          <h2>Historia raportów strategii</h2>
+          <div class="run-actions" style="margin-bottom: 12px;">
+            <button id="refresh-strategy-report" class="warn">Odśwież assessment strategii</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Strategia</th>
+                <th>Profit</th>
+                <th>Drawdown</th>
+                <th>Trade'y</th>
+                <th>Status</th>
+                <th>Rekomendacja</th>
+              </tr>
+            </thead>
+            <tbody id="strategy-history-table"></tbody>
+          </table>
+        </section>
+
+        <section class="panel large">
           <h2>Logi ai_control</h2>
           <div class="log-box" id="control-logs">Ładowanie logów...</div>
         </section>
@@ -320,7 +341,10 @@
           failed: "Nieudany",
           stopped: "Zatrzymany",
           awaiting_approval: "Oczekuje na zatwierdzenie",
-          started: "Uruchomiony"
+          started: "Uruchomiony",
+          rejected: "Odrzucony",
+          needs_manual_review: "Wymaga decyzji",
+          candidate_for_next_stage: "Kandydat"
         };
         const lowered = (status || "").toLowerCase();
         return labels[lowered] || status || "-";
@@ -348,6 +372,7 @@
         const host = window.location.hostname || "localhost";
         document.getElementById("grafana-link").href = `${protocol}//${host}:3000`;
         document.getElementById("prometheus-link").href = `${protocol}//${host}:9090`;
+        document.getElementById("grafana-trace-link").href = `${protocol}//${host}:3000/explore?left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%22queryType%22:%22search%22%7D%5D`;
       }
 
       async function refreshHealth() {
@@ -431,6 +456,26 @@
         document.getElementById("control-logs").textContent = (payload.logs || []).join("\n") || "Brak logów.";
       }
 
+      async function refreshStrategyReports() {
+        const payload = await fetchJson("/ops/strategy-report/history?limit=10");
+        const reports = payload.reports || [];
+        const tbody = document.getElementById("strategy-history-table");
+        if (reports.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="muted">Brak raportów strategii.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = reports.map((report) => `
+          <tr>
+            <td><strong>${report.strategy_name}</strong><div class="muted">${report.timeframe || "-"}</div></td>
+            <td>${(Number(report.profit_pct || 0) * 100).toFixed(2)}%</td>
+            <td>${(Number(report.drawdown_pct || 0) * 100).toFixed(2)}%</td>
+            <td>${Number(report.total_trades || 0)}</td>
+            <td>${statusPill(report.evaluation_status)}</td>
+            <td>${report.assessment_recommendation || "Brak"}</td>
+          </tr>
+        `).join("");
+      }
+
       async function startBot(botId) {
         try {
           await fetchJson(`/bots/${botId}/start`, { method: "POST" });
@@ -500,13 +545,24 @@
         }
       }
 
+      async function generateStrategyAssessment() {
+        try {
+          await fetchJson("/ops/strategy-report/generate", { method: "POST" });
+          await refreshStrategyReports();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie odswiezyc assessmentu strategii: ${error.message}`);
+        }
+      }
+
       async function refreshAll() {
         await Promise.all([
           refreshHealth(),
           refreshBots(),
           refreshAgents(),
           refreshRuns(),
-          refreshLogs()
+          refreshLogs(),
+          refreshStrategyReports()
         ]);
       }
 
@@ -514,6 +570,7 @@
       document.getElementById("refresh-all").addEventListener("click", refreshAll);
       document.getElementById("run-low").addEventListener("click", () => createRun("low"));
       document.getElementById("run-medium").addEventListener("click", () => createRun("medium"));
+      document.getElementById("refresh-strategy-report").addEventListener("click", generateStrategyAssessment);
 
       refreshAll();
       setInterval(refreshAll, 10000);

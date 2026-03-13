@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import logging
 from typing import Any
 
-from core.metrics import record_blocked_call
+from opentelemetry import trace
+
+from core.metrics import record_blocked_call, record_model_allowlist_violation
 
 from .config import (
     BudgetProfile,
@@ -14,6 +17,7 @@ from .config import (
     load_agent_profiles,
     load_budget_profiles,
     load_model_profiles,
+    load_prompt,
     load_scope_manifest,
 )
 from .crew_factory import CrewAIExecutionEngine
@@ -21,10 +25,8 @@ from .flow import PlanningFlow
 from .hooks import HookRunContext, register_runtime_hooks, reset_current_run_context, set_current_run_context
 from .mock_engine import MockExecutionEngine
 from .policy import evaluate_request
-from .schemas import PlanOutput
-
-
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 @dataclass
@@ -54,6 +56,10 @@ class AgentRuntimeService:
         self.model_profiles = load_model_profiles()
         self.global_budget, self.budget_profiles = load_budget_profiles()
         self.scope_manifest = load_scope_manifest()
+        self.prompt_hashes = {
+            name: hashlib.sha256(load_prompt(profile.prompt_file).encode("utf-8")).hexdigest()
+            for name, profile in self.agent_profiles.items()
+        }
         self.real_engine = CrewAIExecutionEngine(
             settings=settings,
             agent_profiles=self.agent_profiles,
@@ -90,53 +96,84 @@ class AgentRuntimeService:
         risk_overrides: dict[str, Any],
         sensitive_path_violations: list[str],
     ) -> dict[str, Any]:
-        agent_name = request_payload["agent_name"]
-        if agent_name not in self.agent_profiles:
-            return RuntimeDecision(
-                agent_name=agent_name,
-                selected_model_tier="cheap",
-                selected_model=self.model_profiles["cheap"].model,
-                review_required=True,
-                human_decision_required=True,
-                approval_required=False,
-                estimated_cost_usd=0.0,
-                max_iterations=1,
-                max_retry_limit=0,
-                warnings=[f"Unknown agent: {agent_name}"],
-                blocked_reason="unknown_agent",
-                allowed=False,
-            ).__dict__
+        with tracer.start_as_current_span("AgentRuntimeService.prepare_run") as span:
+            agent_name = request_payload["agent_name"]
+            span.set_attribute("crypto.agent_name", agent_name)
+            if agent_name not in self.agent_profiles:
+                return RuntimeDecision(
+                    agent_name=agent_name,
+                    selected_model_tier="cheap",
+                    selected_model=self.model_profiles["cheap"].model,
+                    review_required=True,
+                    human_decision_required=True,
+                    approval_required=False,
+                    estimated_cost_usd=0.0,
+                    max_iterations=1,
+                    max_retry_limit=0,
+                    warnings=[f"Unknown agent: {agent_name}"],
+                    blocked_reason="unknown_agent",
+                    allowed=False,
+                ).__dict__
 
-        decision = evaluate_request(
-            request_payload=request_payload,
-            agent_profile=self.agent_profiles[agent_name],
-            budget_profile=self.budget_profiles[agent_name],
-            models=self.model_profiles,
-            scope_manifest=self.scope_manifest,
-            current_agent_spend=current_agent_spend,
-            current_total_spend=current_total_spend,
-            global_daily_budget_usd=float(
-                self.global_budget.get(
-                    "daily_usd",
-                    self.settings.agent_global_daily_budget_usd,
-                )
-            ),
-            global_per_run_budget_usd=float(
-                self.global_budget.get(
-                    "per_run_usd",
-                    self.settings.agent_global_per_run_budget_usd,
-                )
-            ),
-            risk_overrides=risk_overrides,
-            sensitive_path_violations=sensitive_path_violations,
-        )
-        return decision.to_dict()
+            if self.agent_profiles[agent_name].model_tier not in self.model_profiles:
+                record_model_allowlist_violation(agent_name)
+                return RuntimeDecision(
+                    agent_name=agent_name,
+                    selected_model_tier=self.agent_profiles[agent_name].model_tier,
+                    selected_model=self.agent_profiles[agent_name].model_tier,
+                    review_required=True,
+                    human_decision_required=True,
+                    approval_required=False,
+                    estimated_cost_usd=0.0,
+                    max_iterations=1,
+                    max_retry_limit=0,
+                    warnings=["Agent model tier is outside the configured allowlist."],
+                    blocked_reason="model_not_allowed",
+                    allowed=False,
+                ).__dict__
+
+            decision = evaluate_request(
+                request_payload=request_payload,
+                agent_profile=self.agent_profiles[agent_name],
+                budget_profile=self.budget_profiles[agent_name],
+                models=self.model_profiles,
+                scope_manifest=self.scope_manifest,
+                current_agent_spend=current_agent_spend,
+                current_total_spend=current_total_spend,
+                global_daily_budget_usd=float(
+                    self.global_budget.get(
+                        "daily_usd",
+                        self.settings.agent_global_daily_budget_usd,
+                    )
+                ),
+                global_per_run_budget_usd=float(
+                    self.global_budget.get(
+                        "per_run_usd",
+                        self.settings.agent_global_per_run_budget_usd,
+                    )
+                ),
+                risk_overrides=risk_overrides,
+                sensitive_path_violations=sensitive_path_violations,
+            )
+            decision_dict = decision.to_dict()
+            span.set_attribute("crypto.allowed", bool(decision_dict.get("allowed")))
+            span.set_attribute(
+                "crypto.blocked_reason",
+                decision_dict.get("blocked_reason") or "none",
+            )
+            if decision_dict.get("blocked_reason") == "model_not_allowed":
+                record_model_allowlist_violation(agent_name)
+            return decision_dict
 
     def execute(
         self,
         *,
         run_record: dict[str, Any],
         stop_requested_callback: Any,
+        cache_lookup: Any | None = None,
+        cache_store: Any | None = None,
+        cache_hit_callback: Any | None = None,
+        cache_miss_callback: Any | None = None,
     ) -> dict[str, Any]:
         run_context = {
             "selected_model_tier": run_record["model_tier"],
@@ -146,6 +183,9 @@ class AgentRuntimeService:
             "warnings": run_record.get("warnings_json") or [],
             "max_iterations": int(run_record.get("max_iterations", 1)),
             "max_retry_limit": int(run_record.get("max_retry_limit", 0)),
+            "plan_prompt_hash": self.prompt_hashes.get(run_record["agent_name"], "plan"),
+            "review_prompt_hash": self.prompt_hashes.get("review_agent", "review"),
+            "review_model": self.model_profiles["cheap"].model,
         }
 
         hook_context = HookRunContext(
@@ -180,6 +220,10 @@ class AgentRuntimeService:
                     request_payload=run_record["payload_json"],
                     run_context=run_context,
                     stop_requested_callback=stop_requested_callback,
+                    cache_lookup=cache_lookup,
+                    cache_store=cache_store,
+                    cache_hit_callback=cache_hit_callback,
+                    cache_miss_callback=cache_miss_callback,
                 )
                 return flow.kickoff()
             except Exception:  # noqa: BLE001
@@ -205,7 +249,37 @@ class AgentRuntimeService:
                     request_payload=run_record["payload_json"],
                     run_context=run_context,
                     stop_requested_callback=stop_requested_callback,
+                    cache_lookup=cache_lookup,
+                    cache_store=cache_store,
+                    cache_hit_callback=cache_hit_callback,
+                    cache_miss_callback=cache_miss_callback,
                 )
                 return flow.kickoff()
         finally:
             reset_current_run_context(token)
+
+    def generate_strategy_assessment(
+        self,
+        strategy_report: dict[str, Any],
+    ) -> dict[str, Any]:
+        selected_model_tier = self.agent_profiles["strategy_agent"].model_tier
+        selected_model = self.model_profiles[selected_model_tier].model
+        run_context = {
+            "selected_model_tier": selected_model_tier,
+            "selected_model": selected_model,
+        }
+        engine = self.mock_engine if self.settings.agent_use_mock_llm else self.real_engine
+        assessment_output, usage = engine.run_strategy_assessment_agent(
+            strategy_report,
+            run_context,
+        )
+        return {
+            "generated_by": "strategy_agent",
+            "model": selected_model,
+            "summary": assessment_output.summary,
+            "recommendation": assessment_output.recommendation,
+            "risk_level": assessment_output.risk_level,
+            "rationale": assessment_output.rationale,
+            "stage_candidate": assessment_output.stage_candidate,
+            "estimated_cost_usd": usage.estimated_cost_usd,
+        }

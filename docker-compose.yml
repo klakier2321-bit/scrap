@@ -53,7 +53,7 @@ services:
     container_name: crypto_litellm
     restart: unless-stopped
     env_file:
-      - .env.ai.local
+      - .env.ai.gateway.local
     command:
       - --config
       - /app/config.yaml
@@ -70,9 +70,10 @@ services:
     container_name: crypto_ai_control
     restart: unless-stopped
     env_file:
-      - .env.ai.local
+      - .env.ai.control.local
     depends_on:
       - litellm
+      - tempo
     ports:
       - "8000:8000"
     volumes:
@@ -119,9 +120,20 @@ services:
       - ./infrastructure/promtail/config.yml:/etc/promtail/config.yml:ro
       - ./monitoring/logs:/var/log/crypto-system:ro
 
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: crypto_tempo
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/tempo/config.yaml
+    volumes:
+      - ./infrastructure/tempo/config.yaml:/etc/tempo/config.yaml:ro
+      - tempo_data:/var/tempo
+
 volumes:
   postgres_data:
   redis_data:
   grafana_data:
   prometheus_data:
   loki_data:
+  tempo_data:

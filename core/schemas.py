@@ -94,6 +94,7 @@ class AgentRunRecord(BaseModel):
     completion_tokens: int = 0
     total_tokens: int = 0
     successful_requests: int = 0
+    retry_like_requests: int = 0
     warnings_json: list[str] | None = None
     blocked_reason: str | None = None
     max_iterations: int = 0
@@ -119,3 +120,30 @@ class AgentInfo(BaseModel):
     owned_scope: list[str]
     read_only_scope: list[str]
     forbidden_scope: list[str]
+
+
+class StrategyReportResponse(BaseModel):
+    """Normalized strategy report generated from the latest backtest."""
+
+    strategy_name: str
+    timeframe: str
+    backtest_start: str
+    backtest_end: str
+    profit_pct: float
+    absolute_profit: float
+    drawdown_pct: float
+    drawdown_abs: float
+    total_trades: int
+    win_rate: float
+    stability_score: float | None = None
+    stage_candidate: bool = False
+    evaluation_status: str
+    rejection_reasons: list[str] = Field(default_factory=list)
+    periodic_breakdown_basis: str | None = None
+    source_run_id: str | None = None
+    source_archive: str | None = None
+    assessment_summary: str | None = None
+    assessment_recommendation: str | None = None
+    assessment_risk_level: str | None = None
+    assessment_generated_at: datetime | str | None = None
+    generated_at: datetime | str

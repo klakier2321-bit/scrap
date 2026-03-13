@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from crewai import Agent, Crew, LLM, Process, Task
 
 from .config import AgentProfile, ModelProfile, load_prompt
-from .schemas import PlanOutput, ReviewOutput, StepUsage
+from .schemas import PlanOutput, ReviewOutput, StepUsage, StrategyAssessmentOutput
 
 
 def _compute_cost(
@@ -35,12 +36,15 @@ class CrewAIExecutionEngine:
         self.model_profiles = model_profiles
 
     def _make_llm(self, model_profile: ModelProfile) -> LLM:
+        allowed_models = {profile.model for profile in self.model_profiles.values()}
+        if model_profile.model not in allowed_models:
+            raise ValueError(f"Model '{model_profile.model}' is outside the configured allowlist.")
         return LLM(
             model=model_profile.model,
             is_litellm=True,
             base_url=self.settings.agent_litellm_base_url,
+            api_base=self.settings.agent_litellm_base_url,
             api_key=self.settings.agent_litellm_api_key,
-            temperature=0.1,
         )
 
     def _extract_structured_output(self, crew_output: Any, output_model: type) -> Any:
@@ -51,13 +55,40 @@ class CrewAIExecutionEngine:
             if getattr(task_output, "json_dict", None):
                 return output_model.model_validate(task_output.json_dict)
             if getattr(task_output, "raw", None):
-                raw = task_output.raw.strip()
-                return output_model.model_validate(json.loads(raw))
+                return output_model.model_validate(
+                    self._extract_json_payload(task_output.raw)
+                )
         if getattr(crew_output, "pydantic", None):
             return crew_output.pydantic
         if getattr(crew_output, "json_dict", None):
             return output_model.model_validate(crew_output.json_dict)
         raise ValueError("Crew output did not contain a structured response.")
+
+    def _extract_json_payload(self, raw_text: str) -> dict[str, Any]:
+        raw = raw_text.strip()
+        if raw.startswith("```"):
+            raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.IGNORECASE)
+            raw = re.sub(r"\s*```$", "", raw)
+
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            start = raw.find("{")
+            end = raw.rfind("}")
+            if start == -1 or end == -1 or end <= start:
+                raise
+            return json.loads(raw[start : end + 1])
+
+    def _build_json_output_instruction(self, output_model: type) -> str:
+        schema = output_model.model_json_schema()
+        properties = schema.get("properties", {})
+        required_fields = schema.get("required", [])
+        return (
+            "Return only valid JSON. Do not use markdown, code fences, or prose outside JSON.\n"
+            f"Required fields: {', '.join(required_fields)}.\n"
+            "JSON field schema:\n"
+            f"{json.dumps(properties, ensure_ascii=False, indent=2)}"
+        )
 
     def _usage_from_output(
         self,
@@ -103,16 +134,15 @@ class CrewAIExecutionEngine:
             f"Touches contract: {request_payload.get('does_touch_contract', False)}\n"
             f"Touches runtime: {request_payload.get('does_touch_runtime', False)}\n"
             "Hard rules: no secrets, no local runtime config changes, no direct live trading, "
-            "and keep the change within the ownership model."
+            "and keep the change within the ownership model.\n\n"
+            f"{self._build_json_output_instruction(PlanOutput)}"
         )
         task = Task(
             description=description,
             expected_output=(
-                "A structured plan with summary, recommended actions, affected paths, "
-                "review_required, human_decision_required, and warnings."
+                "Strict JSON matching the requested plan schema."
             ),
             agent=agent,
-            output_pydantic=PlanOutput,
         )
         crew = Crew(
             name=f"{request_payload['agent_name']}_planning_crew",
@@ -161,15 +191,15 @@ class CrewAIExecutionEngine:
             f"Recommended actions: {plan_output.recommended_actions}\n"
             f"Affected paths: {plan_output.affected_paths}\n"
             f"Warnings: {plan_output.warnings}\n"
-            "Respect the project rules and escalate to human review for high-risk or runtime-sensitive work."
+            "Respect the project rules and escalate to human review for high-risk or runtime-sensitive work.\n\n"
+            f"{self._build_json_output_instruction(ReviewOutput)}"
         )
         task = Task(
             description=description,
             expected_output=(
-                "A structured review decision with approve, revise, or human_review_required."
+                "Strict JSON matching the requested review schema."
             ),
             agent=agent,
-            output_pydantic=ReviewOutput,
         )
         crew = Crew(
             name="review_agent_crew",
@@ -186,5 +216,67 @@ class CrewAIExecutionEngine:
         return review_output, self._usage_from_output(
             crew_output,
             "review_agent",
+            model_profile,
+        )
+
+    def run_strategy_assessment_agent(
+        self,
+        strategy_report: dict[str, Any],
+        run_context: dict[str, Any],
+    ) -> tuple[StrategyAssessmentOutput, StepUsage]:
+        agent_profile = self.agent_profiles["strategy_agent"]
+        model_profile = self.model_profiles[run_context["selected_model_tier"]]
+        agent = Agent(
+            role=agent_profile.role,
+            goal=agent_profile.goal,
+            backstory=f"{agent_profile.backstory}\n\n{load_prompt(agent_profile.prompt_file)}",
+            llm=self._make_llm(model_profile),
+            verbose=False,
+            allow_delegation=False,
+            max_iter=agent_profile.max_iter,
+            max_retry_limit=agent_profile.max_retry_limit,
+        )
+        description = (
+            "Assess the following strategy report and return a structured recommendation.\n\n"
+            f"Strategy: {strategy_report['strategy_name']}\n"
+            f"Timeframe: {strategy_report.get('timeframe', 'unknown')}\n"
+            f"Profit ratio: {strategy_report.get('profit_pct', 0.0)}\n"
+            f"Absolute profit: {strategy_report.get('absolute_profit', 0.0)}\n"
+            f"Drawdown ratio: {strategy_report.get('drawdown_pct', 0.0)}\n"
+            f"Drawdown abs: {strategy_report.get('drawdown_abs', 0.0)}\n"
+            f"Total trades: {strategy_report.get('total_trades', 0)}\n"
+            f"Win rate: {strategy_report.get('win_rate', 0.0)}\n"
+            f"Stability score: {strategy_report.get('stability_score')}\n"
+            f"Current evaluation status: {strategy_report.get('evaluation_status')}\n"
+            f"Rejection reasons: {strategy_report.get('rejection_reasons', [])}\n"
+            "Respect the project rules: no live trading promotion without human review, "
+            "and profit never outweighs uncontrolled drawdown.\n\n"
+            f"{self._build_json_output_instruction(StrategyAssessmentOutput)}"
+        )
+        task = Task(
+            description=description,
+            expected_output=(
+                "Strict JSON matching the requested strategy assessment schema."
+            ),
+            agent=agent,
+        )
+        crew = Crew(
+            name="strategy_agent_assessment_crew",
+            agents=[agent],
+            tasks=[task],
+            process=Process.sequential,
+            verbose=False,
+            memory=False,
+            planning=False,
+            tracing=False,
+        )
+        crew_output = crew.kickoff()
+        assessment_output = self._extract_structured_output(
+            crew_output,
+            StrategyAssessmentOutput,
+        )
+        return assessment_output, self._usage_from_output(
+            crew_output,
+            "strategy_agent",
             model_profile,
         )

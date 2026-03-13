@@ -26,6 +26,10 @@ class JsonFormatter(logging.Formatter):
             "agent_name",
             "model",
             "status",
+            "method",
+            "path",
+            "status_code",
+            "duration_ms",
             "event",
             "bot_id",
         ):
