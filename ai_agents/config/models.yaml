@@ -1,0 +1,12 @@
+models:
+  cheap:
+    model: "cheap"
+    estimated_input_cost_per_1k_usd: 0.00015
+    estimated_output_cost_per_1k_usd: 0.0006
+    max_output_tokens: 1200
+
+  strong:
+    model: "strong"
+    estimated_input_cost_per_1k_usd: 0.005
+    estimated_output_cost_per_1k_usd: 0.015
+    max_output_tokens: 2000

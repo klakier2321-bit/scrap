@@ -1,0 +1,211 @@
+"""Runtime service that enforces policy and executes CrewAI flows."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import logging
+from typing import Any
+
+from core.metrics import record_blocked_call
+
+from .config import (
+    BudgetProfile,
+    ModelProfile,
+    load_agent_profiles,
+    load_budget_profiles,
+    load_model_profiles,
+    load_scope_manifest,
+)
+from .crew_factory import CrewAIExecutionEngine
+from .flow import PlanningFlow
+from .hooks import HookRunContext, register_runtime_hooks, reset_current_run_context, set_current_run_context
+from .mock_engine import MockExecutionEngine
+from .policy import evaluate_request
+from .schemas import PlanOutput
+
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class RuntimeDecision:
+    """Prepared runtime decision for one run."""
+
+    agent_name: str
+    selected_model_tier: str
+    selected_model: str
+    review_required: bool
+    human_decision_required: bool
+    approval_required: bool
+    estimated_cost_usd: float
+    max_iterations: int
+    max_retry_limit: int
+    warnings: list[str]
+    blocked_reason: str | None
+    allowed: bool
+
+
+class AgentRuntimeService:
+    """Loads agent config, applies policy, and executes flows."""
+
+    def __init__(self, settings: Any) -> None:
+        self.settings = settings
+        self.agent_profiles = load_agent_profiles()
+        self.model_profiles = load_model_profiles()
+        self.global_budget, self.budget_profiles = load_budget_profiles()
+        self.scope_manifest = load_scope_manifest()
+        self.real_engine = CrewAIExecutionEngine(
+            settings=settings,
+            agent_profiles=self.agent_profiles,
+            model_profiles=self.model_profiles,
+        )
+        self.mock_engine = MockExecutionEngine()
+        register_runtime_hooks()
+
+    def list_agents(self) -> list[dict[str, Any]]:
+        agents = []
+        for name, profile in self.agent_profiles.items():
+            budget = self.budget_profiles[name]
+            manifest = self.scope_manifest["agents"].get(name, {})
+            agents.append(
+                {
+                    "name": name,
+                    "role": profile.role,
+                    "model_tier": profile.model_tier,
+                    "default_daily_budget_usd": budget.daily_usd,
+                    "default_per_run_budget_usd": budget.per_run_usd,
+                    "owned_scope": manifest.get("owned_scope", []),
+                    "read_only_scope": manifest.get("read_only_scope", []),
+                    "forbidden_scope": manifest.get("forbidden_scope", []),
+                }
+            )
+        return agents
+
+    def prepare_run(
+        self,
+        *,
+        request_payload: dict[str, Any],
+        current_agent_spend: float,
+        current_total_spend: float,
+        risk_overrides: dict[str, Any],
+        sensitive_path_violations: list[str],
+    ) -> dict[str, Any]:
+        agent_name = request_payload["agent_name"]
+        if agent_name not in self.agent_profiles:
+            return RuntimeDecision(
+                agent_name=agent_name,
+                selected_model_tier="cheap",
+                selected_model=self.model_profiles["cheap"].model,
+                review_required=True,
+                human_decision_required=True,
+                approval_required=False,
+                estimated_cost_usd=0.0,
+                max_iterations=1,
+                max_retry_limit=0,
+                warnings=[f"Unknown agent: {agent_name}"],
+                blocked_reason="unknown_agent",
+                allowed=False,
+            ).__dict__
+
+        decision = evaluate_request(
+            request_payload=request_payload,
+            agent_profile=self.agent_profiles[agent_name],
+            budget_profile=self.budget_profiles[agent_name],
+            models=self.model_profiles,
+            scope_manifest=self.scope_manifest,
+            current_agent_spend=current_agent_spend,
+            current_total_spend=current_total_spend,
+            global_daily_budget_usd=float(
+                self.global_budget.get(
+                    "daily_usd",
+                    self.settings.agent_global_daily_budget_usd,
+                )
+            ),
+            global_per_run_budget_usd=float(
+                self.global_budget.get(
+                    "per_run_usd",
+                    self.settings.agent_global_per_run_budget_usd,
+                )
+            ),
+            risk_overrides=risk_overrides,
+            sensitive_path_violations=sensitive_path_violations,
+        )
+        return decision.to_dict()
+
+    def execute(
+        self,
+        *,
+        run_record: dict[str, Any],
+        stop_requested_callback: Any,
+    ) -> dict[str, Any]:
+        run_context = {
+            "selected_model_tier": run_record["model_tier"],
+            "selected_model": run_record["model"],
+            "review_required": run_record["review_required"],
+            "human_decision_required": run_record["human_decision_required"],
+            "warnings": run_record.get("warnings_json") or [],
+            "max_iterations": int(run_record.get("max_iterations", 1)),
+            "max_retry_limit": int(run_record.get("max_retry_limit", 0)),
+        }
+
+        hook_context = HookRunContext(
+            run_id=run_record["run_id"],
+            task_id=run_record["task_id"],
+            agent_name=run_record["agent_name"],
+            model=run_record["model"],
+            max_iterations=run_context["max_iterations"],
+            stop_requested=stop_requested_callback,
+            on_blocked=lambda reason: record_blocked_call(run_record["agent_name"], reason),
+            on_llm_call=lambda agent_name, model: logger.info(
+                "LLM call executed.",
+                extra={
+                    "run_id": run_record["run_id"],
+                    "task_id": run_record["task_id"],
+                    "agent_name": agent_name,
+                    "model": model,
+                    "status": "running",
+                    "event": "llm_call",
+                },
+            ),
+        )
+
+        token = set_current_run_context(hook_context)
+        try:
+            engine = self.mock_engine if self.settings.agent_use_mock_llm else self.real_engine
+            try:
+                flow = PlanningFlow(
+                    engine=engine,
+                    run_id=run_record["run_id"],
+                    task_id=run_record["task_id"],
+                    request_payload=run_record["payload_json"],
+                    run_context=run_context,
+                    stop_requested_callback=stop_requested_callback,
+                )
+                return flow.kickoff()
+            except Exception:  # noqa: BLE001
+                if self.settings.agent_use_mock_llm or not self.settings.agent_allow_mock_fallback:
+                    raise
+                logger.exception(
+                    "Real LLM execution failed. Falling back to the mock engine.",
+                    extra={
+                        "run_id": run_record["run_id"],
+                        "task_id": run_record["task_id"],
+                        "agent_name": run_record["agent_name"],
+                        "status": "fallback",
+                        "event": "mock_fallback",
+                    },
+                )
+                run_context["warnings"] = list(run_context.get("warnings", [])) + [
+                    "Real model execution failed. Mock fallback was used."
+                ]
+                flow = PlanningFlow(
+                    engine=self.mock_engine,
+                    run_id=run_record["run_id"],
+                    task_id=run_record["task_id"],
+                    request_payload=run_record["payload_json"],
+                    run_context=run_context,
+                    stop_requested_callback=stop_requested_callback,
+                )
+                return flow.kickoff()
+        finally:
+            reset_current_run_context(token)

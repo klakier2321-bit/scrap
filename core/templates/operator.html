@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title }}</title>
+    <style>
+      :root {
+        --bg: #f4f1e8;
+        --panel: #fffaf2;
+        --line: #d8cfbf;
+        --text: #1e241f;
+        --muted: #556155;
+        --accent: #1f6f5f;
+        --accent-soft: #d9efe8;
+        --warning: #b66a1e;
+        --danger: #8c2f39;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(31,111,95,0.14), transparent 32%),
+          linear-gradient(180deg, #f8f5ee 0%, var(--bg) 100%);
+        color: var(--text);
+      }
+      .layout {
+        max-width: 1360px;
+        margin: 0 auto;
+        padding: 28px 20px 44px;
+      }
+      .hero {
+        display: grid;
+        gap: 18px;
+        margin-bottom: 24px;
+      }
+      .hero h1 {
+        margin: 0;
+        font-size: clamp(2rem, 4vw, 3.4rem);
+        letter-spacing: -0.04em;
+      }
+      .hero p {
+        margin: 0;
+        max-width: 850px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .quick-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .quick-links a,
+      button {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--text);
+        padding: 10px 14px;
+        border-radius: 999px;
+        text-decoration: none;
+        font: inherit;
+        cursor: pointer;
+        transition: transform 120ms ease, background 120ms ease;
+      }
+      button.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      button.warn {
+        background: #fff2df;
+        border-color: #efc693;
+        color: var(--warning);
+      }
+      button.danger {
+        background: #fde9ec;
+        border-color: #e1a9b0;
+        color: var(--danger);
+      }
+      .quick-links a:hover,
+      button:hover {
+        transform: translateY(-1px);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 18px;
+      }
+      .panel {
+        background: rgba(255, 250, 242, 0.95);
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        padding: 18px 18px 16px;
+        box-shadow: 0 14px 50px rgba(49, 54, 47, 0.06);
+      }
+      .panel h2 {
+        margin: 0 0 12px;
+        font-size: 1rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+      .panel.large { grid-column: span 8; }
+      .panel.medium { grid-column: span 6; }
+      .panel.small { grid-column: span 4; }
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .stat {
+        padding: 14px;
+        border-radius: 18px;
+        background: linear-gradient(180deg, #ffffff, #f7f3eb);
+        border: 1px solid #e5dccb;
+      }
+      .stat span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.85rem;
+        margin-bottom: 4px;
+      }
+      .stat strong {
+        font-size: 1.6rem;
+        letter-spacing: -0.03em;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.95rem;
+      }
+      th, td {
+        padding: 10px 8px;
+        text-align: left;
+        border-bottom: 1px solid #ece3d6;
+        vertical-align: top;
+      }
+      th {
+        color: var(--muted);
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 0.82rem;
+        font-weight: 600;
+      }
+      .pill.pending { background: #fff1d9; color: var(--warning); }
+      .pill.danger { background: #fde9ec; color: var(--danger); }
+      .stack {
+        display: grid;
+        gap: 14px;
+      }
+      .run-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .log-box {
+        min-height: 280px;
+        max-height: 420px;
+        overflow: auto;
+        padding: 14px;
+        background: #141916;
+        color: #d8f0de;
+        border-radius: 18px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.82rem;
+        line-height: 1.45;
+        white-space: pre-wrap;
+      }
+      .muted { color: var(--muted); }
+      .hidden { display: none; }
+      @media (max-width: 1100px) {
+        .panel.large,
+        .panel.medium,
+        .panel.small { grid-column: span 12; }
+        .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      }
+      @media (max-width: 720px) {
+        .stats { grid-template-columns: 1fr; }
+        .layout { padding-left: 14px; padding-right: 14px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <section class="hero">
+        <h1>Crypto System Operator Console</h1>
+        <p>
+          Lekki panel operacyjny dla warstwy agentowej. Pokazuje stan botów,
+          koszt i przebieg runów agentów oraz prowadzi człowieka przez model
+          <code>plan -&gt; review -&gt; write</code> bez zmieniania runtime tradingowego.
+        </p>
+        <div class="quick-links">
+          <a href="/docs" target="_blank" rel="noreferrer">API Docs</a>
+          <a href="http://127.0.0.1:3000" target="_blank" rel="noreferrer">Grafana</a>
+          <a href="http://127.0.0.1:9090" target="_blank" rel="noreferrer">Prometheus</a>
+          <button id="refresh-all" class="primary">Odswiez wszystko</button>
+        </div>
+      </section>
+
+      <div class="grid">
+        <section class="panel large">
+          <h2>Health i status warstwy</h2>
+          <div class="stats" id="health-stats">
+            <div class="stat"><span>Status</span><strong id="health-status">...</strong></div>
+            <div class="stat"><span>Tryb agentow</span><strong id="health-mode">...</strong></div>
+            <div class="stat"><span>Mock LLM</span><strong id="health-mock">...</strong></div>
+            <div class="stat"><span>Kill switch</span><strong id="health-kill">...</strong></div>
+          </div>
+        </section>
+
+        <section class="panel small">
+          <h2>Nowy run agenta</h2>
+          <div class="stack">
+            <label>
+              <div class="muted">Agent</div>
+              <select id="agent-name"></select>
+            </label>
+            <label>
+              <div class="muted">Goal</div>
+              <textarea id="agent-goal" rows="5" style="width:100%;border-radius:14px;border:1px solid var(--line);padding:12px;font:inherit;">Przygotuj bezpieczny plan pracy w swoim scope.</textarea>
+            </label>
+            <label>
+              <div class="muted">Requested paths (po przecinku)</div>
+              <input id="requested-paths" type="text" style="width:100%;border-radius:14px;border:1px solid var(--line);padding:12px;font:inherit;" value="docs/" />
+            </label>
+            <div class="run-actions">
+              <button id="run-low" class="primary">Start low-risk</button>
+              <button id="run-medium" class="warn">Start medium-risk</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel medium">
+          <h2>Boty runtime</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Bot</th>
+                <th>State</th>
+                <th>Dry run</th>
+                <th>Akcje</th>
+              </tr>
+            </thead>
+            <tbody id="bots-table"></tbody>
+          </table>
+        </section>
+
+        <section class="panel medium">
+          <h2>Agenci i budzety</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Agent</th>
+                <th>Tier</th>
+                <th>Dzienny budzet</th>
+                <th>Per run</th>
+              </tr>
+            </thead>
+            <tbody id="agents-table"></tbody>
+          </table>
+        </section>
+
+        <section class="panel large">
+          <h2>Runy agentow</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Run</th>
+                <th>Agent</th>
+                <th>Status</th>
+                <th>Model</th>
+                <th>Koszt</th>
+                <th>Akcje</th>
+              </tr>
+            </thead>
+            <tbody id="runs-table"></tbody>
+          </table>
+        </section>
+
+        <section class="panel large">
+          <h2>Logi ai_control</h2>
+          <div class="log-box" id="control-logs">Ladowanie logow...</div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      async function fetchJson(path, options) {
+        const response = await fetch(path, options);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+        return response.json();
+      }
+
+      function statusPill(status) {
+        const lowered = (status || "").toLowerCase();
+        let cls = "";
+        if (["blocked", "failed", "stopped"].includes(lowered)) cls = "danger";
+        else if (["awaiting_approval", "queued", "running"].includes(lowered)) cls = "pending";
+        return `<span class="pill ${cls}">${status || "-"}</span>`;
+      }
+
+      async function refreshHealth() {
+        const health = await fetchJson("/health");
+        document.getElementById("health-status").textContent = health.status;
+        document.getElementById("health-mode").textContent = health.agent_mode;
+        document.getElementById("health-mock").textContent = health.mock_llm ? "true" : "false";
+        document.getElementById("health-kill").textContent = health.kill_switch ? "ON" : "OFF";
+      }
+
+      async function refreshBots() {
+        const bots = await fetchJson("/bots");
+        const tbody = document.getElementById("bots-table");
+        tbody.innerHTML = bots.map((bot) => `
+          <tr>
+            <td><strong>${bot.bot_id}</strong><div class="muted">${bot.description || ""}</div></td>
+            <td>${statusPill(bot.state)}</td>
+            <td>${bot.dry_run ? "true" : "false"}</td>
+            <td class="run-actions">
+              <button onclick="startBot('${bot.bot_id}')">Start</button>
+              <button class="danger" onclick="stopBot('${bot.bot_id}')">Stop</button>
+            </td>
+          </tr>
+        `).join("");
+      }
+
+      async function refreshAgents() {
+        const agents = await fetchJson("/ops/agents");
+        const tbody = document.getElementById("agents-table");
+        document.getElementById("agent-name").innerHTML = agents.map((agent) =>
+          `<option value="${agent.name}">${agent.name}</option>`
+        ).join("");
+        tbody.innerHTML = agents.map((agent) => `
+          <tr>
+            <td><strong>${agent.name}</strong><div class="muted">${agent.role}</div></td>
+            <td>${agent.model_tier}</td>
+            <td>$${Number(agent.default_daily_budget_usd).toFixed(2)}</td>
+            <td>$${Number(agent.default_per_run_budget_usd).toFixed(2)}</td>
+          </tr>
+        `).join("");
+      }
+
+      async function refreshRuns() {
+        const runs = await fetchJson("/ops/runs?limit=20");
+        const tbody = document.getElementById("runs-table");
+        tbody.innerHTML = runs.map((run) => `
+          <tr>
+            <td>
+              <strong>${run.run_id.slice(0, 8)}</strong>
+              <div class="muted">${run.goal}</div>
+            </td>
+            <td>${run.agent_name}</td>
+            <td>${statusPill(run.status)}</td>
+            <td>${run.model || "-"}</td>
+            <td>$${Number(run.actual_cost_usd || run.estimated_cost_usd || 0).toFixed(4)}</td>
+            <td class="run-actions">
+              ${run.status === "awaiting_approval" ? `<button class="warn" onclick="approveRun('${run.run_id}')">Approve</button>` : ""}
+              ${["queued","running","awaiting_approval"].includes(run.status) ? `<button class="danger" onclick="stopRun('${run.run_id}')">Stop</button>` : ""}
+            </td>
+          </tr>
+        `).join("");
+      }
+
+      async function refreshLogs() {
+        const payload = await fetchJson("/ops/logs/ai-control?tail=120");
+        document.getElementById("control-logs").textContent = (payload.logs || []).join("\n") || "Brak logow.";
+      }
+
+      async function startBot(botId) {
+        try {
+          await fetchJson(`/bots/${botId}/start`, { method: "POST" });
+          await refreshBots();
+        } catch (error) {
+          alert(`Nie udalo sie uruchomic bota: ${error.message}`);
+        }
+      }
+
+      async function stopBot(botId) {
+        try {
+          await fetchJson(`/bots/${botId}/stop`, { method: "POST" });
+          await refreshBots();
+        } catch (error) {
+          alert(`Nie udalo sie zatrzymac bota: ${error.message}`);
+        }
+      }
+
+      async function approveRun(runId) {
+        try {
+          await fetchJson(`/ops/runs/${runId}/approve`, { method: "POST" });
+          await refreshRuns();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie zatwierdzic runu: ${error.message}`);
+        }
+      }
+
+      async function stopRun(runId) {
+        try {
+          await fetchJson(`/ops/runs/${runId}/stop`, { method: "POST" });
+          await refreshRuns();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie zatrzymac runu: ${error.message}`);
+        }
+      }
+
+      async function createRun(riskLevel) {
+        const agentName = document.getElementById("agent-name").value;
+        const goal = document.getElementById("agent-goal").value.trim();
+        const requestedPaths = document.getElementById("requested-paths").value
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean);
+        const payload = {
+          agent_name: agentName,
+          goal,
+          business_reason: "Operator console request",
+          requested_paths: requestedPaths,
+          risk_level: riskLevel,
+          cross_layer: false,
+          does_touch_contract: false,
+          does_touch_runtime: false,
+          force_strong_model: false
+        };
+        try {
+          await fetchJson("/ops/runs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          await refreshRuns();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie utworzyc runu: ${error.message}`);
+        }
+      }
+
+      async function refreshAll() {
+        await Promise.all([
+          refreshHealth(),
+          refreshBots(),
+          refreshAgents(),
+          refreshRuns(),
+          refreshLogs()
+        ]);
+      }
+
+      document.getElementById("refresh-all").addEventListener("click", refreshAll);
+      document.getElementById("run-low").addEventListener("click", () => createRun("low"));
+      document.getElementById("run-medium").addEventListener("click", () => createRun("medium"));
+
+      refreshAll();
+      setInterval(refreshAll, 10000);
+    </script>
+  </body>
+</html>

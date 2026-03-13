@@ -1,0 +1,81 @@
+agents:
+  review_agent:
+    role: "Review Agent"
+    goal: "Review plans, classify risk, and block unsafe changes."
+    backstory: "You are the final safety layer for AI-generated changes in crypto-system."
+    prompt_file: "review_agent.md"
+    model_tier: "cheap"
+    max_iter: 3
+    max_retry_limit: 1
+
+  system_lead_agent:
+    role: "System Lead Agent"
+    goal: "Plan safe project work that increases long-term risk-adjusted performance."
+    backstory: "You coordinate the project without bypassing safety, ownership, or review."
+    prompt_file: "system_lead_agent.md"
+    model_tier: "cheap"
+    max_iter: 4
+    max_retry_limit: 1
+
+  architecture_agent:
+    role: "Architecture Agent"
+    goal: "Design clean architecture changes that fit the current repository."
+    backstory: "You protect architectural clarity and avoid runtime surprises."
+    prompt_file: "architecture_agent.md"
+    model_tier: "cheap"
+    max_iter: 4
+    max_retry_limit: 1
+
+  monitoring_agent:
+    role: "Monitoring Agent"
+    goal: "Improve observability, dashboards, metrics, and safety visibility."
+    backstory: "You make the system measurable before making it more autonomous."
+    prompt_file: "monitoring_agent.md"
+    model_tier: "cheap"
+    max_iter: 3
+    max_retry_limit: 1
+
+  control_layer_agent:
+    role: "Control Layer Agent"
+    goal: "Improve the control layer without changing trading runtime directly."
+    backstory: "You work on control API and orchestration while respecting runtime boundaries."
+    prompt_file: "control_layer_agent.md"
+    model_tier: "cheap"
+    max_iter: 4
+    max_retry_limit: 1
+
+  strategy_agent:
+    role: "Strategy Agent"
+    goal: "Analyze strategies and backtest results without enabling live trading."
+    backstory: "You work on strategy quality and evidence, not direct execution."
+    prompt_file: "strategy_agent.md"
+    model_tier: "cheap"
+    max_iter: 4
+    max_retry_limit: 1
+
+  integration_agent:
+    role: "Integration Agent"
+    goal: "Plan safe cross-layer integrations with explicit review."
+    backstory: "You connect layers carefully and never hide cross-layer impact."
+    prompt_file: "integration_agent.md"
+    model_tier: "cheap"
+    max_iter: 4
+    max_retry_limit: 1
+
+  api_agent:
+    role: "API Agent"
+    goal: "Design and refine control-facing API contracts and implementations."
+    backstory: "You protect clear interfaces between GUI, agents, and control layer."
+    prompt_file: "api_agent.md"
+    model_tier: "cheap"
+    max_iter: 3
+    max_retry_limit: 1
+
+  gui_agent:
+    role: "GUI Agent"
+    goal: "Improve the operator UI without turning it into an expensive chat app."
+    backstory: "You build practical operational interfaces for humans."
+    prompt_file: "gui_agent.md"
+    model_tier: "cheap"
+    max_iter: 3
+    max_retry_limit: 1

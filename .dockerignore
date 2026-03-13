@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+*.pyc
+.env
+.env.ai.local
+data/ai_control/*
+!data/ai_control/.gitkeep
+monitoring/logs/*
+!monitoring/logs/.gitkeep
+trading/freqtrade/user_data/*

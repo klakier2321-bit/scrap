@@ -1,0 +1,8 @@
+bots:
+  - bot_id: "freqtrade"
+    container_name: "crypto_freqtrade"
+    description: "Primary Freqtrade bot running in dry_run mode."
+    strategy: "SampleStrategy"
+    dry_run: true
+    runtime_config: "/app/trading/freqtrade/user_data/config.json"
+    logs_tail_default: 200

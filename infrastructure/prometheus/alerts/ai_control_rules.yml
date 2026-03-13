@@ -1,0 +1,50 @@
+groups:
+  - name: ai-control.rules
+    rules:
+      - alert: AgentBudgetUsage50
+        expr: sum(increase(crypto_ai_estimated_cost_usd_total[24h])) > 2.5
+        for: 2m
+        labels:
+          severity: info
+        annotations:
+          summary: "Warstwa agentowa przekroczyla 50% dziennego budzetu"
+
+      - alert: AgentBudgetUsage80
+        expr: sum(increase(crypto_ai_estimated_cost_usd_total[24h])) > 4
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Warstwa agentowa przekroczyla 80% dziennego budzetu"
+
+      - alert: AgentBudgetUsage95
+        expr: sum(increase(crypto_ai_estimated_cost_usd_total[24h])) > 4.75
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Warstwa agentowa przekroczyla 95% dziennego budzetu"
+
+      - alert: AgentScopeViolationDetected
+        expr: increase(crypto_ai_scope_violations_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Wykryto naruszenie scope agenta"
+
+      - alert: AgentBudgetPressureHigh
+        expr: increase(crypto_ai_estimated_cost_usd_total[1h]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Warstwa agentowa szybko zuzywa budzet"
+
+      - alert: AgentBlockedCallsSpike
+        expr: increase(crypto_ai_blocked_calls_total[15m]) > 3
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Warstwa agentowa notuje serie zablokowanych wywolan"

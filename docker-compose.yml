@@ -32,6 +32,8 @@ services:
       - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards:ro
 
   freqtrade:
     image: freqtradeorg/freqtrade:stable
@@ -45,7 +47,80 @@ services:
       - --config
       - /freqtrade/user_data/config.json
 
+  litellm:
+    image: docker.litellm.ai/berriai/litellm:main-latest
+    container_name: crypto_litellm
+    restart: unless-stopped
+    env_file:
+      - .env.ai.local
+    command:
+      - --config
+      - /app/config.yaml
+      - --port
+      - "4000"
+    volumes:
+      - ./infrastructure/litellm/config.yaml:/app/config.yaml:ro
+      - ./monitoring/logs:/app/logs
+
+  ai_control:
+    build:
+      context: .
+      dockerfile: infrastructure/ai_control/Dockerfile
+    container_name: crypto_ai_control
+    restart: unless-stopped
+    env_file:
+      - .env.ai.local
+    depends_on:
+      - litellm
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./trading/freqtrade/user_data:/app/trading/freqtrade/user_data:ro
+      - ./data/ai_control:/app/data/ai_control
+      - ./monitoring/logs:/app/logs
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: crypto_prometheus
+    restart: unless-stopped
+    depends_on:
+      - ai_control
+      - litellm
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infrastructure/prometheus/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
+
+  loki:
+    image: grafana/loki:3.2.1
+    container_name: crypto_loki
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./infrastructure/loki/config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    container_name: crypto_promtail
+    restart: unless-stopped
+    depends_on:
+      - loki
+    command:
+      - -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./infrastructure/promtail/config.yml:/etc/promtail/config.yml:ro
+      - ./monitoring/logs:/var/log/crypto-system:ro
+
 volumes:
   postgres_data:
   redis_data:
   grafana_data:
+  prometheus_data:
+  loki_data:

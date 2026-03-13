@@ -1,0 +1,102 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 3, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto" },
+      "targets": [{ "expr": "sum(increase(crypto_ai_scope_violations_total[24h]))", "refId": "A" }],
+      "title": "Scope Violations 24h",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 3, "x": 3, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto" },
+      "targets": [{ "expr": "sum(increase(crypto_ai_blocked_calls_total[24h]))", "refId": "A" }],
+      "title": "Blocked Calls 24h",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 3, "x": 6, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto" },
+      "targets": [{ "expr": "sum(increase(crypto_ai_human_escalations_total[24h]))", "refId": "A" }],
+      "title": "Human Escalations 24h",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 3, "x": 9, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto" },
+      "targets": [{ "expr": "sum(increase(crypto_ai_review_required_total[24h]))", "refId": "A" }],
+      "title": "Reviews Required 24h",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 8 },
+      "id": 5,
+      "targets": [
+        {
+          "expr": "sum(increase(crypto_ai_estimated_cost_usd_total[1d]))",
+          "legendFormat": "Daily cost",
+          "refId": "A"
+        },
+        {
+          "expr": "vector(2.5)",
+          "legendFormat": "50% budget",
+          "refId": "B"
+        },
+        {
+          "expr": "vector(4)",
+          "legendFormat": "80% budget",
+          "refId": "C"
+        },
+        {
+          "expr": "vector(4.75)",
+          "legendFormat": "95% budget",
+          "refId": "D"
+        }
+      ],
+      "title": "Daily Cost vs Budget Thresholds",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["crypto-system", "safety"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "title": "Safety Dashboard",
+  "uid": "crypto-safety",
+  "version": 1
+}

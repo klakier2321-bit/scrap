@@ -1,9 +1,14 @@
 __pycache__/
 *.pyc
 .env
+.env.ai.local
 .venv/
 logs/
 user_data/
 trading/freqtrade/user_data/config.json
 trading/freqtrade/user_data/config.backtest.local.json
+data/ai_control/*
+!data/ai_control/.gitkeep
+monitoring/logs/*
+!monitoring/logs/.gitkeep
 .DS_Store

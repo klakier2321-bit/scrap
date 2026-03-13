@@ -1,0 +1,68 @@
+global:
+  daily_usd: 5.0
+  per_run_usd: 0.5
+  require_approval_for_strong_model: true
+
+agents:
+  review_agent:
+    daily_usd: 0.75
+    per_run_usd: 0.1
+    max_iterations: 3
+    max_retry_limit: 1
+    require_approval_for_strong_model: false
+
+  system_lead_agent:
+    daily_usd: 1.5
+    per_run_usd: 0.35
+    max_iterations: 4
+    max_retry_limit: 1
+    require_approval_for_strong_model: true
+
+  architecture_agent:
+    daily_usd: 0.75
+    per_run_usd: 0.2
+    max_iterations: 4
+    max_retry_limit: 1
+    require_approval_for_strong_model: true
+
+  monitoring_agent:
+    daily_usd: 0.5
+    per_run_usd: 0.15
+    max_iterations: 3
+    max_retry_limit: 1
+    require_approval_for_strong_model: false
+
+  control_layer_agent:
+    daily_usd: 0.75
+    per_run_usd: 0.2
+    max_iterations: 4
+    max_retry_limit: 1
+    require_approval_for_strong_model: false
+
+  strategy_agent:
+    daily_usd: 0.75
+    per_run_usd: 0.2
+    max_iterations: 4
+    max_retry_limit: 1
+    require_approval_for_strong_model: true
+
+  integration_agent:
+    daily_usd: 0.5
+    per_run_usd: 0.2
+    max_iterations: 4
+    max_retry_limit: 1
+    require_approval_for_strong_model: true
+
+  api_agent:
+    daily_usd: 0.5
+    per_run_usd: 0.15
+    max_iterations: 3
+    max_retry_limit: 1
+    require_approval_for_strong_model: false
+
+  gui_agent:
+    daily_usd: 0.5
+    per_run_usd: 0.15
+    max_iterations: 3
+    max_retry_limit: 1
+    require_approval_for_strong_model: false
