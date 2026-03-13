@@ -33,3 +33,12 @@ Start od dokumentów kanonicznych w `docs/`:
 - `docs/DECISIONS.md`
 - `docs/openapi.yaml`
 - `docs/AI_CHANGE_RULES.md`
+
+## Dostęp operatorski
+
+- Grafana jest dostępna publicznie na porcie `3000`
+- panel operatorski AI jest dostępny publicznie na porcie `8000`
+- Prometheus jest dostępny publicznie na porcie `9090`
+
+Uwaga:
+panel operatorski AI i Prometheus są obecnie wystawione publicznie bez dodatkowej warstwy autoryzacji.

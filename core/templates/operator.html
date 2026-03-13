@@ -194,28 +194,34 @@
   <body>
     <div class="layout">
       <section class="hero">
-        <h1>Crypto System Operator Console</h1>
+        <h1>Panel operatorski AI</h1>
         <p>
-          Lekki panel operacyjny dla warstwy agentowej. Pokazuje stan botów,
-          koszt i przebieg runów agentów oraz prowadzi człowieka przez model
-          <code>plan -&gt; review -&gt; write</code> bez zmieniania runtime tradingowego.
+          Lekki panel operacyjny dla warstwy agentowej. Pokazuje stan warstwy AI,
+          botów runtime, koszt i przebieg runów agentów oraz prowadzi człowieka
+          przez model <code>plan -&gt; review -&gt; write</code> bez zmieniania runtime
+          tradingowego.
         </p>
         <div class="quick-links">
-          <a href="/docs" target="_blank" rel="noreferrer">API Docs</a>
-          <a href="http://127.0.0.1:3000" target="_blank" rel="noreferrer">Grafana</a>
-          <a href="http://127.0.0.1:9090" target="_blank" rel="noreferrer">Prometheus</a>
-          <button id="refresh-all" class="primary">Odswiez wszystko</button>
+          <a href="/docs" target="_blank" rel="noreferrer">Dokumentacja API</a>
+          <a id="grafana-link" href="http://localhost:3000" target="_blank" rel="noreferrer">Grafana</a>
+          <a id="prometheus-link" href="http://localhost:9090" target="_blank" rel="noreferrer">Prometheus</a>
+          <button id="refresh-all" class="primary">Odśwież wszystko</button>
         </div>
       </section>
 
       <div class="grid">
         <section class="panel large">
-          <h2>Health i status warstwy</h2>
+          <h2>Stan warstwy AI</h2>
           <div class="stats" id="health-stats">
             <div class="stat"><span>Status</span><strong id="health-status">...</strong></div>
-            <div class="stat"><span>Tryb agentow</span><strong id="health-mode">...</strong></div>
+            <div class="stat"><span>Tryb agentów</span><strong id="health-mode">...</strong></div>
             <div class="stat"><span>Mock LLM</span><strong id="health-mock">...</strong></div>
             <div class="stat"><span>Kill switch</span><strong id="health-kill">...</strong></div>
+            <div class="stat"><span>Aktywne runy</span><strong id="summary-active-runs">...</strong></div>
+            <div class="stat"><span>Zablokowane runy</span><strong id="summary-blocked-runs">...</strong></div>
+            <div class="stat"><span>Runy do review</span><strong id="summary-review-runs">...</strong></div>
+            <div class="stat"><span>Ostatni zablokowany run</span><strong id="summary-last-blocked">...</strong></div>
+            <div class="stat"><span>Ostatnia decyzja review</span><strong id="summary-last-review">...</strong></div>
           </div>
         </section>
 
@@ -227,16 +233,16 @@
               <select id="agent-name"></select>
             </label>
             <label>
-              <div class="muted">Goal</div>
+              <div class="muted">Cel</div>
               <textarea id="agent-goal" rows="5" style="width:100%;border-radius:14px;border:1px solid var(--line);padding:12px;font:inherit;">Przygotuj bezpieczny plan pracy w swoim scope.</textarea>
             </label>
             <label>
-              <div class="muted">Requested paths (po przecinku)</div>
+              <div class="muted">Żądane ścieżki (po przecinku)</div>
               <input id="requested-paths" type="text" style="width:100%;border-radius:14px;border:1px solid var(--line);padding:12px;font:inherit;" value="docs/" />
             </label>
             <div class="run-actions">
-              <button id="run-low" class="primary">Start low-risk</button>
-              <button id="run-medium" class="warn">Start medium-risk</button>
+              <button id="run-low" class="primary">Uruchom niski poziom ryzyka</button>
+              <button id="run-medium" class="warn">Uruchom średni poziom ryzyka</button>
             </div>
           </div>
         </section>
@@ -247,7 +253,7 @@
             <thead>
               <tr>
                 <th>Bot</th>
-                <th>State</th>
+                <th>Stan</th>
                 <th>Dry run</th>
                 <th>Akcje</th>
               </tr>
@@ -262,9 +268,9 @@
             <thead>
               <tr>
                 <th>Agent</th>
-                <th>Tier</th>
-                <th>Dzienny budzet</th>
-                <th>Per run</th>
+                <th>Profil modelu</th>
+                <th>Budżet dzienny</th>
+                <th>Budżet na run</th>
               </tr>
             </thead>
             <tbody id="agents-table"></tbody>
@@ -272,7 +278,7 @@
         </section>
 
         <section class="panel large">
-          <h2>Runy agentow</h2>
+          <h2>Runy agentów</h2>
           <table>
             <thead>
               <tr>
@@ -290,7 +296,7 @@
 
         <section class="panel large">
           <h2>Logi ai_control</h2>
-          <div class="log-box" id="control-logs">Ladowanie logow...</div>
+          <div class="log-box" id="control-logs">Ładowanie logów...</div>
         </section>
       </div>
     </div>
@@ -305,20 +311,51 @@
         return response.json();
       }
 
+      function translateStatus(status) {
+        const labels = {
+          queued: "W kolejce",
+          running: "W trakcie",
+          completed: "Zakończony",
+          blocked: "Zablokowany",
+          failed: "Nieudany",
+          stopped: "Zatrzymany",
+          awaiting_approval: "Oczekuje na zatwierdzenie",
+          started: "Uruchomiony"
+        };
+        const lowered = (status || "").toLowerCase();
+        return labels[lowered] || status || "-";
+      }
+
+      function translateReviewDecision(decision) {
+        const labels = {
+          approve: "Zatwierdź",
+          revise: "Wymaga poprawek",
+          human_review_required: "Wymaga decyzji człowieka"
+        };
+        return labels[decision] || decision || "Brak";
+      }
+
       function statusPill(status) {
         const lowered = (status || "").toLowerCase();
         let cls = "";
         if (["blocked", "failed", "stopped"].includes(lowered)) cls = "danger";
         else if (["awaiting_approval", "queued", "running"].includes(lowered)) cls = "pending";
-        return `<span class="pill ${cls}">${status || "-"}</span>`;
+        return `<span class="pill ${cls}">${translateStatus(status)}</span>`;
+      }
+
+      function configureExternalLinks() {
+        const protocol = window.location.protocol || "http:";
+        const host = window.location.hostname || "localhost";
+        document.getElementById("grafana-link").href = `${protocol}//${host}:3000`;
+        document.getElementById("prometheus-link").href = `${protocol}//${host}:9090`;
       }
 
       async function refreshHealth() {
         const health = await fetchJson("/health");
         document.getElementById("health-status").textContent = health.status;
         document.getElementById("health-mode").textContent = health.agent_mode;
-        document.getElementById("health-mock").textContent = health.mock_llm ? "true" : "false";
-        document.getElementById("health-kill").textContent = health.kill_switch ? "ON" : "OFF";
+        document.getElementById("health-mock").textContent = health.mock_llm ? "Tak" : "Nie";
+        document.getElementById("health-kill").textContent = health.kill_switch ? "Włączony" : "Wyłączony";
       }
 
       async function refreshBots() {
@@ -328,10 +365,10 @@
           <tr>
             <td><strong>${bot.bot_id}</strong><div class="muted">${bot.description || ""}</div></td>
             <td>${statusPill(bot.state)}</td>
-            <td>${bot.dry_run ? "true" : "false"}</td>
+            <td>${bot.dry_run ? "Tak" : "Nie"}</td>
             <td class="run-actions">
-              <button onclick="startBot('${bot.bot_id}')">Start</button>
-              <button class="danger" onclick="stopBot('${bot.bot_id}')">Stop</button>
+              <button onclick="startBot('${bot.bot_id}')">Uruchom</button>
+              <button class="danger" onclick="stopBot('${bot.bot_id}')">Zatrzymaj</button>
             </td>
           </tr>
         `).join("");
@@ -353,9 +390,24 @@
         `).join("");
       }
 
+      function refreshOperatorSummary(runs) {
+        const activeRuns = runs.filter((run) => ["queued", "running", "awaiting_approval"].includes(run.status)).length;
+        const blockedRuns = runs.filter((run) => run.status === "blocked").length;
+        const reviewRuns = runs.filter((run) => run.review_required).length;
+        const lastBlocked = runs.find((run) => run.status === "blocked");
+        const lastReviewed = runs.find((run) => run.review_json && run.review_json.decision);
+
+        document.getElementById("summary-active-runs").textContent = String(activeRuns);
+        document.getElementById("summary-blocked-runs").textContent = String(blockedRuns);
+        document.getElementById("summary-review-runs").textContent = String(reviewRuns);
+        document.getElementById("summary-last-blocked").textContent = lastBlocked ? `${lastBlocked.agent_name}` : "Brak";
+        document.getElementById("summary-last-review").textContent = lastReviewed ? translateReviewDecision(lastReviewed.review_json.decision) : "Brak";
+      }
+
       async function refreshRuns() {
         const runs = await fetchJson("/ops/runs?limit=20");
         const tbody = document.getElementById("runs-table");
+        refreshOperatorSummary(runs);
         tbody.innerHTML = runs.map((run) => `
           <tr>
             <td>
@@ -367,8 +419,8 @@
             <td>${run.model || "-"}</td>
             <td>$${Number(run.actual_cost_usd || run.estimated_cost_usd || 0).toFixed(4)}</td>
             <td class="run-actions">
-              ${run.status === "awaiting_approval" ? `<button class="warn" onclick="approveRun('${run.run_id}')">Approve</button>` : ""}
-              ${["queued","running","awaiting_approval"].includes(run.status) ? `<button class="danger" onclick="stopRun('${run.run_id}')">Stop</button>` : ""}
+              ${run.status === "awaiting_approval" ? `<button class="warn" onclick="approveRun('${run.run_id}')">Zatwierdź</button>` : ""}
+              ${["queued","running","awaiting_approval"].includes(run.status) ? `<button class="danger" onclick="stopRun('${run.run_id}')">Zatrzymaj</button>` : ""}
             </td>
           </tr>
         `).join("");
@@ -376,7 +428,7 @@
 
       async function refreshLogs() {
         const payload = await fetchJson("/ops/logs/ai-control?tail=120");
-        document.getElementById("control-logs").textContent = (payload.logs || []).join("\n") || "Brak logow.";
+        document.getElementById("control-logs").textContent = (payload.logs || []).join("\n") || "Brak logów.";
       }
 
       async function startBot(botId) {
@@ -427,7 +479,7 @@
         const payload = {
           agent_name: agentName,
           goal,
-          business_reason: "Operator console request",
+          business_reason: "Żądanie z panelu operatorskiego",
           requested_paths: requestedPaths,
           risk_level: riskLevel,
           cross_layer: false,
@@ -458,6 +510,7 @@
         ]);
       }
 
+      configureExternalLinks();
       document.getElementById("refresh-all").addEventListener("click", refreshAll);
       document.getElementById("run-low").addEventListener("click", () => createRun("low"));
       document.getElementById("run-medium").addEventListener("click", () => createRun("medium"));

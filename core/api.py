@@ -46,7 +46,7 @@ async def operator_ui(request: Request):
         "operator.html",
         {
             "request": request,
-            "title": "Crypto System Operator Console",
+            "title": "Panel operatorski AI",
         },
     )
 

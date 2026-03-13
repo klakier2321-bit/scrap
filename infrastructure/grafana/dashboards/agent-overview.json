@@ -10,7 +10,7 @@
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
+        "name": "Adnotacje i alerty",
         "type": "dashboard"
       }
     ]
@@ -27,7 +27,7 @@
       "id": 1,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
       "targets": [{ "expr": "sum(crypto_ai_active_runs)", "refId": "A" }],
-      "title": "Active Runs",
+      "title": "Aktywne runy",
       "type": "stat"
     },
     {
@@ -37,7 +37,7 @@
       "id": 2,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
       "targets": [{ "expr": "sum(increase(crypto_ai_agent_runs_total{status=\"completed\"}[24h]))", "refId": "A" }],
-      "title": "Completed Runs 24h",
+      "title": "Runy zakończone 24h",
       "type": "stat"
     },
     {
@@ -47,7 +47,7 @@
       "id": 3,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
       "targets": [{ "expr": "sum(increase(crypto_ai_agent_runs_total{status=\"failed\"}[24h]))", "refId": "A" }],
-      "title": "Failed Runs 24h",
+      "title": "Runy nieudane 24h",
       "type": "stat"
     },
     {
@@ -62,7 +62,7 @@
           "refId": "A"
         }
       ],
-      "title": "Completed Runs by Agent (1h)",
+      "title": "Runy zakończone według agenta (1h)",
       "type": "timeseries"
     },
     {
@@ -77,8 +77,18 @@
           "refId": "A"
         }
       ],
-      "title": "LLM Calls by Agent and Model (1h)",
+      "title": "Wywołania LLM według agenta i modelu (1h)",
       "type": "timeseries"
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "id": 6,
+      "options": {
+        "content": "## Szybkie linki operatora\\n\\n- Panel operatorski AI: `http://<adres-serwera>:8000/`\\n- Prometheus: `http://<adres-serwera>:9090/`\\n- Grafana: `http://<adres-serwera>:3000/`\\n\\nTen dashboard jest domyślnym widokiem startowym Grafany.",
+        "mode": "markdown"
+      },
+      "title": "Szybkie linki",
+      "type": "text"
     }
   ],
   "refresh": "10s",
@@ -86,7 +96,7 @@
   "tags": ["crypto-system", "agents"],
   "templating": { "list": [] },
   "time": { "from": "now-24h", "to": "now" },
-  "title": "Agent Overview",
+  "title": "Przegląd Agentów",
   "uid": "crypto-agent-overview",
   "version": 1
 }

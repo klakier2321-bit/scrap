@@ -2,7 +2,7 @@ apiVersion: 1
 
 providers:
   - name: crypto-system
-    folder: Crypto System
+    folder: System Crypto
     type: file
     disableDeletion: false
     editable: true

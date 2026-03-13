@@ -28,6 +28,7 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/agent-overview.json
     ports:
       - "3000:3000"
     volumes:
@@ -73,7 +74,7 @@ services:
     depends_on:
       - litellm
     ports:
-      - "127.0.0.1:8000:8000"
+      - "8000:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./trading/freqtrade/user_data:/app/trading/freqtrade/user_data:ro
@@ -88,7 +89,7 @@ services:
       - ai_control
       - litellm
     ports:
-      - "127.0.0.1:9090:9090"
+      - "9090:9090"
     volumes:
       - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./infrastructure/prometheus/alerts:/etc/prometheus/alerts:ro

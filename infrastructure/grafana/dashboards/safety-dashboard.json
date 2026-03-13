@@ -10,7 +10,7 @@
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
+        "name": "Adnotacje i alerty",
         "type": "dashboard"
       }
     ]
@@ -27,7 +27,7 @@
       "id": 1,
       "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto" },
       "targets": [{ "expr": "sum(increase(crypto_ai_scope_violations_total[24h]))", "refId": "A" }],
-      "title": "Scope Violations 24h",
+      "title": "Naruszenia zakresu 24h",
       "type": "stat"
     },
     {
@@ -37,7 +37,7 @@
       "id": 2,
       "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto" },
       "targets": [{ "expr": "sum(increase(crypto_ai_blocked_calls_total[24h]))", "refId": "A" }],
-      "title": "Blocked Calls 24h",
+      "title": "Zablokowane wywołania 24h",
       "type": "stat"
     },
     {
@@ -47,7 +47,7 @@
       "id": 3,
       "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto" },
       "targets": [{ "expr": "sum(increase(crypto_ai_human_escalations_total[24h]))", "refId": "A" }],
-      "title": "Human Escalations 24h",
+      "title": "Eskalacje do człowieka 24h",
       "type": "stat"
     },
     {
@@ -57,7 +57,7 @@
       "id": 4,
       "options": { "colorMode": "background", "graphMode": "none", "justifyMode": "auto" },
       "targets": [{ "expr": "sum(increase(crypto_ai_review_required_total[24h]))", "refId": "A" }],
-      "title": "Reviews Required 24h",
+      "title": "Wymagane review 24h",
       "type": "stat"
     },
     {
@@ -68,26 +68,26 @@
       "targets": [
         {
           "expr": "sum(increase(crypto_ai_estimated_cost_usd_total[1d]))",
-          "legendFormat": "Daily cost",
+          "legendFormat": "Koszt dzienny",
           "refId": "A"
         },
         {
           "expr": "vector(2.5)",
-          "legendFormat": "50% budget",
+          "legendFormat": "50% budżetu",
           "refId": "B"
         },
         {
           "expr": "vector(4)",
-          "legendFormat": "80% budget",
+          "legendFormat": "80% budżetu",
           "refId": "C"
         },
         {
           "expr": "vector(4.75)",
-          "legendFormat": "95% budget",
+          "legendFormat": "95% budżetu",
           "refId": "D"
         }
       ],
-      "title": "Daily Cost vs Budget Thresholds",
+      "title": "Koszt dzienny względem progów budżetu",
       "type": "timeseries"
     }
   ],
@@ -96,7 +96,7 @@
   "tags": ["crypto-system", "safety"],
   "templating": { "list": [] },
   "time": { "from": "now-24h", "to": "now" },
-  "title": "Safety Dashboard",
+  "title": "Bezpieczeństwo",
   "uid": "crypto-safety",
   "version": 1
 }

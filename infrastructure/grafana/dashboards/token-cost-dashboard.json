@@ -10,7 +10,7 @@
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
+        "name": "Adnotacje i alerty",
         "type": "dashboard"
       }
     ]
@@ -27,7 +27,7 @@
       "id": 1,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
       "targets": [{ "expr": "sum(increase(crypto_ai_estimated_cost_usd_total[24h]))", "refId": "A" }],
-      "title": "Estimated Cost 24h",
+      "title": "Szacowany koszt 24h",
       "type": "stat"
     },
     {
@@ -37,7 +37,7 @@
       "id": 2,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
       "targets": [{ "expr": "sum(increase(crypto_ai_total_tokens_total[24h]))", "refId": "A" }],
-      "title": "Total Tokens 24h",
+      "title": "Łączne tokeny 24h",
       "type": "stat"
     },
     {
@@ -47,7 +47,7 @@
       "id": 3,
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
       "targets": [{ "expr": "sum(increase(crypto_ai_prompt_tokens_total[24h]))", "refId": "A" }],
-      "title": "Prompt Tokens 24h",
+      "title": "Tokeny promptu 24h",
       "type": "stat"
     },
     {
@@ -62,7 +62,7 @@
           "refId": "A"
         }
       ],
-      "title": "Cost by Agent (24h)",
+      "title": "Koszt według agenta (24h)",
       "type": "timeseries"
     },
     {
@@ -77,7 +77,7 @@
           "refId": "A"
         }
       ],
-      "title": "Tokens by Agent and Model (24h)",
+      "title": "Tokeny według agenta i modelu (24h)",
       "type": "timeseries"
     }
   ],
@@ -86,7 +86,7 @@
   "tags": ["crypto-system", "costs", "tokens"],
   "templating": { "list": [] },
   "time": { "from": "now-24h", "to": "now" },
-  "title": "Token & Cost Dashboard",
+  "title": "Koszty i Tokeny",
   "uid": "crypto-token-costs",
   "version": 1
 }
