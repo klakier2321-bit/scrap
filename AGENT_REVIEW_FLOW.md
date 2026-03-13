@@ -45,3 +45,4 @@ Takie zmiany zawsze wymagają człowieka.
 
 Zmiany dotykające runtime, bezpieczeństwa, `docker-compose`, tradingu live i sekretów wymagają review człowieka.
 `review_agent` może wspierać analizę zmian, ale nie zastępuje człowieka przy zmianach wysokiego ryzyka.
+To ograniczenie obowiązuje również `system_lead_agent`.

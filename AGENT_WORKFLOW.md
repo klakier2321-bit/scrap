@@ -4,6 +4,7 @@
 
 Agent dostaje zadanie z jasno określonym celem, zakresem i ograniczeniami.
 Najpierw analizuje scope i identyfikuje, której warstwy projektu dotyczy zmiana.
+Wejściem do pracy powinien być ustandaryzowany task, a wyjściem ustandaryzowany artefakt lub diff.
 
 ## Scope analysis
 
@@ -38,6 +39,8 @@ Commit można wykonać dopiero po domknięciu scope i upewnieniu się, że zmian
 Preferowana zasada:
 
 1 commit = 1 logiczna zmiana
+
+Zmiany średniego i wysokiego ryzyka powinny przejść przez review przed commitem lub przed scaleniem.
 
 ## Hard boundaries
 

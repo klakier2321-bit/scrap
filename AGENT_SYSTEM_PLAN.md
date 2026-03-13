@@ -5,6 +5,11 @@
 Warstwa agentów AI ma wspierać rozwój projektu, porządkować pracę między warstwami systemu i przyspieszać iteracje architektury, strategii oraz integracji.
 Agenci mają pomagać w rozwoju systemu, ale nie wykonują bezpośrednio transakcji i nie sterują giełdą bez warstwy kontrolnej.
 
+## System objective
+
+Docelowy cel projektu to budowa systemu, który dąży do maksymalizacji długoterminowego zysku skorygowanego o ryzyko.
+Agenci nie optymalizują surowego zysku za wszelką cenę, tylko rozwijają system w granicach bezpieczeństwa, review i kontroli ryzyka.
+
 ## Core rule
 
 Agenci rozwijają warstwy systemu, a nie zastępują zasad bezpieczeństwa, review i decyzji operatora.
@@ -16,6 +21,7 @@ Agenci rozwijają warstwy systemu, a nie zastępują zasad bezpieczeństwa, revi
 
 Odpowiada za nadrzędną koordynację warstwy agentowej, kolejność prac, delegowanie zadań i pilnowanie zgodności działań agentów z architekturą projektu.
 Nie zastępuje control layer runtime, nie wykonuje trade i nie omija zasad bezpieczeństwa.
+Jest głównym agentem prowadzącym rozwój projektu, ale jego pełna kontrola dotyczy orkiestracji prac, a nie obszarów zakazanych takich jak sekrety, live trading i runtime krytyczny.
 
 ### architecture_agent
 

@@ -31,6 +31,9 @@ Agenci produkują artefakty takie jak:
 - propozycje zmian architektury
 - workflow testowe
 - moduły w swojej warstwie odpowiedzialności
+- taski wejściowe
+- review reports
+- decyzje delegacyjne i statusy realizacji
 
 ## Mandatory review
 
@@ -44,3 +47,4 @@ Decyzja człowieka jest potrzebna przy zmianach wysokiego ryzyka, zmianach runti
 
 CrewAI ma w przyszłości rozwijać system nad control layer, a nie bezpośrednio nad giełdą.
 `strategy_agent`, `api_agent`, `gui_agent`, `monitoring_agent` i `control_layer_agent` rozwijają tylko swoje warstwy.
+`system_lead_agent` steruje kolejnością pracy tych agentów, ale nie zastępuje ich specjalizacji.

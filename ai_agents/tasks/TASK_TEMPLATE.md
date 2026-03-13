@@ -1,0 +1,22 @@
+# Task Template
+
+- `task_id`:
+- `goal`:
+- `business_reason`:
+- `owner_agent`:
+- `scope_source`: `ai_agents/rules/AGENT_SCOPE_MANIFEST.yaml`
+- `allowed_scope`:
+- `forbidden_scope`:
+- `proposed_files`:
+- `files_expected`:
+- `cross_layer`: yes/no
+- `does_touch_contract`: yes/no
+- `does_touch_runtime`: yes/no
+- `risk_level`: low/medium/high
+- `write_mode`: plan_only / review_required / approved_to_write
+- `inputs`:
+- `expected_output`:
+- `definition_of_done`:
+- `validation_method`:
+- `requires_review`: yes/no
+- `requires_human_decision`: yes/no

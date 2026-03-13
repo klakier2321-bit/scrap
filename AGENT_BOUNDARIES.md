@@ -8,6 +8,7 @@ Zasada podstawowa:
 
 Każdy agent ma jasno ograniczony zakres zmian i nie powinien samodzielnie wchodzić w obszary innych agentów bez wyraźnej potrzeby i review.
 `system_lead_agent` może koordynować scope i delegację, ale nie ma prawa naruszać granic bezpieczeństwa ani przejmować zmian poza procesem review.
+Pełna kontrola `system_lead_agent` oznacza pełną kontrolę planowania i delegacji, a nie pełną władzę nad runtime i bezpieczeństwem.
 
 ## Directory ownership
 
@@ -20,6 +21,8 @@ Każdy agent ma jasno ograniczony zakres zmian i nie powinien samodzielnie wchod
 - przyszłe GUI - głównie `gui_agent`
 - połączenia między warstwami - głównie `integration_agent`
 - przegląd jakości i zgodności zmian - `review_agent`
+
+Szczegółowa macierz `owned / read-only / forbidden` znajduje się w `ai_agents/rules/OWNERSHIP_MATRIX.md`.
 
 ## Forbidden scope for all agents
 
@@ -43,3 +46,6 @@ Agentom nie wolno samodzielnie zmieniać:
 
 Większe zmiany powinny przechodzić review przed wdrożeniem.
 Dotyczy to szczególnie zmian w architekturze, integracjach, konfiguracji runtime i logice mogącej wpływać na bezpieczeństwo systemu.
+`system_lead_agent` może wymagać review, ale nie może go znosić dla zmian wysokiego ryzyka.
+
+Zmiany cross-layer powinny być prowadzone wyłącznie świadomie i zgodnie z zasadami z `ai_agents/rules/CROSS_LAYER_RULES.md`.
