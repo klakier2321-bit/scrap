@@ -44,14 +44,14 @@ agents:
     per_run_usd: 0.2
     max_iterations: 4
     max_retry_limit: 1
-    require_approval_for_strong_model: true
+    require_approval_for_strong_model: false
 
   integration_agent:
     daily_usd: 0.5
     per_run_usd: 0.2
     max_iterations: 4
     max_retry_limit: 1
-    require_approval_for_strong_model: true
+    require_approval_for_strong_model: false
 
   api_agent:
     daily_usd: 0.5

@@ -26,7 +26,7 @@ from .schemas import (
     HealthResponse,
     StrategyReportResponse,
 )
-from .tracing import setup_tracing
+from .tracing import setup_tracing, suppress_crewai_trace_console
 
 
 settings = get_settings()
@@ -40,6 +40,7 @@ async def lifespan(_: FastAPI):
     if os.getenv("CREWAI_TRACING_ENABLED", "").lower() != "true":
         # Prevent CrewAI's one-time interactive trace prompt inside the server runtime.
         mark_first_execution_done(user_consented=False)
+        suppress_crewai_trace_console()
     setup_tracing(app, settings)
     yield
 

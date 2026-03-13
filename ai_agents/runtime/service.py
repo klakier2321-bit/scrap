@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 from opentelemetry import trace
+from crewai.events.listeners.tracing import utils as tracing_utils
 
 from core.metrics import record_blocked_call, record_model_allowlist_violation
 
@@ -210,6 +211,7 @@ class AgentRuntimeService:
         )
 
         token = set_current_run_context(hook_context)
+        suppress_tracing_token = tracing_utils.set_suppress_tracing_messages(True)
         try:
             engine = self.mock_engine if self.settings.agent_use_mock_llm else self.real_engine
             try:
@@ -256,6 +258,7 @@ class AgentRuntimeService:
                 )
                 return flow.kickoff()
         finally:
+            tracing_utils._suppress_tracing_messages.reset(suppress_tracing_token)
             reset_current_run_context(token)
 
     def generate_strategy_assessment(

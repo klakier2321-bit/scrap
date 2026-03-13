@@ -13,6 +13,10 @@ CROSS_LAYER_COORDINATORS = {
     "integration_agent",
     "review_agent",
 }
+STRONG_MODEL_ELIGIBLE_AGENTS = {
+    "system_lead_agent",
+    "architecture_agent",
+}
 REPO_WIDE_PATH_MARKERS = {"", ".", "./", "/", "*", "**", "../", ".."}
 MAX_REQUESTED_PATHS = 10
 MAX_CONTEXT_TEXT_CHARS = 4000
@@ -222,14 +226,30 @@ def evaluate_request(
         )
 
     selected_model_tier = agent_profile.model_tier
-    if bool(request_payload.get("force_strong_model")) or (
-        agent_profile.name in {"system_lead_agent", "architecture_agent"}
+    wants_strong_model = bool(request_payload.get("force_strong_model")) or (
+        agent_profile.name in STRONG_MODEL_ELIGIBLE_AGENTS
         and (
             cross_layer
             or bool(request_payload.get("does_touch_contract"))
             or request_payload.get("risk_level") == "high"
         )
-    ):
+    )
+    if wants_strong_model and agent_profile.name not in STRONG_MODEL_ELIGIBLE_AGENTS:
+        warnings.append("This agent is not allowed to use the strong model tier.")
+        return PolicyDecision(
+            allowed=False,
+            blocked_reason="model_not_allowed",
+            review_required=True,
+            human_decision_required=True,
+            approval_required=False,
+            selected_model_tier=agent_profile.model_tier,
+            selected_model=models[agent_profile.model_tier].model,
+            estimated_cost_usd=0.0,
+            max_iterations=budget_profile.max_iterations,
+            max_retry_limit=budget_profile.max_retry_limit,
+            warnings=warnings,
+        )
+    if wants_strong_model:
         selected_model_tier = "strong"
     if selected_model_tier not in models:
         warnings.append("Selected model tier is not allowed by the current allowlist.")
