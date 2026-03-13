@@ -23,3 +23,13 @@ cd /home/debian/crypto-system
 docker compose up -d
 docker compose ps
 ```
+
+## Canonical Docs
+
+Start od dokumentów kanonicznych w `docs/`:
+
+- `docs/ARCHITECTURE.md`
+- `docs/PROJECT_MAP.md`
+- `docs/DECISIONS.md`
+- `docs/openapi.yaml`
+- `docs/AI_CHANGE_RULES.md`

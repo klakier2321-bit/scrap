@@ -1,0 +1,134 @@
+openapi: 3.0.3
+info:
+  title: Crypto System Control API
+  version: 0.1.0
+  description: |
+    Planowany kontrakt docelowy v0 dla control layer.
+    To dokument projektowy, nie opis gotowej implementacji.
+servers:
+  - url: http://localhost:8000
+    description: Planned local control API
+paths:
+  /health:
+    get:
+      summary: Health check control layer
+      responses:
+        '200':
+          description: Control layer is reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /bots:
+    get:
+      summary: List known bots
+      responses:
+        '200':
+          description: Bot list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BotSummary'
+  /bots/{bot_id}/start:
+    post:
+      summary: Start bot through control layer
+      parameters:
+        - $ref: '#/components/parameters/BotId'
+      responses:
+        '202':
+          description: Start request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
+  /bots/{bot_id}/stop:
+    post:
+      summary: Stop bot through control layer
+      parameters:
+        - $ref: '#/components/parameters/BotId'
+      responses:
+        '202':
+          description: Stop request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionResult'
+  /bots/{bot_id}/status:
+    get:
+      summary: Get bot status
+      parameters:
+        - $ref: '#/components/parameters/BotId'
+      responses:
+        '200':
+          description: Current bot status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BotStatus'
+  /bots/{bot_id}/logs:
+    get:
+      summary: Get recent bot logs
+      parameters:
+        - $ref: '#/components/parameters/BotId'
+      responses:
+        '200':
+          description: Recent bot logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bot_id:
+                    type: string
+                  logs:
+                    type: array
+                    items:
+                      type: string
+components:
+  parameters:
+    BotId:
+      name: bot_id
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    BotSummary:
+      type: object
+      properties:
+        bot_id:
+          type: string
+        state:
+          type: string
+          example: stopped
+    BotStatus:
+      type: object
+      properties:
+        bot_id:
+          type: string
+        state:
+          type: string
+          example: running
+        strategy:
+          type: string
+          example: SampleStrategy
+        dry_run:
+          type: boolean
+          example: true
+    ActionResult:
+      type: object
+      properties:
+        bot_id:
+          type: string
+        accepted:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: start accepted
