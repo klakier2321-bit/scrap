@@ -1,0 +1,2 @@
+# Local Python dependencies for the future CrewAI environment.
+crewai==1.10.1
