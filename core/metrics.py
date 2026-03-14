@@ -138,6 +138,121 @@ STRATEGY_REPORT_GENERATED_AT_SECONDS = Gauge(
     "Unix timestamp for the generated historical strategy report.",
     ["strategy_name", "source_run_id"],
 )
+EXEC_MODULES_TOTAL = Gauge(
+    "crypto_exec_modules_total",
+    "Number of roadmap modules by executive status.",
+    ["status"],
+)
+EXEC_OPEN_TASKS_TOTAL = Gauge(
+    "crypto_exec_open_tasks_total",
+    "Number of open executive tasks.",
+)
+EXEC_COMPLETED_TASKS_TOTAL = Gauge(
+    "crypto_exec_completed_tasks_total",
+    "Number of executive tasks already closed.",
+)
+EXEC_TASKS_NEEDING_CEO_TOTAL = Gauge(
+    "crypto_exec_tasks_needing_ceo_total",
+    "Number of open tasks waiting for CEO-level attention or guidance.",
+)
+EXEC_DECISIONS_WAITING_TOTAL = Gauge(
+    "crypto_exec_decisions_waiting_total",
+    "Number of open executive decisions waiting for an answer.",
+)
+EXEC_HIGH_RISKS_TOTAL = Gauge(
+    "crypto_exec_high_risks_total",
+    "Number of open risks classified as high severity.",
+)
+EXEC_ACTIVE_AGENT_RUNS_TOTAL = Gauge(
+    "crypto_exec_active_agent_runs_total",
+    "Number of currently active agent runs from the executive perspective.",
+)
+EXEC_AUTOPILOT_RUNNING = Gauge(
+    "crypto_exec_autopilot_running",
+    "Whether the continuous agent autopilot is currently running.",
+)
+EXEC_AUTOPILOT_ATTENTION_NEEDED = Gauge(
+    "crypto_exec_autopilot_attention_needed",
+    "Whether the autopilot appears stale or otherwise needs executive attention.",
+)
+EXEC_MODULE_PROGRESS_PCT = Gauge(
+    "crypto_exec_module_progress_pct",
+    "Progress percent for one executive roadmap module.",
+    [
+        "module_id",
+        "module_name",
+        "status",
+        "owner_agent",
+        "risk_level",
+        "direction",
+        "current_focus",
+        "next_milestone",
+        "executive_note",
+    ],
+)
+EXEC_MODULE_ACTIVE_RUNS = Gauge(
+    "crypto_exec_module_active_runs",
+    "Current active run count mapped to one executive module.",
+    ["module_id", "module_name"],
+)
+EXEC_MODULE_RECENT_RUNS_24H = Gauge(
+    "crypto_exec_module_recent_runs_24h",
+    "Recent run count from the last 24h mapped to one executive module.",
+    ["module_id", "module_name"],
+)
+EXEC_OPEN_TASK = Gauge(
+    "crypto_exec_open_task",
+    "Open executive task used to populate the CEO roadmap dashboard.",
+    [
+        "task_id",
+        "module_id",
+        "module_name",
+        "task_title",
+        "status",
+        "owner_agent",
+        "priority",
+        "needs_human",
+        "next_step",
+    ],
+)
+EXEC_DECISION_WAITING = Gauge(
+    "crypto_exec_decision_waiting",
+    "Executive decision item waiting for a response.",
+    [
+        "decision_id",
+        "title",
+        "area",
+        "priority",
+        "status",
+        "expected_from_ceo",
+        "impact",
+    ],
+)
+EXEC_RISK_OPEN = Gauge(
+    "crypto_exec_risk_open",
+    "Open executive risk item shown on the CEO dashboard.",
+    ["risk_id", "title", "area", "severity", "status", "mitigation"],
+)
+EXEC_ASSUMPTION = Gauge(
+    "crypto_exec_assumption",
+    "Core project assumptions shown on the executive dashboard.",
+    ["assumption_id", "title", "status", "description", "why_it_matters"],
+)
+EXEC_RECENT_CHANGE = Gauge(
+    "crypto_exec_recent_change",
+    "Recent changes and effects from agent runs for executive reporting.",
+    ["change_id", "module_name", "agent_name", "title", "status", "effect", "happened_at"],
+)
+EXEC_LEAD_NOTE = Gauge(
+    "crypto_exec_lead_note",
+    "Latest management-facing notes from the lead agent.",
+    ["note_id", "title", "agent_name", "status", "message", "next_step", "updated_at"],
+)
+EXEC_COMPLETED_TASK = Gauge(
+    "crypto_exec_completed_task",
+    "Recently completed executive tasks shown on the CEO dashboard.",
+    ["task_id", "module_id", "module_name", "task_title", "status", "owner_agent", "next_step"],
+)
 
 
 def record_run_created(agent_name: str, status: str) -> None:
@@ -275,12 +390,148 @@ def update_strategy_history_metrics(strategy_reports: list[dict[str, Any]]) -> N
         ).set(timestamp)
 
 
+def update_executive_metrics(executive_report: dict[str, Any] | None) -> None:
+    if not executive_report:
+        return
+
+    EXEC_MODULES_TOTAL.clear()
+    EXEC_MODULE_PROGRESS_PCT.clear()
+    EXEC_MODULE_ACTIVE_RUNS.clear()
+    EXEC_MODULE_RECENT_RUNS_24H.clear()
+    EXEC_OPEN_TASK.clear()
+    EXEC_DECISION_WAITING.clear()
+    EXEC_RISK_OPEN.clear()
+    EXEC_ASSUMPTION.clear()
+    EXEC_RECENT_CHANGE.clear()
+    EXEC_LEAD_NOTE.clear()
+    EXEC_COMPLETED_TASK.clear()
+
+    summary = executive_report.get("summary", {})
+    for status, count in summary.get("modules_by_status", {}).items():
+        EXEC_MODULES_TOTAL.labels(status=status).set(count)
+
+    EXEC_OPEN_TASKS_TOTAL.set(int(summary.get("open_tasks_total", 0)))
+    EXEC_COMPLETED_TASKS_TOTAL.set(int(summary.get("completed_tasks_total", 0)))
+    EXEC_TASKS_NEEDING_CEO_TOTAL.set(int(summary.get("tasks_needing_ceo_total", 0)))
+    EXEC_DECISIONS_WAITING_TOTAL.set(int(summary.get("decisions_waiting_total", 0)))
+    EXEC_HIGH_RISKS_TOTAL.set(int(summary.get("high_risks_total", 0)))
+    EXEC_ACTIVE_AGENT_RUNS_TOTAL.set(int(summary.get("active_agent_runs_total", 0)))
+
+    autopilot = executive_report.get("autopilot", {})
+    EXEC_AUTOPILOT_RUNNING.set(1 if autopilot.get("running") else 0)
+    EXEC_AUTOPILOT_ATTENTION_NEEDED.set(1 if autopilot.get("attention_needed") else 0)
+
+    modules_by_id = {
+        module["id"]: module.get("name", module["id"])
+        for module in executive_report.get("modules", [])
+    }
+
+    for module in executive_report.get("modules", []):
+        EXEC_MODULE_PROGRESS_PCT.labels(
+            module_id=module["id"],
+            module_name=module["name"],
+            status=module["status"],
+            owner_agent=module["owner_agent"],
+            risk_level=module["risk_level"],
+            direction=module["direction"],
+            current_focus=module["current_focus"],
+            next_milestone=module["next_milestone"],
+            executive_note=module["executive_note"],
+        ).set(float(module.get("progress_pct", 0.0)))
+        EXEC_MODULE_ACTIVE_RUNS.labels(
+            module_id=module["id"],
+            module_name=module["name"],
+        ).set(int(module.get("active_runs", 0)))
+        EXEC_MODULE_RECENT_RUNS_24H.labels(
+            module_id=module["id"],
+            module_name=module["name"],
+        ).set(int(module.get("recent_runs_24h", 0)))
+
+    for task in executive_report.get("tasks", []):
+        EXEC_OPEN_TASK.labels(
+            task_id=task["id"],
+            module_id=task["module_id"],
+            module_name=modules_by_id.get(task["module_id"], task["module_id"]),
+            task_title=task["title"],
+            status=task["status"],
+            owner_agent=task["owner_agent"],
+            priority=task["priority"],
+            needs_human=task["needs_human"],
+            next_step=task["next_step"],
+        ).set(1)
+
+    for decision in executive_report.get("decisions", []):
+        EXEC_DECISION_WAITING.labels(
+            decision_id=decision["id"],
+            title=decision["title"],
+            area=decision["area"],
+            priority=decision["priority"],
+            status=decision["status"],
+            expected_from_ceo=decision["expected_from_ceo"],
+            impact=decision["impact"],
+        ).set(1)
+
+    for risk in executive_report.get("risks", []):
+        EXEC_RISK_OPEN.labels(
+            risk_id=risk["id"],
+            title=risk["title"],
+            area=risk["area"],
+            severity=risk["severity"],
+            status=risk["status"],
+            mitigation=risk["mitigation"],
+        ).set(1)
+
+    for assumption in executive_report.get("assumptions", []):
+        EXEC_ASSUMPTION.labels(
+            assumption_id=assumption["id"],
+            title=assumption["title"],
+            status=assumption["status"],
+            description=assumption["description"],
+            why_it_matters=assumption["why_it_matters"],
+        ).set(1)
+
+    for change in executive_report.get("recent_changes", []):
+        EXEC_RECENT_CHANGE.labels(
+            change_id=change["change_id"],
+            module_name=change["module_name"],
+            agent_name=change["agent_name"],
+            title=change["title"],
+            status=change["status"],
+            effect=change["effect"],
+            happened_at=change["happened_at"],
+        ).set(1)
+
+    for note in executive_report.get("lead_notes", []):
+        EXEC_LEAD_NOTE.labels(
+            note_id=note["note_id"],
+            title=note["title"],
+            agent_name=note["agent_name"],
+            status=note["status"],
+            message=note["message"],
+            next_step=note["next_step"],
+            updated_at=note["updated_at"],
+        ).set(1)
+
+    for task in executive_report.get("completed_tasks", []):
+        EXEC_COMPLETED_TASK.labels(
+            task_id=task["id"],
+            module_id=task["module_id"],
+            module_name=modules_by_id.get(task["module_id"], task["module_id"]),
+            task_title=task["title"],
+            status=task["status"],
+            owner_agent=task["owner_agent"],
+            next_step=task["next_step"],
+        ).set(1)
+
+
 def render_metrics(
     bot_states: list[dict[str, Any]],
     strategy_report: dict[str, Any] | None = None,
     strategy_report_history: list[dict[str, Any]] | None = None,
+    executive_report: dict[str, Any] | None = None,
 ) -> tuple[bytes, str]:
     update_bot_statuses(bot_states)
     update_strategy_metrics(strategy_report)
     update_strategy_history_metrics(strategy_report_history or [])
+    update_executive_metrics(executive_report)
     return generate_latest(), CONTENT_TYPE_LATEST

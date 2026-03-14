@@ -171,6 +171,7 @@ async def metrics() -> PlainTextResponse:
         get_orchestrator().list_bots(),
         get_orchestrator().get_latest_strategy_report(),
         get_orchestrator().list_strategy_report_history(limit=20),
+        get_orchestrator().get_executive_report(),
     )
     return PlainTextResponse(payload.decode("utf-8"), media_type=content_type)
 
@@ -178,6 +179,11 @@ async def metrics() -> PlainTextResponse:
 @app.get("/ops/agents", include_in_schema=False)
 async def ops_agents() -> JSONResponse:
     return JSONResponse(get_orchestrator().list_agents())
+
+
+@app.get("/ops/executive/report", include_in_schema=False)
+async def ops_executive_report() -> JSONResponse:
+    return JSONResponse(get_orchestrator().get_executive_report())
 
 
 @app.get("/ops/runs", include_in_schema=False)

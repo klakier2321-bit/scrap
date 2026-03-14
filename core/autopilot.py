@@ -245,4 +245,3 @@ class AutopilotService:
                 self._current_run_id = None
             self._sleep_until_next_cycle(config.get("poll_interval_seconds", 60))
             self._current_task_name = None
-            self._sleep_until_next_cycle(config.get("poll_interval_seconds", 60))

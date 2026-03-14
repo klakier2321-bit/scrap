@@ -18,6 +18,7 @@ from opentelemetry import trace
 from .bot_manager import BotManager
 from .autopilot import AutopilotService
 from .config import AppSettings
+from .executive_report import ExecutiveReportService
 from .metrics import (
     record_blocked_call,
     record_cache_hit,
@@ -50,6 +51,7 @@ class Orchestrator:
             user_data_dir=settings.freqtrade_user_data_path,
             reports_dir=settings.strategy_reports_dir,
         )
+        self.executive_report = ExecutiveReportService(settings.repo_root)
         self.store = RunStore(settings.database_path)
         stale_runs = self.store.reconcile_stale_runs()
         self.agent_runtime = AgentRuntimeService(settings=settings)
@@ -152,6 +154,13 @@ class Orchestrator:
 
     def list_runs(self, limit: int = 50) -> list[dict[str, Any]]:
         return self.store.list_runs(limit=limit)
+
+    def get_executive_report(self) -> dict[str, Any]:
+        return self.executive_report.build_report(
+            runs=self.store.list_runs(limit=200),
+            autopilot_status=self.autopilot.status(),
+            strategy_report=self.get_latest_strategy_report(),
+        )
 
     def autopilot_status(self) -> dict[str, Any]:
         return self.autopilot.status()

@@ -1,0 +1,895 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Adnotacje i alerty",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "panels": [
+    {
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "content": "# Pulpit Prezesa\n\nTo jest główny dashboard zarządczy dla projektu tradingowego. Pokazuje **co już działa**, **co jest w toku**, **gdzie są ryzyka**, **jakie decyzje czekają na prezesa** i **na których modułach pracuje zespół**. Nie trzeba znać kodu, żeby czytać ten widok.\n\n**Jak czytać statusy:**\n- `W toku` = praca trwa i nie jest zablokowana\n- `Wymaga uwagi` = obszar pracuje, ale potrzebuje stabilizacji lub decyzji\n- `Planowane` = temat jest na roadmapie, ale jeszcze nie jest uruchomiony szerzej\n- `Stabilny zakres` = temat jest kontrolowany i na tym etapie chronimy go przed chaosem zmian\n\nSzybkie przejścia:\n- [Mapa docelowej platformy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n- [Szczegóły warstw systemu](/d/crypto-system-arch-details/szczegoly-systemu)\n- [Panel operatorski AI](http://217.182.73.182:8000)\n- [Przegląd agentów](/d/crypto-agent-overview/przeglad-agentow)",
+        "mode": "markdown"
+      },
+      "title": "Widok Zarządczy",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 0,
+        "y": 6
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_modules_total{status=\"W toku\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Moduły w toku",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 3,
+        "y": 6
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_modules_total{status=\"Wymaga uwagi\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Moduły wymagające uwagi",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 6,
+        "y": 6
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_open_tasks_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Otwarte taski",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 9,
+        "y": 6
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_tasks_needing_ceo_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Taski z pytaniem do prezesa",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 12,
+        "y": 6
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_decisions_waiting_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Decyzje oczekujące",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 15,
+        "y": 6
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_high_risks_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Ryzyka wysokie",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 18,
+        "y": 6
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_active_agent_runs_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Aktywne runy agentów",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 21,
+        "y": 6
+      },
+      "id": 9,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_autopilot_attention_needed)",
+          "refId": "A"
+        }
+      ],
+      "title": "Autopilot wymaga uwagi",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 12
+      },
+      "id": 10,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_module_progress_pct",
+          "instant": true,
+          "legendFormat": "{{module_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Postęp modułów projektu",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 11,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_module_progress_pct",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Moduły i kierunki rozwoju",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "module_name": 0,
+              "status": 1,
+              "owner_agent": 2,
+              "direction": 3,
+              "current_focus": 4,
+              "next_milestone": 5,
+              "risk_level": 6,
+              "executive_note": 7,
+              "Value": 8
+            },
+            "renameByName": {
+              "module_name": "Moduł",
+              "status": "Status",
+              "owner_agent": "Agent odpowiedzialny",
+              "direction": "Kierunek rozwoju",
+              "current_focus": "Co teraz rozwijamy",
+              "next_milestone": "Najbliższy kamień milowy",
+              "risk_level": "Ryzyko",
+              "executive_note": "Co warto wiedzieć / czego potrzebujemy",
+              "Value": "Postęp %"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "id": 12,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_open_task",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Otwarte taski na modułach",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "module_name": 0,
+              "task_title": 1,
+              "status": 2,
+              "owner_agent": 3,
+              "priority": 4,
+              "needs_human": 5,
+              "next_step": 6
+            },
+            "renameByName": {
+              "module_name": "Moduł",
+              "task_title": "Task",
+              "status": "Status",
+              "owner_agent": "Agent odpowiedzialny",
+              "priority": "Priorytet",
+              "needs_human": "Czy potrzebna decyzja prezesa",
+              "next_step": "Najbliższy krok"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 0,
+        "y": 52
+      },
+      "id": 13,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_decision_waiting",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Decyzje potrzebne od prezesa",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "title": 0,
+              "area": 1,
+              "priority": 2,
+              "status": 3,
+              "expected_from_ceo": 4,
+              "impact": 5
+            },
+            "renameByName": {
+              "title": "Decyzja",
+              "area": "Obszar",
+              "priority": "Pilność",
+              "status": "Status",
+              "expected_from_ceo": "Czego potrzebujemy od prezesa",
+              "impact": "Wpływ na projekt"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 12,
+        "y": 52
+      },
+      "id": 14,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_risk_open",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Plan ryzyka i ochrona projektu",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "title": 0,
+              "area": 1,
+              "severity": 2,
+              "status": 3,
+              "mitigation": 4
+            },
+            "renameByName": {
+              "title": "Ryzyko",
+              "area": "Obszar",
+              "severity": "Waga",
+              "status": "Status",
+              "mitigation": "Plan ochrony"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 64
+      },
+      "id": 15,
+      "options": {
+        "content": "## Co ten widok ma dawać prezesowi\n\n- szybkie zrozumienie, **na czym teraz pracuje zespół**\n- jasną odpowiedź, **co jest domknięte, co w toku, a co utknęło**\n- widoczność, **jakie decyzje są potrzebne od Ciebie i po co**\n- prosty obraz ryzyka, bez technicznego żargonu\n- kontrolę nad tym, czy projekt rośnie bezpiecznie, a nie chaotycznie\n\nTen dashboard ma być regularnie aktualizowany przez roadmapę projektu i dane z warstwy AI/control plane. To jest pulpit dla lidera projektu, nie dla kodera.",
+        "mode": "markdown"
+      },
+      "title": "Dlaczego ten dashboard istnieje",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 0,
+        "y": 72
+      },
+      "id": 16,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_assumption",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Założenia, które prowadzą projekt",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "title": 0,
+              "status": 1,
+              "description": 2,
+              "why_it_matters": 3
+            },
+            "renameByName": {
+              "title": "Założenie",
+              "status": "Status",
+              "description": "Opis",
+              "why_it_matters": "Dlaczego to ważne"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 12,
+        "x": 12,
+        "y": 72
+      },
+      "id": 17,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_lead_note",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Najnowsze uwagi głównego agenta",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "updated_at": 0,
+              "title": 1,
+              "status": 2,
+              "message": 3,
+              "next_step": 4
+            },
+            "renameByName": {
+              "updated_at": "Kiedy",
+              "title": "Temat",
+              "status": "Status",
+              "message": "Wniosek lead agenta",
+              "next_step": "Sugerowany następny krok"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 84
+      },
+      "id": 18,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_recent_change",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Ostatnie zmiany i efekty pracy",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "happened_at": 0,
+              "module_name": 1,
+              "agent_name": 2,
+              "title": 3,
+              "status": 4,
+              "effect": 5
+            },
+            "renameByName": {
+              "happened_at": "Kiedy",
+              "module_name": "Moduł",
+              "agent_name": "Agent",
+              "title": "Zmiana / temat",
+              "status": "Status",
+              "effect": "Efekt lub wniosek"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 100
+      },
+      "id": 19,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_completed_task",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Taski domknięte",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "module_name": 0,
+              "task_title": 1,
+              "status": 2,
+              "owner_agent": 3,
+              "next_step": 4
+            },
+            "renameByName": {
+              "module_name": "Moduł",
+              "task_title": "Domknięty task",
+              "status": "Status",
+              "owner_agent": "Agent odpowiedzialny",
+              "next_step": "Co dalej po domknięciu"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "crypto-system",
+    "executive",
+    "roadmap",
+    "prezes"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "title": "Pulpit Prezesa",
+  "uid": "crypto-executive-overview",
+  "version": 1
+}

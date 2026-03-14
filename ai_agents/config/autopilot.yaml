@@ -33,7 +33,23 @@ autopilot:
       does_touch_contract: false
       does_touch_runtime: false
       force_strong_model: false
-      auto_approve: false
+      auto_approve: true
+
+    - name: "lead_executive_watch"
+      agent_name: "system_lead_agent"
+      goal: "Na podstawie roadmapi executive i ostatnich runow przygotuj krotka notatke zarzadcza: co sie zmienilo, jakie zadania mozna uznac za domkniete, co wymaga uwagi oraz czego potrzebujemy od prezesa."
+      business_reason: "Chcemy, aby glowny agent stale zasilał pulpit prezesa wnioskiem zarzadczym, a nie tylko technicznym statusem."
+      requested_paths:
+        - "ai_agents/config/executive_roadmap.yaml"
+        - "core/executive_report.py"
+        - "infrastructure/grafana/"
+        - "docs/"
+      risk_level: "medium"
+      cross_layer: true
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: true
 
     - name: "architecture_refinement"
       agent_name: "architecture_agent"
