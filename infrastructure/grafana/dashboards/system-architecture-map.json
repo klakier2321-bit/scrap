@@ -1,0 +1,86 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Adnotacje i alerty",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "panels": [
+    {
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "content": "# Mapa Docelowej Platformy Tradingowej\n\nTo jest szkic architektury, do której dążymy. Kliknij wybrany węzeł na diagramie, aby otworzyć **polskie wyjaśnienie jego roli, wejść, wyjść i ograniczeń bezpieczeństwa**.",
+        "mode": "markdown"
+      },
+      "title": "Jak Czytać Tę Mapę",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 22,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 2,
+      "options": {
+        "content": "<div style=\"font-family: 'DejaVu Sans', 'Open Sans', sans-serif; color: #e8f0ff;\">\n  <div style=\"margin-bottom: 14px; padding: 14px 18px; border-radius: 14px; background: linear-gradient(135deg, #0f1c2c 0%, #15293d 100%); border: 1px solid #2d4f75;\">\n    <div style=\"font-size: 24px; font-weight: 700; margin-bottom: 6px;\">Docelowy szkic działania całej platformy</div>\n    <div style=\"font-size: 14px; color: #c7d7ee;\">Warstwa AI planuje, analizuje i wspiera rozwój. Warstwa kontrolna podejmuje decyzje systemowe. Freqtrade wykonuje zlecone działania. Giełda jest na samym końcu przepływu.</div>\n  </div>\n\n  <table style=\"width: 100%; border-collapse: separate; border-spacing: 10px; table-layout: fixed;\">\n    <tr>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=201\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#16314d; border:1px solid #2f6696; border-radius:14px; padding:16px; min-height:108px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Operator i decyzje człowieka</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#d7e6f7;\">Start, stop, approval, review i odpowiedzialność końcowa.</div>\n        </a>\n      </td>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=202\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#173755; border:1px solid #3975ac; border-radius:14px; padding:16px; min-height:108px;\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Panel operatorski / GUI</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#d7e6f7;\">Widok pracy agentów, sterowanie i decyzje operatora.</div>\n        </a>\n      </td>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=203\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#173755; border:1px solid #3975ac; border-radius:14px; padding:16px; min-height:108px;\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Control API</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#d7e6f7;\">Jedno wejście do systemu dla GUI, operatora i agentów.</div>\n        </a>\n      </td>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=212\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#19422b; border:1px solid #3c8a5d; border-radius:14px; padding:16px; min-height:108px;\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Monitoring i feedback</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#d8f5e2;\">Grafana, Prometheus, Loki, Tempo i metryki strategii.</div>\n        </a>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"text-align:center; font-size:28px; color:#7fb4ff;\">↓</td>\n      <td style=\"text-align:center; font-size:28px; color:#7fb4ff;\">↓</td>\n      <td style=\"text-align:center; font-size:28px; color:#7fb4ff;\">↓</td>\n      <td style=\"text-align:center; font-size:28px; color:#6bc48d;\">↓</td>\n    </tr>\n    <tr>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=204\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#4a1f4f; border:1px solid #9251a6; border-radius:14px; padding:16px; min-height:108px;\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">system_lead_agent</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#f2dff6;\">Nadrzędna koordynacja pracy agentów i planowanie kolejności zmian.</div>\n        </a>\n      </td>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=205\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#5a2a4d; border:1px solid #b35d8d; border-radius:14px; padding:16px; min-height:108px;\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Agenci AI warstwowi</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#f7dce9;\">Review, architektura, strategia, monitoring, API, GUI i integracja.</div>\n        </a>\n      </td>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=206\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#24445c; border:1px solid #5e9ac5; border-radius:14px; padding:16px; min-height:108px;\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Control Layer</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#d9ecff;\">Orchestrator, bot_manager, strategy_manager i risk_manager.</div>\n        </a>\n      </td>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=213\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#214334; border:1px solid #4ea57f; border-radius:14px; padding:16px; min-height:108px;\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Storage i artefakty</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#d6f4e4;\">Postgres, Redis, raporty, runy, cache i wyniki backtestów.</div>\n        </a>\n      </td>\n    </tr>\n    <tr>\n      <td style=\"text-align:center; font-size:28px; color:#c590d6;\">↓</td>\n      <td style=\"text-align:center; font-size:28px; color:#c590d6;\">↓</td>\n      <td style=\"text-align:center; font-size:28px; color:#7fb4ff;\">↓</td>\n      <td style=\"text-align:center; font-size:28px; color:#6bc48d;\">↓</td>\n    </tr>\n    <tr>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=207\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#244d33; border:1px solid #5fa379; border-radius:14px; padding:16px; min-height:108px;\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Data Layer</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#ddf5e4;\">Dane historyczne, raporty, logi i surowe wejścia do analizy.</div>\n        </a>\n      </td>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=208\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#32522c; border:1px solid #7aa35d; border-radius:14px; padding:16px; min-height:108px;\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Strategy Layer</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#ecf7dc;\">Tworzenie sygnałów i ocena jakości strategii na podstawie danych.</div>\n        </a>\n      </td>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=209\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#5a4723; border:1px solid #b3934d; border-radius:14px; padding:16px; min-height:108px;\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Risk Layer</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#faedd0;\">Twarde limity ryzyka i prawo do blokowania wykonania.</div>\n        </a>\n      </td>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=210\" style=\"display:block; text-decoration:none; color:#f8fbff; background:#514822; border:1px solid #c5a44e; border-radius:14px; padding:16px; min-height:108px;\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Freqtrade / Execution Engine</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#fff0cf;\">Silnik wykonawczy i backtestowy, ale nie główny mózg systemu.</div>\n        </a>\n      </td>\n    </tr>\n    <tr>\n      <td></td>\n      <td></td>\n      <td></td>\n      <td style=\"text-align:center; font-size:28px; color:#f3c979;\">↓</td>\n    </tr>\n    <tr>\n      <td></td>\n      <td></td>\n      <td></td>\n      <td>\n        <a href=\"/d/crypto-system-arch-details/szczegoly-systemu?viewPanel=211\" style=\"display:block; text-decoration:none; color:#1c1c1c; background:#f1c86f; border:1px solid #ffd37e; border-radius:14px; padding:16px; min-height:92px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.12);\">\n          <div style=\"font-size:17px; font-weight:700; margin-bottom:8px;\">Giełda crypto</div>\n          <div style=\"font-size:13px; line-height:1.45; color:#3b2b03;\">Końcowe miejsce wykonania zleceń. Tu system musi być najbardziej restrykcyjny.</div>\n        </a>\n      </td>\n    </tr>\n  </table>\n\n  <div style=\"display:flex; gap:12px; margin-top:16px; flex-wrap:wrap;\">\n    <div style=\"flex:1 1 320px; padding:14px 16px; border-radius:12px; background:#13263b; border:1px solid #2f5c87;\">\n      <div style=\"font-weight:700; font-size:15px; margin-bottom:8px;\">Główny przepływ decyzji tradingowej</div>\n      <div style=\"font-size:13px; color:#d7e6f7; line-height:1.5;\">Dane → Strategia → Ryzyko → Control Layer → Freqtrade → Giełda</div>\n    </div>\n    <div style=\"flex:1 1 320px; padding:14px 16px; border-radius:12px; background:#3a1f26; border:1px solid #8f4b5f;\">\n      <div style=\"font-weight:700; font-size:15px; margin-bottom:8px;\">Ścieżki zabronione</div>\n      <div style=\"font-size:13px; color:#f7dbe2; line-height:1.6;\">AI → Giełda bezpośrednio: nie<br>AI → Live trading bez kontroli: nie<br>AI → Sekrety i lokalne configi runtime: nie</div>\n    </div>\n  </div>\n</div>",
+        "mode": "html"
+      },
+      "title": "Diagram Docelowego Systemu",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "id": 3,
+      "options": {
+        "content": "## Co warto zapamiętać\n\n- **AI nie wykonuje bezpośrednio transakcji live.**\n- **Control Layer** podejmuje systemową decyzję o tym, co wolno wykonać.\n- **Risk Layer** może zatrzymać wykonanie nawet wtedy, gdy strategia dała sygnał.\n- **Freqtrade** jest silnikiem wykonawczym i backtestowym, a nie centrum dowodzenia.\n- Kliknięcie węzła na diagramie otwiera pełne wyjaśnienie danej warstwy.",
+        "mode": "markdown"
+      },
+      "title": "Najważniejsze Zasady",
+      "type": "text"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "crypto-system",
+    "architektura",
+    "diagram"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "title": "Mapa Docelowej Platformy",
+  "uid": "crypto-system-arch-map",
+  "version": 1
+}

@@ -11,6 +11,7 @@ trading/freqtrade/user_data/config.json
 trading/freqtrade/user_data/config.backtest.local.json
 data/ai_control/*
 !data/ai_control/.gitkeep
+data/backups/
 monitoring/logs/*
 !monitoring/logs/.gitkeep
 .DS_Store

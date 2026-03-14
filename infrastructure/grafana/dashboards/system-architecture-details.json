@@ -1,0 +1,266 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Adnotacje i alerty",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "panels": [
+    {
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 200,
+      "options": {
+        "content": "# Szczegóły warstw systemu\n\nTo jest słownik docelowej architektury. Każdy panel opisuje jeden węzeł z diagramu. Z panelu lub z mapy możesz wrócić do głównego widoku: [← Mapa docelowej platformy](/d/crypto-system-arch-map/mapa-docelowej-platformy).",
+        "mode": "markdown"
+      },
+      "title": "Jak korzystać z tego widoku",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 201,
+      "options": {
+        "content": "## Operator i decyzje człowieka\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** końcowa odpowiedzialność za system, decyzje ryzykowne i zatwierdzanie zmian.\n\n**Co robi:**\n- uruchamia i zatrzymuje działania agentów\n- zatwierdza droższe runy i zmiany wysokiego ryzyka\n- decyduje o przejściach między etapami: dry-run, backtest, paper, live\n\n**Czego nie deleguje całkowicie:**\n- sekretów\n- live tradingu\n- zmian bezpieczeństwa i ryzyka",
+        "mode": "markdown"
+      },
+      "title": "Operator i decyzje człowieka",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 202,
+      "options": {
+        "content": "## Panel operatorski / GUI\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** wygodny interfejs do pracy z agentami i obserwacji stanu systemu.\n\n**Co pokazuje:**\n- listę agentów\n- status runów i review\n- koszty, tokeny i trace\n- skróty do Grafany i Prometheusa\n\n**Ważne:** GUI nie gada bezpośrednio z giełdą. Rozmawia z systemem przez Control API.",
+        "mode": "markdown"
+      },
+      "title": "Panel operatorski / GUI",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "id": 203,
+      "options": {
+        "content": "## Control API\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** jeden, jawny punkt wejścia do sterowania systemem.\n\n**Obsługuje:**\n- health check\n- listę botów i ich statusów\n- start/stop botów\n- logi botów\n- operacje operatorskie dla warstwy AI\n\n**Znaczenie architektoniczne:** zamiast mieszać komunikację między warstwami, system ma opierać się na jawnych kontraktach i API.",
+        "mode": "markdown"
+      },
+      "title": "Control API",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "id": 204,
+      "options": {
+        "content": "## system_lead_agent\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** nadrzędna koordynacja pracy agentów.\n\n**Może:**\n- rozbijać cele na taski\n- ustalać kolejność prac\n- delegować zadania\n- pilnować zgodności z architekturą i zasadami projektu\n\n**Nie może:**\n- wykonywać trade\n- dotykać sekretów\n- omijać review człowieka w obszarach wysokiego ryzyka",
+        "mode": "markdown"
+      },
+      "title": "system_lead_agent",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 205,
+      "options": {
+        "content": "## Agenci AI warstwowi\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** wyspecjalizowana praca w swoich warstwach.\n\n**Przykłady:**\n- `review_agent`\n- `architecture_agent`\n- `strategy_agent`\n- `monitoring_agent`\n- `api_agent`\n- `gui_agent`\n- `integration_agent`\n\n**Zasada:** każdy agent działa przede wszystkim w swoim `owned scope`. Wejście w cudzy obszar wymaga jawnej eskalacji lub review.",
+        "mode": "markdown"
+      },
+      "title": "Agenci AI warstwowi",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 206,
+      "options": {
+        "content": "## Control Layer\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** systemowy mózg wykonawczy platformy.\n\n**Moduły:**\n- `orchestrator.py`\n- `bot_manager.py`\n- `strategy_manager.py`\n- `risk_manager.py`\n\n**Zadanie:** łączyć sygnały strategii, ograniczenia ryzyka i decyzje operatorskie w jedną decyzję systemową. To tutaj docelowo system decyduje, co wolno wykonać.",
+        "mode": "markdown"
+      },
+      "title": "Control Layer",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 34
+      },
+      "id": 207,
+      "options": {
+        "content": "## Data Layer\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** dostarczanie danych wejściowych do analiz i decyzji.\n\n**Zawiera:**\n- dane historyczne z Freqtrade\n- wyniki backtestów\n- raporty strategii\n- artefakty pracy agentów\n\n**Ważne:** dobra warstwa danych jest warunkiem sensownych strategii. Bez niej AI i control layer będą budować decyzje na słabym materiale.",
+        "mode": "markdown"
+      },
+      "title": "Data Layer",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "id": 208,
+      "options": {
+        "content": "## Strategy Layer\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** tworzenie sygnałów strategii i ocena ich jakości.\n\n**Na tym etapie:**\n- pracuje na backtestach i raportach\n- nie ma prawa samodzielnie promować strategii do live\n\n**Docelowo:** strategy layer ma dawać propozycję działania, ale nie końcową decyzję. Każdy sygnał przechodzi jeszcze przez risk layer i control layer.",
+        "mode": "markdown"
+      },
+      "title": "Strategy Layer",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "id": 209,
+      "options": {
+        "content": "## Risk Layer\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** ostatnia twarda zapora przed wykonaniem ryzykownej decyzji.\n\n**Sprawdza:**\n- limity ryzyka na trade\n- drawdown\n- ekspozycję kapitału\n- warunki dzienne stop\n- zgodność z polityką bezpieczeństwa\n\n**Najważniejsze:** `risk_manager` ma prawo zablokować wykonanie nawet wtedy, gdy strategia i control layer są gotowe iść dalej.",
+        "mode": "markdown"
+      },
+      "title": "Risk Layer",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "id": 210,
+      "options": {
+        "content": "## Freqtrade / Execution Engine\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** silnik wykonawczy i backtestowy.\n\n**Co robi dobrze:**\n- backtesty\n- zarządzanie runtime bota\n- komunikację z giełdą w warstwie execution\n\n**Czego nie zakładamy:** że Freqtrade jest nadrzędnym mózgiem systemu. To narzędzie wykonawcze, które powinno dostać już przefiltrowaną decyzję.",
+        "mode": "markdown"
+      },
+      "title": "Freqtrade / Execution Engine",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 54
+      },
+      "id": 211,
+      "options": {
+        "content": "## Giełda crypto\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** końcowy punkt wykonania zleceń.\n\n**To jest obszar najwyższego ryzyka.** Dlatego:\n- AI nie komunikuje się z giełdą bezpośrednio\n- live trading nie jest odpalany bez testów i decyzji człowieka\n- sekrety i API keys pozostają poza zwykłym zakresem agentów\n\nTu kończy się łańcuch decyzji, ale nie kończy się odpowiedzialność systemu.",
+        "mode": "markdown"
+      },
+      "title": "Giełda crypto",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 54
+      },
+      "id": 212,
+      "options": {
+        "content": "## Monitoring i feedback\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** obserwacja działania systemu i zawracanie wiedzy do dalszego rozwoju.\n\n**Elementy:**\n- Grafana\n- Prometheus\n- Loki\n- Tempo\n- dashboardy AI, kosztów i strategii\n\n**Dlaczego to ważne:** bez feedback loop system nie uczy się na własnych wynikach, a operator nie widzi kosztów, błędów i ryzyk.",
+        "mode": "markdown"
+      },
+      "title": "Monitoring i feedback",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 64
+      },
+      "id": 213,
+      "options": {
+        "content": "## Storage i artefakty\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Rola:** przechowywanie stanu systemu i materiału do analizy.\n\n**Przykłady:**\n- Postgres i Redis\n- historia runów agentów\n- cache odpowiedzi\n- raporty strategii\n- wyniki backtestów\n\n**Znaczenie:** ta warstwa zapewnia pamięć operacyjną projektu, ale nie powinna mieszać się z lokalnymi sekretami i runtime configami.",
+        "mode": "markdown"
+      },
+      "title": "Storage i artefakty",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 64
+      },
+      "id": 214,
+      "options": {
+        "content": "## Jedna rzecz, którą warto zapamiętać\n\n[← Wróć do mapy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n\n**Docelowy system nie ma jednego „magicznego bota”, który sam wszystko robi.**\n\nMa warstwy, kontrakty i bezpieczniki:\n- człowiek steruje i zatwierdza\n- AI analizuje i proponuje\n- control layer decyduje systemowo\n- risk layer może zatrzymać wykonanie\n- Freqtrade wykonuje\n- monitoring zbiera feedback\n\nTo właśnie ma utrzymać porządek, bezpieczeństwo i skalowalność projektu.",
+        "mode": "markdown"
+      },
+      "title": "Najważniejsza idea całej platformy",
+      "type": "text"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "crypto-system",
+    "architektura",
+    "slownik"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "title": "Szczegóły Systemu",
+  "uid": "crypto-system-arch-details",
+  "version": 1
+}
