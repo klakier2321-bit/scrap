@@ -19,6 +19,7 @@ from .metrics import render_metrics
 from .orchestrator import Orchestrator
 from .schemas import (
     ActionResult,
+    AutopilotStatusResponse,
     AgentRunRecord,
     AgentRunRequest,
     BotStatus,
@@ -42,7 +43,10 @@ async def lifespan(_: FastAPI):
         mark_first_execution_done(user_consented=False)
         suppress_crewai_trace_console()
     setup_tracing(app, settings)
+    if settings.agent_autopilot_enabled:
+        get_orchestrator().start_autopilot()
     yield
+    get_orchestrator().stop_autopilot()
 
 
 app = FastAPI(
@@ -179,6 +183,33 @@ async def ops_agents() -> JSONResponse:
 @app.get("/ops/runs", include_in_schema=False)
 async def ops_runs(limit: int = Query(default=50, ge=1, le=200)) -> JSONResponse:
     return JSONResponse(get_orchestrator().list_runs(limit=limit))
+
+
+@app.get(
+    "/ops/autopilot/status",
+    response_model=AutopilotStatusResponse,
+    include_in_schema=False,
+)
+async def ops_autopilot_status() -> AutopilotStatusResponse:
+    return AutopilotStatusResponse(**get_orchestrator().autopilot_status())
+
+
+@app.post(
+    "/ops/autopilot/start",
+    response_model=AutopilotStatusResponse,
+    include_in_schema=False,
+)
+async def ops_autopilot_start() -> AutopilotStatusResponse:
+    return AutopilotStatusResponse(**get_orchestrator().start_autopilot())
+
+
+@app.post(
+    "/ops/autopilot/stop",
+    response_model=AutopilotStatusResponse,
+    include_in_schema=False,
+)
+async def ops_autopilot_stop() -> AutopilotStatusResponse:
+    return AutopilotStatusResponse(**get_orchestrator().stop_autopilot())
 
 
 @app.get("/ops/runs/{run_id}", response_model=AgentRunRecord, include_in_schema=False)

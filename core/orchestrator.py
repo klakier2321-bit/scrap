@@ -16,6 +16,7 @@ from ai_agents.runtime.service import AgentRuntimeService
 from opentelemetry import trace
 
 from .bot_manager import BotManager
+from .autopilot import AutopilotService
 from .config import AppSettings
 from .metrics import (
     record_blocked_call,
@@ -54,6 +55,11 @@ class Orchestrator:
         self.agent_runtime = AgentRuntimeService(settings=settings)
         self.executor = ThreadPoolExecutor(max_workers=settings.agent_max_parallel_runs)
         self.futures: dict[str, Future[Any]] = {}
+        self.autopilot = AutopilotService(
+            orchestrator=self,
+            config_path=settings.autopilot_config_path,
+            poll_interval_seconds=settings.agent_autopilot_poll_interval_seconds,
+        )
         if stale_runs["queued"] or stale_runs["running"]:
             logger.warning(
                 "Reconciled stale agent runs after startup.",
@@ -146,6 +152,15 @@ class Orchestrator:
 
     def list_runs(self, limit: int = 50) -> list[dict[str, Any]]:
         return self.store.list_runs(limit=limit)
+
+    def autopilot_status(self) -> dict[str, Any]:
+        return self.autopilot.status()
+
+    def start_autopilot(self) -> dict[str, Any]:
+        return self.autopilot.start()
+
+    def stop_autopilot(self) -> dict[str, Any]:
+        return self.autopilot.stop()
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         run = self.store.get_run(run_id)

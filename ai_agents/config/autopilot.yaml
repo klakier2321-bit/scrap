@@ -1,0 +1,51 @@
+autopilot:
+  objective: "Stale rozwijac projekt warstwowo, bez chaosu, bez dotykania runtime tradingowego i bez obchodzenia zasad bezpieczenstwa."
+  auto_start: true
+  poll_interval_seconds: 300
+  max_cycles: 0
+
+  tasks:
+    - name: "review_spec_core"
+      agent_name: "review_agent"
+      goal: "Sprawdz spojnosci dokumentacji kanonicznej i wskaz jeden nastepny bezpieczny krok rozwojowy bez zmian runtime."
+      business_reason: "Chcemy utrzymac porzadek i stale usuwac niespojnosci przed dalsza rozbudowa systemu."
+      requested_paths:
+        - "docs/"
+        - "ai_agents/"
+      risk_level: "low"
+      cross_layer: false
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false
+
+    - name: "lead_next_increment"
+      agent_name: "system_lead_agent"
+      goal: "Wyznacz jeden maly, konkretny i bezpieczny krok rozwoju systemu, ktory poprawia gotowosc platformy do dalszej budowy control layer, agentow lub monitoringu."
+      business_reason: "Chcemy, aby glowny agent stale pilnowal kolejnosci prac i proponowal kolejny sensowny przyrost systemu."
+      requested_paths:
+        - "docs/"
+        - "core/"
+        - "ai_agents/"
+        - "monitoring/"
+      risk_level: "medium"
+      cross_layer: true
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false
+
+    - name: "architecture_refinement"
+      agent_name: "architecture_agent"
+      goal: "Doprecyzuj docelowa architekture platformy i sprawdz, czy przeplyw miedzy warstwami pozostaje czytelny, bezpieczny i zgodny z rola Freqtrade jako execution engine."
+      business_reason: "Chcemy unikac dryfu architektury i utrzymac jasny podzial odpowiedzialnosci miedzy AI, control layer i trading runtime."
+      requested_paths:
+        - "docs/ARCHITECTURE.md"
+        - "docs/PROJECT_MAP.md"
+        - "docs/DECISIONS.md"
+      risk_level: "medium"
+      cross_layer: false
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false

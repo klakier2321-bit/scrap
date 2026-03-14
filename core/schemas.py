@@ -147,3 +147,22 @@ class StrategyReportResponse(BaseModel):
     assessment_risk_level: str | None = None
     assessment_generated_at: datetime | str | None = None
     generated_at: datetime | str
+
+
+class AutopilotStatusResponse(BaseModel):
+    """Status of the continuous planning autopilot."""
+
+    running: bool
+    objective: str
+    poll_interval_seconds: int
+    max_cycles: int
+    cycle_count: int
+    current_task_name: str | None = None
+    current_run_id: str | None = None
+    last_run_id: str | None = None
+    last_status: str | None = None
+    last_error: str | None = None
+    last_started_at: datetime | str | None = None
+    task_names: list[str] = Field(default_factory=list)
+    next_task_name: str | None = None
+    config_path: str

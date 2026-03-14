@@ -226,6 +226,23 @@
           </div>
         </section>
 
+        <section class="panel medium">
+          <h2>Autopilot agentów</h2>
+          <div class="stats" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px;">
+            <div class="stat"><span>Stan</span><strong id="autopilot-running">...</strong></div>
+            <div class="stat"><span>Następne zadanie</span><strong id="autopilot-next-task">...</strong></div>
+            <div class="stat"><span>Liczba cykli</span><strong id="autopilot-cycle-count">...</strong></div>
+          </div>
+          <div class="stack">
+            <div class="muted" id="autopilot-objective">Ładowanie celu autopilota...</div>
+            <div class="muted" id="autopilot-last-status">Ładowanie ostatniego wyniku...</div>
+            <div class="run-actions">
+              <button id="autopilot-start" class="primary">Uruchom autopilota</button>
+              <button id="autopilot-stop" class="danger">Zatrzymaj autopilota</button>
+            </div>
+          </div>
+        </section>
+
         <section class="panel small">
           <h2>Nowy run agenta</h2>
           <div class="stack">
@@ -429,6 +446,18 @@
         document.getElementById("summary-last-review").textContent = lastReviewed ? translateReviewDecision(lastReviewed.review_json.decision) : "Brak";
       }
 
+      async function refreshAutopilot() {
+        const autopilot = await fetchJson("/ops/autopilot/status");
+        document.getElementById("autopilot-running").textContent = autopilot.running ? "Aktywny" : "Wyłączony";
+        document.getElementById("autopilot-next-task").textContent = autopilot.next_task_name || "Brak";
+        document.getElementById("autopilot-cycle-count").textContent = String(autopilot.cycle_count || 0);
+        document.getElementById("autopilot-objective").textContent = autopilot.objective || "Brak celu.";
+        const lastStatus = autopilot.last_status ? translateStatus(autopilot.last_status) : "Brak";
+        const lastRunId = autopilot.last_run_id ? autopilot.last_run_id.slice(0, 8) : "-";
+        const lastError = autopilot.last_error ? ` | Błąd: ${autopilot.last_error}` : "";
+        document.getElementById("autopilot-last-status").textContent = `Ostatni run: ${lastRunId} | Status: ${lastStatus}${lastError}`;
+      }
+
       async function refreshRuns() {
         const runs = await fetchJson("/ops/runs?limit=20");
         const tbody = document.getElementById("runs-table");
@@ -555,11 +584,34 @@
         }
       }
 
+      async function startAutopilot() {
+        try {
+          await fetchJson("/ops/autopilot/start", { method: "POST" });
+          await refreshAutopilot();
+          await refreshRuns();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie uruchomic autopilota: ${error.message}`);
+        }
+      }
+
+      async function stopAutopilot() {
+        try {
+          await fetchJson("/ops/autopilot/stop", { method: "POST" });
+          await refreshAutopilot();
+          await refreshRuns();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie zatrzymac autopilota: ${error.message}`);
+        }
+      }
+
       async function refreshAll() {
         await Promise.all([
           refreshHealth(),
           refreshBots(),
           refreshAgents(),
+          refreshAutopilot(),
           refreshRuns(),
           refreshLogs(),
           refreshStrategyReports()
@@ -571,6 +623,8 @@
       document.getElementById("run-low").addEventListener("click", () => createRun("low"));
       document.getElementById("run-medium").addEventListener("click", () => createRun("medium"));
       document.getElementById("refresh-strategy-report").addEventListener("click", generateStrategyAssessment);
+      document.getElementById("autopilot-start").addEventListener("click", startAutopilot);
+      document.getElementById("autopilot-stop").addEventListener("click", stopAutopilot);
 
       refreshAll();
       setInterval(refreshAll, 10000);

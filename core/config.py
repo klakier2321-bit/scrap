@@ -28,6 +28,10 @@ class AppSettings(BaseSettings):
     agent_global_per_run_budget_usd: float = 0.5
     agent_allow_mock_fallback: bool = True
     agent_kill_switch: bool = False
+    agent_autopilot_enabled: bool = False
+    agent_autopilot_poll_interval_seconds: int = 300
+    agent_autopilot_max_cycles: int = 0
+    agent_autopilot_config: str = "/app/ai_agents/config/autopilot.yaml"
     crewai_disable_telemetry: bool = True
     agent_tracing_enabled: bool = True
     agent_otlp_http_endpoint: str = "http://tempo:4318/v1/traces"
@@ -71,6 +75,12 @@ class AppSettings(BaseSettings):
     @property
     def strategy_reports_dir(self) -> Path:
         return self.data_dir / "strategy_reports"
+
+    @property
+    def autopilot_config_path(self) -> Path:
+        if self.agent_autopilot_config.startswith("/app/") and not Path("/app").exists():
+            return self.repo_root / self.agent_autopilot_config.removeprefix("/app/")
+        return Path(self.agent_autopilot_config)
 
 
 @lru_cache(maxsize=1)

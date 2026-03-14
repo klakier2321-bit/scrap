@@ -73,11 +73,40 @@ class CrewAIExecutionEngine:
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
-            start = raw.find("{")
-            end = raw.rfind("}")
-            if start == -1 or end == -1 or end <= start:
+            candidate = self._extract_balanced_json_object(raw)
+            if candidate is None:
                 raise
-            return json.loads(raw[start : end + 1])
+            return json.loads(candidate)
+
+    def _extract_balanced_json_object(self, raw: str) -> str | None:
+        start = raw.find("{")
+        if start == -1:
+            return None
+
+        depth = 0
+        in_string = False
+        escape = False
+
+        for index, char in enumerate(raw[start:], start=start):
+            if in_string:
+                if escape:
+                    escape = False
+                elif char == "\\":
+                    escape = True
+                elif char == '"':
+                    in_string = False
+                continue
+
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return raw[start : index + 1]
+
+        return None
 
     def _build_json_output_instruction(self, output_model: type) -> str:
         schema = output_model.model_json_schema()
