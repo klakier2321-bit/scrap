@@ -164,6 +164,98 @@ class ExecutiveReportService:
                 break
         return notes
 
+    def _build_blockers(
+        self,
+        *,
+        tasks: list[dict[str, Any]],
+        decisions: list[dict[str, Any]],
+        risks: list[dict[str, Any]],
+        modules: list[dict[str, Any]],
+        autopilot_status: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        modules_by_id = {module["id"]: module["name"] for module in modules}
+        blockers: list[dict[str, Any]] = []
+
+        for task in tasks:
+            task_status = str(task.get("status", "")).strip()
+            if task_status not in {"Wymaga uwagi", "Zablokowane", "W toku"} and task.get("needs_human") != "Tak":
+                continue
+            if task.get("needs_human") == "Tak" or task_status in {"Wymaga uwagi", "Zablokowane"}:
+                blockers.append(
+                    {
+                        "blocker_id": f"task:{task['id']}",
+                        "source": "Task",
+                        "area": modules_by_id.get(task["module_id"], task["module_id"]),
+                        "title": task["title"],
+                        "severity": task.get("priority", "Średni"),
+                        "status": task_status,
+                        "why_blocking": task.get("next_step", "Wymaga doprecyzowania kolejnego kroku."),
+                        "expected_action": (
+                            "Potrzebna decyzja prezesa."
+                            if task.get("needs_human") == "Tak"
+                            else "Potrzebny kolejny mały krok i dopięcie wykonania."
+                        ),
+                    }
+                )
+
+        for decision in decisions:
+            blockers.append(
+                {
+                    "blocker_id": f"decision:{decision['id']}",
+                    "source": "Decyzja",
+                    "area": decision["area"],
+                    "title": decision["title"],
+                    "severity": decision.get("priority", "Średni"),
+                    "status": decision.get("status", "Oczekuje"),
+                    "why_blocking": decision.get(
+                        "impact",
+                        "Bez tej decyzji trudniej ustawić następne kroki projektu.",
+                    ),
+                    "expected_action": decision.get(
+                        "expected_from_ceo",
+                        "Potrzebna decyzja prezesa.",
+                    ),
+                }
+            )
+
+        for risk in risks:
+            if risk.get("severity") not in {"Wysokie", "Krytyczne"}:
+                continue
+            blockers.append(
+                {
+                    "blocker_id": f"risk:{risk['id']}",
+                    "source": "Ryzyko",
+                    "area": risk["area"],
+                    "title": risk["title"],
+                    "severity": risk["severity"],
+                    "status": risk.get("status", "Otwarte"),
+                    "why_blocking": risk.get(
+                        "title",
+                        "To ryzyko ogranicza tempo rozwoju projektu.",
+                    ),
+                    "expected_action": risk.get(
+                        "mitigation",
+                        "Potrzebny plan ograniczenia ryzyka.",
+                    ),
+                }
+            )
+
+        if autopilot_status.get("attention_needed"):
+            blockers.append(
+                {
+                    "blocker_id": "autopilot:attention",
+                    "source": "Autopilot",
+                    "area": "CrewAI i control plane",
+                    "title": "Autopilot wymaga uwagi",
+                    "severity": "Wysoki",
+                    "status": autopilot_status.get("last_status") or "Wymaga uwagi",
+                    "why_blocking": "Warstwa ciągłej pracy agentów nie daje dziś pełnej pewności stabilnej pracy.",
+                    "expected_action": "Sprawdzić ostatni run i ustabilizować kolejny cykl przed dalszym rozszerzaniem autopilota.",
+                }
+            )
+
+        return blockers[:10]
+
     def build_report(
         self,
         *,
@@ -238,6 +330,13 @@ class ExecutiveReportService:
 
         recent_changes = self._build_recent_changes(runs, modules)
         lead_notes = self._build_lead_notes(runs)
+        blockers = self._build_blockers(
+            tasks=open_tasks,
+            decisions=waiting_decisions,
+            risks=[risk for risk in risks if risk.get("status") != "Zamknięte"],
+            modules=modules,
+            autopilot_status={**autopilot_status, "attention_needed": autopilot_attention_needed},
+        )
 
         return {
             "title": config.get("title", "Pulpit Prezesa"),
@@ -257,6 +356,7 @@ class ExecutiveReportService:
             "risks": [risk for risk in risks if risk.get("status") != "Zamknięte"],
             "recent_changes": recent_changes,
             "lead_notes": lead_notes,
+            "blockers": blockers,
             "summary": {
                 "modules_by_status": modules_by_status,
                 "modules_total": len(modules),
@@ -268,6 +368,7 @@ class ExecutiveReportService:
                 "active_agent_runs_total": sum(
                     1 for run in runs if run.get("status") in {"queued", "running", "awaiting_approval"}
                 ),
+                "blockers_total": len(blockers),
                 "autopilot_attention_needed": 1 if autopilot_attention_needed else 0,
             },
         }

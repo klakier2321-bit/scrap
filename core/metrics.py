@@ -163,6 +163,10 @@ EXEC_HIGH_RISKS_TOTAL = Gauge(
     "crypto_exec_high_risks_total",
     "Number of open risks classified as high severity.",
 )
+EXEC_BLOCKERS_TOTAL = Gauge(
+    "crypto_exec_blockers_total",
+    "Number of executive blockers that currently slow the project.",
+)
 EXEC_ACTIVE_AGENT_RUNS_TOTAL = Gauge(
     "crypto_exec_active_agent_runs_total",
     "Number of currently active agent runs from the executive perspective.",
@@ -252,6 +256,11 @@ EXEC_COMPLETED_TASK = Gauge(
     "crypto_exec_completed_task",
     "Recently completed executive tasks shown on the CEO dashboard.",
     ["task_id", "module_id", "module_name", "task_title", "status", "owner_agent", "next_step"],
+)
+EXEC_BLOCKER = Gauge(
+    "crypto_exec_blocker",
+    "Executive blockers visible on the CEO dashboard.",
+    ["blocker_id", "source", "area", "title", "severity", "status", "why_blocking", "expected_action"],
 )
 
 
@@ -405,6 +414,7 @@ def update_executive_metrics(executive_report: dict[str, Any] | None) -> None:
     EXEC_RECENT_CHANGE.clear()
     EXEC_LEAD_NOTE.clear()
     EXEC_COMPLETED_TASK.clear()
+    EXEC_BLOCKER.clear()
 
     summary = executive_report.get("summary", {})
     for status, count in summary.get("modules_by_status", {}).items():
@@ -415,6 +425,7 @@ def update_executive_metrics(executive_report: dict[str, Any] | None) -> None:
     EXEC_TASKS_NEEDING_CEO_TOTAL.set(int(summary.get("tasks_needing_ceo_total", 0)))
     EXEC_DECISIONS_WAITING_TOTAL.set(int(summary.get("decisions_waiting_total", 0)))
     EXEC_HIGH_RISKS_TOTAL.set(int(summary.get("high_risks_total", 0)))
+    EXEC_BLOCKERS_TOTAL.set(int(summary.get("blockers_total", 0)))
     EXEC_ACTIVE_AGENT_RUNS_TOTAL.set(int(summary.get("active_agent_runs_total", 0)))
 
     autopilot = executive_report.get("autopilot", {})
@@ -521,6 +532,18 @@ def update_executive_metrics(executive_report: dict[str, Any] | None) -> None:
             status=task["status"],
             owner_agent=task["owner_agent"],
             next_step=task["next_step"],
+        ).set(1)
+
+    for blocker in executive_report.get("blockers", []):
+        EXEC_BLOCKER.labels(
+            blocker_id=blocker["blocker_id"],
+            source=blocker["source"],
+            area=blocker["area"],
+            title=blocker["title"],
+            severity=blocker["severity"],
+            status=blocker["status"],
+            why_blocking=blocker["why_blocking"],
+            expected_action=blocker["expected_action"],
         ).set(1)
 
 
