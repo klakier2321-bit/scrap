@@ -29,7 +29,7 @@
       },
       "id": 1,
       "options": {
-        "content": "# Pulpit Prezesa\n\nTo jest główny dashboard zarządczy dla projektu tradingowego. Pokazuje **co już działa**, **co jest w toku**, **gdzie są ryzyka**, **jakie decyzje czekają na prezesa** i **na których modułach pracuje zespół**. Nie trzeba znać kodu, żeby czytać ten widok.\n\n**Jak czytać statusy:**\n- `W toku` = praca trwa i nie jest zablokowana\n- `Wymaga uwagi` = obszar pracuje, ale potrzebuje stabilizacji lub decyzji\n- `Planowane` = temat jest na roadmapie, ale jeszcze nie jest uruchomiony szerzej\n- `Stabilny zakres` = temat jest kontrolowany i na tym etapie chronimy go przed chaosem zmian\n\nSzybkie przejścia:\n- [Mapa docelowej platformy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n- [Szczegóły warstw systemu](/d/crypto-system-arch-details/szczegoly-systemu)\n- [Panel operatorski AI](http://217.182.73.182:8000)\n- [Przegląd agentów](/d/crypto-agent-overview/przeglad-agentow)",
+        "content": "# Pulpit Prezesa\n\nTo jest główny dashboard zarządczy dla projektu tradingowego. Pokazuje **co już działa**, **co jest w toku**, **gdzie są ryzyka**, **jakie decyzje czekają na prezesa** i **na których modułach pracuje zespół**. Nie trzeba znać kodu, żeby czytać ten widok.\n\n**Jak czytać statusy:**\n- `W toku` = praca trwa i nie jest zablokowana\n- `Wymaga uwagi` = obszar pracuje, ale potrzebuje stabilizacji lub decyzji\n- `Planowane` = temat jest na roadmapie, ale jeszcze nie jest uruchomiony szerzej\n- `Stabilny zakres` = temat jest kontrolowany i na tym etapie chronimy go przed chaosem zmian\n\n**Jak sprawdzić, czy główny mózg projektu naprawdę pracuje w tle:**\n- panel `Autopilot działa` pokazuje, czy ciągła praca agentów jest aktywna\n- tabela `Heartbeat autopilota i rytm pracy` pokazuje ostatni cykl, następne zadanie i licznik cykli\n- tabela `Ostatnie raporty głównego agenta` pokazuje, co lead agent ostatnio ustalił i jaki sugeruje następny krok\n\nSzybkie przejścia:\n- [Mapa docelowej platformy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n- [Szczegóły warstw systemu](/d/crypto-system-arch-details/szczegoly-systemu)\n- [Panel operatorski AI](http://217.182.73.182:8000)\n- [Przegląd agentów](/d/crypto-agent-overview/przeglad-agentow)",
         "mode": "markdown"
       },
       "title": "Widok Zarządczy",
@@ -252,11 +252,11 @@
       },
       "targets": [
         {
-          "expr": "sum(crypto_exec_active_agent_runs_total)",
+          "expr": "sum(crypto_exec_autopilot_running)",
           "refId": "A"
         }
       ],
-      "title": "Aktywne runy agentów",
+      "title": "Autopilot działa",
       "type": "stat"
     },
     {
@@ -610,12 +610,64 @@
         "y": 64
       },
       "id": 15,
-      "options": {
-        "content": "## Co ten widok ma dawać prezesowi\n\n- szybkie zrozumienie, **na czym teraz pracuje zespół**\n- jasną odpowiedź, **co jest domknięte, co w toku, a co utknęło**\n- widoczność, **jakie decyzje są potrzebne od Ciebie i po co**\n- prosty obraz ryzyka, bez technicznego żargonu\n- kontrolę nad tym, czy projekt rośnie bezpiecznie, a nie chaotycznie\n\nTen dashboard ma być regularnie aktualizowany przez roadmapę projektu i dane z warstwy AI/control plane. To jest pulpit dla lidera projektu, nie dla kodera.",
-        "mode": "markdown"
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
       },
-      "title": "Dlaczego ten dashboard istnieje",
-      "type": "text"
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_autopilot_heartbeat",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Heartbeat autopilota i rytm pracy",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "indexByName": {
+              "last_started_at": 0,
+              "last_status": 1,
+              "next_task_name": 2,
+              "current_task_name": 3,
+              "cycle_count": 4,
+              "poll_interval_seconds": 5
+            },
+            "renameByName": {
+              "last_started_at": "Ostatni start cyklu",
+              "last_status": "Status ostatniego cyklu",
+              "next_task_name": "Następne zadanie",
+              "current_task_name": "Zadanie wykonywane teraz",
+              "cycle_count": "Liczba cykli od restartu",
+              "poll_interval_seconds": "Interwał cyklu (sek.)"
+            }
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "datasource": {
@@ -710,7 +762,7 @@
           "refId": "A"
         }
       ],
-      "title": "Najnowsze uwagi głównego agenta",
+      "title": "Ostatnie raporty głównego agenta",
       "transformations": [
         {
           "id": "labelsToFields",
@@ -991,5 +1043,5 @@
   },
   "title": "Pulpit Prezesa",
   "uid": "crypto-executive-overview",
-  "version": 1
+  "version": 2
 }

@@ -51,10 +51,10 @@ executive_dashboard:
       status: "W toku"
       progress_pct: 84
       direction: "Bezpieczna praca agentów przez policy gate, review i kontrolę kosztów"
-      current_focus: "Ustabilizować ciągłą pracę autopilota i utrzymać małe, kontrolowane runy"
-      next_milestone: "Potwierdzić wielocyklowe działanie autopilota bez zacięć po pierwszym runie"
+      current_focus: "Utrzymać ciągłą pracę autopilota i usunąć fallback do mock przy części runów"
+      next_milestone: "Mieć stabilny, wielocyklowy autopilot z czytelnym raportowaniem lead agenta i bez niepotrzebnych fallbacków"
       risk_level: "Wysokie"
-      executive_note: "Tu nie potrzeba dziś zgody na większy budżet, tylko cierpliwości na stabilizację"
+      executive_note: "Ciągła pętla już działa; teraz dopinamy jakość runów i spójność raportowania"
       paths:
         - "ai_agents/runtime/"
         - "ai_agents/config/"
@@ -158,11 +158,11 @@ executive_dashboard:
     - id: "autopilot_second_cycle"
       module_id: "crewai_control_plane"
       title: "Potwierdzić drugi i kolejne cykle autopilota"
-      status: "Wymaga uwagi"
+      status: "Zamknięte"
       owner_agent: "system_lead_agent"
       priority: "Wysoki"
       needs_human: "Nie"
-      next_step: "Zdebugować pętlę po pierwszym zakończonym runie i dopiero potem zwiększać zakres"
+      next_step: "Wielocyklowość potwierdzona; teraz usuwać fallback do mock i wzmacniać jakość ciągłych runów"
 
     - id: "docs_ci_checks"
       module_id: "canonical_docs"
@@ -244,12 +244,12 @@ executive_dashboard:
       impact: "Bez tej zgody nie będziemy rozszerzać pracy ciągłej na kolejne agenty."
 
   risks:
-    - id: "autopilot_stall"
-      title: "Autopilot nie potwierdził jeszcze pracy ciągłej po pierwszym cyklu"
+    - id: "autopilot_fallback"
+      title: "Część runów autopilota nadal wpada w mock fallback mimo działającej pętli"
       area: "CrewAI"
       severity: "Wysokie"
       status: "Otwarte"
-      mitigation: "Najpierw debug i stabilizacja pętli, potem dopiero poszerzanie zakresu agentów."
+      mitigation: "Utrzymać działającą pętlę, ale dopracować integrację z realnym modelem i structured output, żeby lead agent raportował stabilnie bez awaryjnego fallbacku."
 
     - id: "executive_blind_spot"
       title: "Brak jednego zarządczego widoku powoduje chaos informacyjny"

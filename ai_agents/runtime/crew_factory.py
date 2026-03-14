@@ -51,18 +51,67 @@ class CrewAIExecutionEngine:
         if crew_output.tasks_output:
             task_output = crew_output.tasks_output[0]
             if getattr(task_output, "pydantic", None):
-                return task_output.pydantic
+                pydantic_output = task_output.pydantic
+                if isinstance(pydantic_output, output_model):
+                    return pydantic_output
+                payload = (
+                    pydantic_output.model_dump()
+                    if hasattr(pydantic_output, "model_dump")
+                    else pydantic_output
+                )
+                return output_model.model_validate(
+                    self._normalize_structured_payload(payload)
+                )
             if getattr(task_output, "json_dict", None):
-                return output_model.model_validate(task_output.json_dict)
+                return output_model.model_validate(
+                    self._normalize_structured_payload(task_output.json_dict)
+                )
             if getattr(task_output, "raw", None):
                 return output_model.model_validate(
-                    self._extract_json_payload(task_output.raw)
+                    self._normalize_structured_payload(
+                        self._extract_json_payload(task_output.raw)
+                    )
                 )
         if getattr(crew_output, "pydantic", None):
-            return crew_output.pydantic
+            pydantic_output = crew_output.pydantic
+            if isinstance(pydantic_output, output_model):
+                return pydantic_output
+            payload = (
+                pydantic_output.model_dump()
+                if hasattr(pydantic_output, "model_dump")
+                else pydantic_output
+            )
+            return output_model.model_validate(
+                self._normalize_structured_payload(payload)
+            )
         if getattr(crew_output, "json_dict", None):
-            return output_model.model_validate(crew_output.json_dict)
+            return output_model.model_validate(
+                self._normalize_structured_payload(crew_output.json_dict)
+            )
         raise ValueError("Crew output did not contain a structured response.")
+
+    def _normalize_structured_payload(self, payload: Any) -> Any:
+        if isinstance(payload, list):
+            return [self._normalize_structured_payload(item) for item in payload]
+
+        if not isinstance(payload, dict):
+            return payload
+
+        schema_wrapper_keys = {
+            "title",
+            "type",
+            "description",
+            "default",
+            "items",
+            "value",
+        }
+        if "value" in payload and any(key in payload for key in schema_wrapper_keys - {"value"}):
+            return self._normalize_structured_payload(payload["value"])
+
+        return {
+            key: self._normalize_structured_payload(value)
+            for key, value in payload.items()
+        }
 
     def _extract_json_payload(self, raw_text: str) -> dict[str, Any]:
         raw = raw_text.strip()

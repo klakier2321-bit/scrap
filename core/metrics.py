@@ -175,9 +175,17 @@ EXEC_AUTOPILOT_RUNNING = Gauge(
     "crypto_exec_autopilot_running",
     "Whether the continuous agent autopilot is currently running.",
 )
+EXEC_AUTOPILOT_CYCLE_COUNT = Gauge(
+    "crypto_exec_autopilot_cycle_count",
+    "Number of autopilot cycles completed since the last restart.",
+)
 EXEC_AUTOPILOT_ATTENTION_NEEDED = Gauge(
     "crypto_exec_autopilot_attention_needed",
     "Whether the autopilot appears stale or otherwise needs executive attention.",
+)
+EXEC_AUTOPILOT_LAST_STARTED_AT_SECONDS = Gauge(
+    "crypto_exec_autopilot_last_started_at_seconds",
+    "Unix timestamp of the last autopilot dispatch.",
 )
 EXEC_MODULE_PROGRESS_PCT = Gauge(
     "crypto_exec_module_progress_pct",
@@ -261,6 +269,18 @@ EXEC_BLOCKER = Gauge(
     "crypto_exec_blocker",
     "Executive blockers visible on the CEO dashboard.",
     ["blocker_id", "source", "area", "title", "severity", "status", "why_blocking", "expected_action"],
+)
+EXEC_AUTOPILOT_HEARTBEAT = Gauge(
+    "crypto_exec_autopilot_heartbeat",
+    "Current heartbeat information for the continuous autopilot and lead coordination.",
+    [
+        "last_started_at",
+        "last_status",
+        "next_task_name",
+        "current_task_name",
+        "cycle_count",
+        "poll_interval_seconds",
+    ],
 )
 
 
@@ -430,7 +450,28 @@ def update_executive_metrics(executive_report: dict[str, Any] | None) -> None:
 
     autopilot = executive_report.get("autopilot", {})
     EXEC_AUTOPILOT_RUNNING.set(1 if autopilot.get("running") else 0)
+    EXEC_AUTOPILOT_CYCLE_COUNT.set(int(autopilot.get("cycle_count", 0)))
     EXEC_AUTOPILOT_ATTENTION_NEEDED.set(1 if autopilot.get("attention_needed") else 0)
+    last_started_at = autopilot.get("last_started_at")
+    if last_started_at:
+        try:
+            timestamp = float(
+                datetime.fromisoformat(str(last_started_at).replace("Z", "+00:00")).timestamp()
+            )
+        except ValueError:
+            timestamp = 0.0
+    else:
+        timestamp = 0.0
+    EXEC_AUTOPILOT_LAST_STARTED_AT_SECONDS.set(timestamp)
+    EXEC_AUTOPILOT_HEARTBEAT.clear()
+    EXEC_AUTOPILOT_HEARTBEAT.labels(
+        last_started_at=str(autopilot.get("last_started_at") or "brak"),
+        last_status=str(autopilot.get("last_status") or "brak"),
+        next_task_name=str(autopilot.get("next_task_name") or "brak"),
+        current_task_name=str(autopilot.get("current_task_name") or "brak"),
+        cycle_count=str(autopilot.get("cycle_count", 0)),
+        poll_interval_seconds=str(autopilot.get("poll_interval_seconds", 0)),
+    ).set(1)
 
     modules_by_id = {
         module["id"]: module.get("name", module["id"])
