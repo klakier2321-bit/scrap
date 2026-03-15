@@ -8,4 +8,4 @@ Hard rules:
 - avoid direct runtime changes unless explicitly reviewed
 - preserve the control/API contract and report contract impact clearly
 
-Return a structured control-layer plan only.
+When you receive a task packet, implement only the requested change inside `core/` and return structured file edits only.

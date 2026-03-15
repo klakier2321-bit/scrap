@@ -69,6 +69,33 @@ class AgentRuntimeService:
         self.mock_engine = MockExecutionEngine()
         register_runtime_hooks()
 
+    def _select_engine(self) -> Any:
+        return self.mock_engine if self.settings.agent_use_mock_llm else self.real_engine
+
+    def _run_with_optional_mock_fallback(
+        self,
+        *,
+        agent_name: str,
+        task_label: str,
+        runner: Any,
+    ) -> tuple[Any, Any]:
+        engine = self._select_engine()
+        try:
+            return runner(engine)
+        except Exception:  # noqa: BLE001
+            if self.settings.agent_use_mock_llm or not self.settings.agent_allow_mock_fallback:
+                raise
+            logger.exception(
+                "Real LLM helper call failed. Falling back to the mock engine.",
+                extra={
+                    "agent_name": agent_name,
+                    "status": "fallback",
+                    "event": "mock_fallback",
+                    "task_label": task_label,
+                },
+            )
+            return runner(self.mock_engine)
+
     def list_agents(self) -> list[dict[str, Any]]:
         agents = []
         for name, profile in self.agent_profiles.items():
@@ -87,6 +114,63 @@ class AgentRuntimeService:
                 }
             )
         return agents
+
+    def generate_coding_task_packet(
+        self,
+        *,
+        module_context: dict[str, Any],
+        executive_context: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        packet_output, usage = self._run_with_optional_mock_fallback(
+            agent_name="system_lead_agent",
+            task_label="coding_task_packet",
+            runner=lambda engine: engine.run_lead_task_packet_agent(
+                module_context=module_context,
+                executive_context=executive_context,
+            ),
+        )
+        return packet_output.model_dump(), usage.model_dump()
+
+    def generate_coding_change(
+        self,
+        *,
+        agent_name: str,
+        task_packet: dict[str, Any],
+        file_contexts: list[dict[str, str]],
+        review_feedback: list[str] | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        change_output, usage = self._run_with_optional_mock_fallback(
+            agent_name=agent_name,
+            task_label="coding_change",
+            runner=lambda engine: engine.run_coding_agent(
+                agent_name=agent_name,
+                selected_model_tier="cheap",
+                task_packet=task_packet,
+                file_contexts=file_contexts,
+                review_feedback=review_feedback,
+            ),
+        )
+        return change_output.model_dump(), usage.model_dump()
+
+    def review_coding_change(
+        self,
+        *,
+        task_packet: dict[str, Any],
+        diff_text: str,
+        check_results: dict[str, Any],
+        change_summary: str,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        review_output, usage = self._run_with_optional_mock_fallback(
+            agent_name="review_agent",
+            task_label="coding_review",
+            runner=lambda engine: engine.run_coding_review_agent(
+                task_packet=task_packet,
+                diff_text=diff_text,
+                check_results=check_results,
+                change_summary=change_summary,
+            ),
+        )
+        return review_output.model_dump(), usage.model_dump()
 
     def prepare_run(
         self,
@@ -213,7 +297,7 @@ class AgentRuntimeService:
         token = set_current_run_context(hook_context)
         suppress_tracing_token = tracing_utils.set_suppress_tracing_messages(True)
         try:
-            engine = self.mock_engine if self.settings.agent_use_mock_llm else self.real_engine
+            engine = self._select_engine()
             try:
                 flow = PlanningFlow(
                     engine=engine,
@@ -271,10 +355,13 @@ class AgentRuntimeService:
             "selected_model_tier": selected_model_tier,
             "selected_model": selected_model,
         }
-        engine = self.mock_engine if self.settings.agent_use_mock_llm else self.real_engine
-        assessment_output, usage = engine.run_strategy_assessment_agent(
-            strategy_report,
-            run_context,
+        assessment_output, usage = self._run_with_optional_mock_fallback(
+            agent_name="strategy_agent",
+            task_label="strategy_assessment",
+            runner=lambda engine: engine.run_strategy_assessment_agent(
+                strategy_report,
+                run_context,
+            ),
         )
         return {
             "generated_by": "strategy_agent",

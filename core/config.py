@@ -35,6 +35,15 @@ class AppSettings(BaseSettings):
     crewai_disable_telemetry: bool = True
     agent_tracing_enabled: bool = True
     agent_otlp_http_endpoint: str = "http://tempo:4318/v1/traces"
+    repo_checkout_dir: str = "/workspace"
+    agent_worktree_root_dir: str = "/workspace/data/agent_worktrees"
+    agent_coding_enabled: bool = True
+    agent_coding_auto_start: bool = True
+    agent_lead_queue_refresh_interval_seconds: int = 300
+    agent_coding_dispatcher_poll_interval_seconds: int = 60
+    agent_git_author_name: str = "Crypto System Agent"
+    agent_git_author_email: str = "agents@crypto-system.local"
+    agent_coding_modules_config: str = "/app/ai_agents/config/coding_modules.yaml"
 
     model_config = SettingsConfigDict(
         env_file=".env.ai.control.local",
@@ -45,6 +54,13 @@ class AppSettings(BaseSettings):
     @property
     def repo_root(self) -> Path:
         return Path(__file__).resolve().parents[1]
+
+    @property
+    def repo_checkout_path(self) -> Path:
+        checkout_path = Path(self.repo_checkout_dir)
+        if checkout_path.exists():
+            return checkout_path
+        return self.repo_root
 
     @property
     def log_dir(self) -> Path:
@@ -81,6 +97,19 @@ class AppSettings(BaseSettings):
         if self.agent_autopilot_config.startswith("/app/") and not Path("/app").exists():
             return self.repo_root / self.agent_autopilot_config.removeprefix("/app/")
         return Path(self.agent_autopilot_config)
+
+    @property
+    def agent_worktree_root_path(self) -> Path:
+        worktree_root = Path(self.agent_worktree_root_dir)
+        if worktree_root.exists() or self.agent_worktree_root_dir.startswith("/workspace/"):
+            return worktree_root
+        return self.repo_root / self.agent_worktree_root_dir.lstrip("./")
+
+    @property
+    def coding_modules_config_path(self) -> Path:
+        if self.agent_coding_modules_config.startswith("/app/") and not Path("/app").exists():
+            return self.repo_root / self.agent_coding_modules_config.removeprefix("/app/")
+        return Path(self.agent_coding_modules_config)
 
 
 @lru_cache(maxsize=1)

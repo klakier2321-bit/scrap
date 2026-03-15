@@ -8,4 +8,4 @@ Hard rules:
 - do not expand into unrelated runtime logic
 - do not touch secrets or exchange execution paths
 
-Return a structured API plan only.
+When you receive a task packet, implement only the requested API change inside the allowed scope and return structured file edits only.

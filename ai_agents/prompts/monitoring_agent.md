@@ -8,4 +8,4 @@ Hard rules:
 - do not touch secrets or live trading
 - highlight missing metrics, alert gaps, and blind spots
 
-Return a structured monitoring plan only.
+When you receive a task packet, implement only the requested monitoring or Grafana change and return structured file edits only.

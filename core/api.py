@@ -24,6 +24,11 @@ from .schemas import (
     AgentRunRequest,
     BotStatus,
     BotSummary,
+    CodingReviewDecisionRequest,
+    CodingStatusResponse,
+    CodingTaskCreateRequest,
+    CodingTaskRecord,
+    CodingWorkspaceRecord,
     HealthResponse,
     StrategyReportResponse,
 )
@@ -45,8 +50,11 @@ async def lifespan(_: FastAPI):
     setup_tracing(app, settings)
     if settings.agent_autopilot_enabled:
         get_orchestrator().start_autopilot()
+    if settings.agent_coding_enabled and settings.agent_coding_auto_start:
+        get_orchestrator().start_coding_supervisor()
     yield
     get_orchestrator().stop_autopilot()
+    get_orchestrator().stop_coding_supervisor()
 
 
 app = FastAPI(
@@ -184,6 +192,139 @@ async def ops_agents() -> JSONResponse:
 @app.get("/ops/executive/report", include_in_schema=False)
 async def ops_executive_report() -> JSONResponse:
     return JSONResponse(get_orchestrator().get_executive_report())
+
+
+@app.get(
+    "/ops/coding-status",
+    response_model=CodingStatusResponse,
+    include_in_schema=False,
+)
+async def ops_coding_status() -> CodingStatusResponse:
+    return CodingStatusResponse(**get_orchestrator().coding_status())
+
+
+@app.post(
+    "/ops/coding-status/start",
+    response_model=CodingStatusResponse,
+    include_in_schema=False,
+)
+async def ops_coding_status_start() -> CodingStatusResponse:
+    return CodingStatusResponse(**get_orchestrator().start_coding_supervisor())
+
+
+@app.post(
+    "/ops/coding-status/stop",
+    response_model=CodingStatusResponse,
+    include_in_schema=False,
+)
+async def ops_coding_status_stop() -> CodingStatusResponse:
+    return CodingStatusResponse(**get_orchestrator().stop_coding_supervisor())
+
+
+@app.get(
+    "/ops/coding-tasks",
+    response_model=list[CodingTaskRecord],
+    include_in_schema=False,
+)
+async def ops_coding_tasks(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[CodingTaskRecord]:
+    return [CodingTaskRecord(**task) for task in get_orchestrator().list_coding_tasks(limit=limit)]
+
+
+@app.post(
+    "/ops/coding-tasks",
+    response_model=CodingTaskRecord,
+    include_in_schema=False,
+)
+async def ops_create_coding_task(request: CodingTaskCreateRequest) -> CodingTaskRecord:
+    try:
+        task = get_orchestrator().create_coding_task(
+            module_id=request.module_id,
+            goal_override=request.goal_override,
+            business_reason=request.business_reason,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return CodingTaskRecord(**task)
+
+
+@app.get(
+    "/ops/coding-tasks/{task_id}",
+    response_model=CodingTaskRecord,
+    include_in_schema=False,
+)
+async def ops_coding_task(task_id: str) -> CodingTaskRecord:
+    try:
+        return CodingTaskRecord(**get_orchestrator().get_coding_task(task_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post(
+    "/ops/coding-tasks/{task_id}/approve-review",
+    response_model=CodingTaskRecord,
+    include_in_schema=False,
+)
+async def ops_approve_coding_review(task_id: str) -> CodingTaskRecord:
+    try:
+        return CodingTaskRecord(**get_orchestrator().approve_coding_review(task_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.post(
+    "/ops/coding-tasks/{task_id}/reject-review",
+    response_model=CodingTaskRecord,
+    include_in_schema=False,
+)
+async def ops_reject_coding_review(
+    task_id: str,
+    request: CodingReviewDecisionRequest,
+) -> CodingTaskRecord:
+    try:
+        return CodingTaskRecord(
+            **get_orchestrator().reject_coding_review(task_id, reason=request.reason)
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get(
+    "/ops/workspaces",
+    response_model=list[CodingWorkspaceRecord],
+    include_in_schema=False,
+)
+async def ops_workspaces() -> list[CodingWorkspaceRecord]:
+    return [CodingWorkspaceRecord(**workspace) for workspace in get_orchestrator().list_workspaces()]
+
+
+@app.get(
+    "/ops/workspaces/{task_id}/diff",
+    response_model=CodingWorkspaceRecord,
+    include_in_schema=False,
+)
+async def ops_workspace_diff(task_id: str) -> CodingWorkspaceRecord:
+    try:
+        return CodingWorkspaceRecord(**get_orchestrator().get_workspace_diff(task_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post(
+    "/ops/workspaces/{task_id}/reset",
+    response_model=CodingTaskRecord,
+    include_in_schema=False,
+)
+async def ops_workspace_reset(task_id: str) -> CodingTaskRecord:
+    try:
+        return CodingTaskRecord(**get_orchestrator().reset_workspace(task_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get("/ops/runs", include_in_schema=False)

@@ -166,3 +166,91 @@ class AutopilotStatusResponse(BaseModel):
     task_names: list[str] = Field(default_factory=list)
     next_task_name: str | None = None
     config_path: str
+
+
+class CodingTaskCreateRequest(BaseModel):
+    """Manual creation of one coding task for a selected module."""
+
+    module_id: str
+    goal_override: str | None = None
+    business_reason: str | None = None
+
+
+class CodingTaskRecord(BaseModel):
+    """Stored coding task managed by the supervised write runtime."""
+
+    task_id: str
+    module_id: str
+    owner_agent: str
+    goal: str
+    business_reason: str
+    owned_scope: list[str] = Field(default_factory=list)
+    read_only_context: list[str] = Field(default_factory=list)
+    target_files: list[str] = Field(default_factory=list)
+    forbidden_paths: list[str] = Field(default_factory=list)
+    risk_level: str
+    acceptance_checks: list[str] = Field(default_factory=list)
+    required_tests: list[str] = Field(default_factory=list)
+    definition_of_done: list[str] = Field(default_factory=list)
+    created_by_run_id: str
+    status: str
+    attempt_count: int = 0
+    review_attempt_count: int = 0
+    worktree_path: str | None = None
+    branch_name: str | None = None
+    base_ref: str | None = None
+    base_commit: str | None = None
+    diff_summary: str | None = None
+    check_results: dict[str, Any] = Field(default_factory=dict)
+    review_json: dict[str, Any] = Field(default_factory=dict)
+    commit_sha: str | None = None
+    planning_cost_usd: float = 0.0
+    coding_cost_usd: float = 0.0
+    review_cost_usd: float = 0.0
+    total_cost_usd: float = 0.0
+    last_error: str | None = None
+    created_at: datetime | str
+    started_at: datetime | str | None = None
+    finished_at: datetime | str | None = None
+    updated_at: datetime | str | None = None
+
+
+class CodingWorkspaceRecord(BaseModel):
+    """Isolated git worktree assigned to one coding task."""
+
+    task_id: str
+    agent_name: str
+    worktree_path: str
+    branch_name: str
+    base_ref: str
+    base_commit: str
+    changed_files: list[str] = Field(default_factory=list)
+    diff_text: str = ""
+    check_results: dict[str, Any] = Field(default_factory=dict)
+    status: str
+    created_at: datetime | str
+    updated_at: datetime | str
+
+
+class CodingStatusResponse(BaseModel):
+    """High-level status of the supervised coding runtime."""
+
+    running: bool
+    enabled: bool
+    lead_refresh_interval_seconds: int
+    dispatcher_poll_interval_seconds: int
+    max_active_tasks: int
+    last_queue_refresh_at: datetime | str | None = None
+    last_dispatch_at: datetime | str | None = None
+    last_error: str | None = None
+    active_task_id: str | None = None
+    ready_tasks: int = 0
+    review_tasks: int = 0
+    committed_tasks: int = 0
+    modules: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class CodingReviewDecisionRequest(BaseModel):
+    """Optional reason used when rejecting a reviewed coding task."""
+
+    reason: str = "Manual review rejection."

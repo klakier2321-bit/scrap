@@ -2,7 +2,7 @@
 
 ## Główne katalogi
 
-- `core/` - szkielet warstwy sterującej
+- `core/` - szkielet warstwy sterującej oraz pierwszy offline'owy slice `core/control_layer/`
 - `trading/` - Freqtrade, strategie i dane historyczne
 - `ai_agents/` - role, workflowy i zasady przyszłych agentów
 - `scripts/` - proste skrypty operacyjne
@@ -17,6 +17,7 @@
 - `PROJECT_RULES.md` - zasady projektu
 - `CONFIGURATION_POLICY.md` - polityka konfiguracji i sekretów
 - `RISK_RULES.md` - startowe zasady ryzyka
+- `docs/control_layer/first_increment.md` - opis pierwszego bezpiecznego przyrostu control layer
 - dokumenty `AGENT_*.md` - zasady pracy warstwy agentowej
 
 ## Dokumenty kanoniczne
@@ -33,7 +34,7 @@ Starsze dokumenty w root pozostają ważnym kontekstem pomocniczym i rozwinięci
 
 ## Gdzie wprowadzać zmiany
 
-- `core` - zmiany sterowania, orchestracji, bot managera, risk managera
+- `core` - zmiany sterowania, orchestracji, bot managera, risk managera oraz offline'owych modułów `control_layer`
 - `trading runtime` - zmiany Freqtrade, strategii, workflow backtestów, danych
 - `ai agents` - zmiany planów agentów, ról, workflowów i zasad AI
 - `scripts` - proste operacyjne skrypty projektu

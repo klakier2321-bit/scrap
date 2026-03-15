@@ -282,6 +282,56 @@ EXEC_AUTOPILOT_HEARTBEAT = Gauge(
         "poll_interval_seconds",
     ],
 )
+EXEC_CODING_READY_TASKS_TOTAL = Gauge(
+    "crypto_exec_coding_ready_tasks_total",
+    "Number of coding tasks ready for dispatch.",
+)
+EXEC_CODING_REVIEW_TASKS_TOTAL = Gauge(
+    "crypto_exec_coding_review_tasks_total",
+    "Number of coding tasks waiting in review.",
+)
+EXEC_CODING_COMMITTED_TASKS_TOTAL = Gauge(
+    "crypto_exec_coding_committed_tasks_total",
+    "Number of coding tasks already committed on worktree branches.",
+)
+EXEC_CODING_TASKS_WAITING_CEO_TOTAL = Gauge(
+    "crypto_exec_coding_tasks_waiting_ceo_total",
+    "Number of coding tasks waiting for manual executive approval.",
+)
+EXEC_CODING_ACTIVE_TASK = Gauge(
+    "crypto_exec_coding_active_task",
+    "Active coding task visible on the CEO dashboard.",
+    ["task_id", "module_id", "module_name", "owner_agent", "status", "goal", "branch_name"],
+)
+EXEC_CODING_TASK = Gauge(
+    "crypto_exec_coding_task",
+    "Coding tasks managed by the supervised write runtime.",
+    [
+        "task_id",
+        "module_id",
+        "module_name",
+        "owner_agent",
+        "status",
+        "goal",
+        "branch_name",
+        "risk_level",
+        "review_decision",
+    ],
+)
+EXEC_CODING_WORKSPACE = Gauge(
+    "crypto_exec_coding_workspace",
+    "Coding workspaces and their latest state.",
+    [
+        "task_id",
+        "module_id",
+        "module_name",
+        "agent_name",
+        "branch_name",
+        "status",
+        "worktree_path",
+        "changed_files_count",
+    ],
+)
 
 
 def record_run_created(agent_name: str, status: str) -> None:
@@ -435,6 +485,9 @@ def update_executive_metrics(executive_report: dict[str, Any] | None) -> None:
     EXEC_LEAD_NOTE.clear()
     EXEC_COMPLETED_TASK.clear()
     EXEC_BLOCKER.clear()
+    EXEC_CODING_ACTIVE_TASK.clear()
+    EXEC_CODING_TASK.clear()
+    EXEC_CODING_WORKSPACE.clear()
 
     summary = executive_report.get("summary", {})
     for status, count in summary.get("modules_by_status", {}).items():
@@ -447,6 +500,10 @@ def update_executive_metrics(executive_report: dict[str, Any] | None) -> None:
     EXEC_HIGH_RISKS_TOTAL.set(int(summary.get("high_risks_total", 0)))
     EXEC_BLOCKERS_TOTAL.set(int(summary.get("blockers_total", 0)))
     EXEC_ACTIVE_AGENT_RUNS_TOTAL.set(int(summary.get("active_agent_runs_total", 0)))
+    EXEC_CODING_READY_TASKS_TOTAL.set(int(summary.get("coding_tasks_ready_total", 0)))
+    EXEC_CODING_REVIEW_TASKS_TOTAL.set(int(summary.get("coding_tasks_review_total", 0)))
+    EXEC_CODING_COMMITTED_TASKS_TOTAL.set(int(summary.get("coding_tasks_committed_total", 0)))
+    EXEC_CODING_TASKS_WAITING_CEO_TOTAL.set(int(summary.get("coding_tasks_waiting_ceo_total", 0)))
 
     autopilot = executive_report.get("autopilot", {})
     EXEC_AUTOPILOT_RUNNING.set(1 if autopilot.get("running") else 0)
@@ -585,6 +642,55 @@ def update_executive_metrics(executive_report: dict[str, Any] | None) -> None:
             status=blocker["status"],
             why_blocking=blocker["why_blocking"],
             expected_action=blocker["expected_action"],
+        ).set(1)
+
+    coding = executive_report.get("coding", {})
+    modules_by_id = {
+        module["id"]: module.get("name", module["id"])
+        for module in executive_report.get("modules", [])
+    }
+    tasks_by_id = {
+        task["task_id"]: task
+        for task in coding.get("tasks", [])
+    }
+    active_task = (coding.get("summary") or {}).get("active_task")
+    if active_task:
+        EXEC_CODING_ACTIVE_TASK.labels(
+            task_id=active_task["task_id"],
+            module_id=active_task["module_id"],
+            module_name=modules_by_id.get(active_task["module_id"], active_task["module_id"]),
+            owner_agent=active_task["owner_agent"],
+            status=active_task["status"],
+            goal=active_task["goal"],
+            branch_name=active_task.get("branch_name") or "brak",
+        ).set(1)
+
+    for task in coding.get("tasks", []):
+        review_json = task.get("review_json") or {}
+        EXEC_CODING_TASK.labels(
+            task_id=task["task_id"],
+            module_id=task["module_id"],
+            module_name=modules_by_id.get(task["module_id"], task["module_id"]),
+            owner_agent=task["owner_agent"],
+            status=task["status"],
+            goal=task["goal"],
+            branch_name=task.get("branch_name") or "brak",
+            risk_level=task.get("risk_level") or "low",
+            review_decision=review_json.get("decision") or "brak",
+        ).set(float(task.get("total_cost_usd", 0.0)))
+
+    for workspace in coding.get("workspaces", []):
+        related_task = tasks_by_id.get(workspace["task_id"], {})
+        module_id = related_task.get("module_id", "nieznany_modul")
+        EXEC_CODING_WORKSPACE.labels(
+            task_id=workspace["task_id"],
+            module_id=module_id,
+            module_name=modules_by_id.get(module_id, module_id),
+            agent_name=workspace["agent_name"],
+            branch_name=workspace["branch_name"],
+            status=workspace["status"],
+            worktree_path=workspace["worktree_path"],
+            changed_files_count=str(len(workspace.get("changed_files", []))),
         ).set(1)
 
 

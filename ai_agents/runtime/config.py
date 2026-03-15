@@ -53,6 +53,23 @@ class BudgetProfile:
     require_approval_for_strong_model: bool
 
 
+@dataclass(frozen=True)
+class CodingModuleProfile:
+    """Konfiguracja jednego modułu obsługiwanego przez coding agents."""
+
+    module_id: str
+    owner_agent: str
+    enabled: bool
+    priority: int
+    title: str
+    module_summary: str
+    read_only_context: list[str]
+    target_candidates: list[str]
+    acceptance_checks: list[str]
+    required_tests: list[str]
+    definition_of_done: list[str]
+
+
 def _load_yaml(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as handle:
         return yaml.safe_load(handle) or {}
@@ -125,6 +142,28 @@ def load_budget_profiles() -> tuple[dict[str, Any], dict[str, BudgetProfile]]:
 
 def load_scope_manifest() -> dict[str, Any]:
     return _load_yaml(RULES_DIR / "AGENT_SCOPE_MANIFEST.yaml")
+
+
+def load_coding_runtime_config(path: Path) -> tuple[dict[str, Any], list[CodingModuleProfile]]:
+    raw = _load_yaml(path).get("coding_runtime", {})
+    profiles: list[CodingModuleProfile] = []
+    for item in raw.get("modules", []):
+        profiles.append(
+            CodingModuleProfile(
+                module_id=item["module_id"],
+                owner_agent=item["owner_agent"],
+                enabled=bool(item.get("enabled", True)),
+                priority=int(item.get("priority", 100)),
+                title=item["title"],
+                module_summary=item["module_summary"],
+                read_only_context=list(item.get("read_only_context", [])),
+                target_candidates=list(item.get("target_candidates", [])),
+                acceptance_checks=list(item.get("acceptance_checks", [])),
+                required_tests=list(item.get("required_tests", [])),
+                definition_of_done=list(item.get("definition_of_done", [])),
+            )
+        )
+    return raw, sorted(profiles, key=lambda profile: profile.priority, reverse=True)
 
 
 def load_prompt(prompt_file: Path) -> str:

@@ -29,7 +29,7 @@
       },
       "id": 1,
       "options": {
-        "content": "# Pulpit Prezesa\n\nTo jest główny dashboard zarządczy dla projektu tradingowego. Pokazuje **co już działa**, **co jest w toku**, **gdzie są ryzyka**, **jakie decyzje czekają na prezesa** i **na których modułach pracuje zespół**. Nie trzeba znać kodu, żeby czytać ten widok.\n\n**Jak czytać statusy:**\n- `W toku` = praca trwa i nie jest zablokowana\n- `Wymaga uwagi` = obszar pracuje, ale potrzebuje stabilizacji lub decyzji\n- `Planowane` = temat jest na roadmapie, ale jeszcze nie jest uruchomiony szerzej\n- `Stabilny zakres` = temat jest kontrolowany i na tym etapie chronimy go przed chaosem zmian\n\n**Jak sprawdzić, czy główny mózg projektu naprawdę pracuje w tle:**\n- panel `Autopilot działa` pokazuje, czy ciągła praca agentów jest aktywna\n- tabela `Heartbeat autopilota i rytm pracy` pokazuje ostatni cykl, następne zadanie i licznik cykli\n- tabela `Ostatnie raporty głównego agenta` pokazuje, co lead agent ostatnio ustalił i jaki sugeruje następny krok\n\nSzybkie przejścia:\n- [Mapa docelowej platformy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n- [Szczegóły warstw systemu](/d/crypto-system-arch-details/szczegoly-systemu)\n- [Panel operatorski AI](http://217.182.73.182:8000)\n- [Przegląd agentów](/d/crypto-agent-overview/przeglad-agentow)",
+        "content": "# Pulpit Prezesa\n\nTo jest główny dashboard zarządczy dla projektu tradingowego. Pokazuje **co już działa**, **co jest w toku**, **gdzie są ryzyka**, **jakie decyzje czekają na prezesa** i **na których modułach pracuje zespół**. Nie trzeba znać kodu, żeby czytać ten widok.\n\n**Jak czytać statusy:**\n- `W toku` = praca trwa i nie jest zablokowana\n- `Wymaga uwagi` = obszar pracuje, ale potrzebuje stabilizacji lub decyzji\n- `Planowane` = temat jest na roadmapie, ale jeszcze nie jest uruchomiony szerzej\n- `Stabilny zakres` = temat jest kontrolowany i na tym etapie chronimy go przed chaosem zmian\n\n**Jak sprawdzić, czy główny mózg projektu naprawdę pracuje w tle:**\n- panel `Autopilot działa` pokazuje, czy ciągła praca agentów jest aktywna\n- tabela `Heartbeat autopilota i rytm pracy` pokazuje ostatni cykl, następne zadanie i licznik cykli\n- tabela `Ostatnie raporty głównego agenta` pokazuje, co lead agent ostatnio ustalił i jaki sugeruje następny krok\n- sekcja `Co jest teraz budowane i kolejka leada` pokazuje taski, które lead już delegował agentom kodującym\n- sekcja `Worktree, branche i stan zmian` pokazuje, co jest już pisane w izolowanym branchu i czy czeka na review\n\nSzybkie przejścia:\n- [Mapa docelowej platformy](/d/crypto-system-arch-map/mapa-docelowej-platformy)\n- [Szczegóły warstw systemu](/d/crypto-system-arch-details/szczegoly-systemu)\n- [Panel operatorski AI](http://217.182.73.182:8000)\n- [Przegląd agentów](/d/crypto-agent-overview/przeglad-agentow)",
         "mode": "markdown"
       },
       "title": "Widok Zarządczy",
@@ -950,6 +950,164 @@
       },
       "targets": [
         {
+          "expr": "sum(crypto_exec_coding_active_task)",
+          "refId": "A"
+        }
+      ],
+      "title": "Aktywny coding task",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 4,
+        "y": 112
+      },
+      "id": 21,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_coding_ready_tasks_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Taski gotowe do kodowania",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 8,
+        "y": 112
+      },
+      "id": 22,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_coding_review_tasks_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Taski w review",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 12,
+        "y": 112
+      },
+      "id": 23,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_coding_committed_tasks_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Taski zacommitowane",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 16,
+        "y": 112
+      },
+      "id": 24,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_exec_coding_tasks_waiting_ceo_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Taski czekające na decyzję",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 20,
+        "y": 112
+      },
+      "id": 25,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
           "expr": "sum(crypto_exec_blockers_total)",
           "refId": "A"
         }
@@ -968,11 +1126,150 @@
       },
       "gridPos": {
         "h": 14,
-        "w": 20,
-        "x": 4,
-        "y": 112
+        "w": 24,
+        "x": 0,
+        "y": 118
       },
-      "id": 21,
+      "id": 26,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_coding_task",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Co jest teraz budowane i kolejka leada",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "module_name": 0,
+              "owner_agent": 1,
+              "status": 2,
+              "goal": 3,
+              "review_decision": 4,
+              "branch_name": 5,
+              "risk_level": 6,
+              "Value": 7
+            },
+            "renameByName": {
+              "module_name": "Moduł",
+              "owner_agent": "Agent kodujący",
+              "status": "Status",
+              "goal": "Cel taska",
+              "review_decision": "Decyzja review",
+              "branch_name": "Branch worktree",
+              "risk_level": "Ryzyko",
+              "Value": "Koszt USD"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 132
+      },
+      "id": 27,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "crypto_exec_coding_workspace",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Worktree, branche i stan zmian",
+      "transformations": [
+        {
+          "id": "labelsToFields",
+          "options": {
+            "mode": "columns"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true
+            },
+            "indexByName": {
+              "module_name": 0,
+              "agent_name": 1,
+              "branch_name": 2,
+              "status": 3,
+              "changed_files_count": 4,
+              "worktree_path": 5,
+              "task_id": 6
+            },
+            "renameByName": {
+              "module_name": "Moduł",
+              "agent_name": "Agent",
+              "branch_name": "Branch",
+              "status": "Status worktree",
+              "changed_files_count": "Liczba zmienionych plików",
+              "worktree_path": "Ścieżka worktree",
+              "task_id": "Task ID"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 14,
+        "w": 24,
+        "x": 0,
+        "y": 146
+      },
+      "id": 28,
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -1043,5 +1340,5 @@
   },
   "title": "Pulpit Prezesa",
   "uid": "crypto-executive-overview",
-  "version": 2
+  "version": 3
 }

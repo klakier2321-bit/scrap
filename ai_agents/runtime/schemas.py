@@ -51,3 +51,42 @@ class StepUsage(BaseModel):
     total_tokens: int = 0
     successful_requests: int = 0
     estimated_cost_usd: float = 0.0
+
+
+class CodingTaskPacketOutput(BaseModel):
+    """Task packet tworzony przez lead agenta dla coding flow."""
+
+    summary: str
+    module_id: str
+    owner_agent: str
+    goal: str
+    business_reason: str
+    owned_scope: list[str] = Field(default_factory=list)
+    read_only_context: list[str] = Field(default_factory=list)
+    target_files: list[str] = Field(default_factory=list)
+    forbidden_paths: list[str] = Field(default_factory=list)
+    risk_level: Literal["low", "medium"] = "low"
+    acceptance_checks: list[str] = Field(default_factory=list)
+    required_tests: list[str] = Field(default_factory=list)
+    definition_of_done: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    review_required: bool = True
+    human_decision_required: bool = False
+
+
+class FileEditOutput(BaseModel):
+    """Jeden zapis pliku proponowany przez coding agenta."""
+
+    path: str
+    content: str
+    is_new_file: bool = False
+    rationale: str = ""
+
+
+class CodingChangeOutput(BaseModel):
+    """Strukturalny output kodującego agenta."""
+
+    summary: str
+    file_edits: list[FileEditOutput] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    required_checks: list[str] = Field(default_factory=list)

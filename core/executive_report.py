@@ -262,6 +262,9 @@ class ExecutiveReportService:
         runs: list[dict[str, Any]],
         autopilot_status: dict[str, Any],
         strategy_report: dict[str, Any] | None,
+        coding_status: dict[str, Any] | None = None,
+        coding_tasks: list[dict[str, Any]] | None = None,
+        coding_workspaces: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         config = self._load_config()
         generated_at = datetime.now(timezone.utc)
@@ -270,6 +273,9 @@ class ExecutiveReportService:
         decisions = [dict(item) for item in config.get("decisions", [])]
         risks = [dict(item) for item in config.get("risks", [])]
         assumptions = [dict(item) for item in config.get("assumptions", [])]
+        coding_status = dict(coding_status or {})
+        coding_tasks = list(coding_tasks or [])
+        coding_workspaces = list(coding_workspaces or [])
 
         runs_by_module: dict[str, dict[str, Any]] = {
             module["id"]: {"active_runs": 0, "recent_runs_24h": 0, "last_run_status": None}
@@ -302,6 +308,35 @@ class ExecutiveReportService:
             module["open_tasks"] = len(open_tasks)
             module["tasks_waiting_ceo"] = len(ceo_tasks)
 
+        coding_tasks_by_module: dict[str, list[dict[str, Any]]] = {}
+        for coding_task in coding_tasks:
+            coding_tasks_by_module.setdefault(coding_task["module_id"], []).append(coding_task)
+
+        for module in modules:
+            module_id = module["id"]
+            module_coding_tasks = coding_tasks_by_module.get(module_id, [])
+            module["coding_tasks_total"] = len(module_coding_tasks)
+            module["coding_tasks_active"] = sum(
+                1 for task in module_coding_tasks if task.get("status") in {"dispatched", "coding", "review", "approved"}
+            )
+            module["coding_tasks_review"] = sum(
+                1 for task in module_coding_tasks if task.get("status") == "review"
+            )
+            module["coding_tasks_committed"] = sum(
+                1 for task in module_coding_tasks if task.get("status") == "committed"
+            )
+            latest_coding_task = next(
+                (
+                    task
+                    for task in module_coding_tasks
+                    if task.get("status") in {"coding", "review", "approved", "ready", "committed"}
+                ),
+                None,
+            )
+            module["coding_current_task"] = latest_coding_task.get("goal") if latest_coding_task else ""
+            module["coding_current_status"] = latest_coding_task.get("status") if latest_coding_task else ""
+            module["coding_current_owner"] = latest_coding_task.get("owner_agent") if latest_coding_task else ""
+
         autopilot_last_started = self._parse_iso(autopilot_status.get("last_started_at"))
         autopilot_attention_needed = False
         if not autopilot_status.get("running"):
@@ -319,6 +354,12 @@ class ExecutiveReportService:
         open_tasks = [task for task in tasks if not self._is_closed_task(task.get("status"))]
         completed_tasks = [task for task in tasks if self._is_closed_task(task.get("status"))]
         tasks_needing_ceo = [task for task in open_tasks if task.get("needs_human") == "Tak"]
+        coding_tasks_waiting_ceo = [
+            task
+            for task in coding_tasks
+            if task.get("status") == "review"
+            and (task.get("review_json") or {}).get("decision") == "human_review_required"
+        ]
         waiting_decisions = [
             decision for decision in decisions if decision.get("status") not in {"Zamknięta", "Potwierdzone"}
         ]
@@ -337,6 +378,54 @@ class ExecutiveReportService:
             modules=modules,
             autopilot_status={**autopilot_status, "attention_needed": autopilot_attention_needed},
         )
+        for coding_task in coding_tasks_waiting_ceo[:3]:
+            blockers.append(
+                {
+                    "blocker_id": f"coding:{coding_task['task_id']}",
+                    "source": "Coding review",
+                    "area": next(
+                        (
+                            module["name"]
+                            for module in modules
+                            if module["id"] == coding_task["module_id"]
+                        ),
+                        coding_task["module_id"],
+                    ),
+                    "title": coding_task["goal"],
+                    "severity": "Średni",
+                    "status": "Czeka na decyzję prezesa",
+                    "why_blocking": "Task kodujący wymaga akceptacji review przed commitem na branchu worktree.",
+                    "expected_action": "Sprawdzić diff i zdecydować: zaakceptować do commita albo odrzucić.",
+                }
+            )
+
+        active_coding_task = next(
+            (
+                task
+                for task in coding_tasks
+                if task.get("status") in {"dispatched", "coding", "review", "approved"}
+            ),
+            None,
+        )
+        last_committed_coding_task = next(
+            (task for task in coding_tasks if task.get("status") == "committed"),
+            None,
+        )
+        workspaces_by_task_id = {
+            workspace["task_id"]: workspace
+            for workspace in coding_workspaces
+        }
+        coding_summary = {
+            "running": bool(coding_status.get("running")),
+            "enabled": bool(coding_status.get("enabled", True)),
+            "ready_total": sum(1 for task in coding_tasks if task.get("status") == "ready"),
+            "review_total": sum(1 for task in coding_tasks if task.get("status") == "review"),
+            "committed_total": sum(1 for task in coding_tasks if task.get("status") == "committed"),
+            "blocked_total": sum(1 for task in coding_tasks if task.get("status") == "blocked"),
+            "tasks_waiting_ceo_total": len(coding_tasks_waiting_ceo),
+            "active_task": active_coding_task,
+            "last_committed_task": last_committed_coding_task,
+        }
 
         return {
             "title": config.get("title", "Pulpit Prezesa"),
@@ -357,12 +446,23 @@ class ExecutiveReportService:
             "recent_changes": recent_changes,
             "lead_notes": lead_notes,
             "blockers": blockers,
+            "coding": {
+                "status": coding_status,
+                "summary": coding_summary,
+                "tasks": coding_tasks,
+                "workspaces": coding_workspaces,
+                "workspaces_by_task_id": workspaces_by_task_id,
+            },
             "summary": {
                 "modules_by_status": modules_by_status,
                 "modules_total": len(modules),
                 "open_tasks_total": len(open_tasks),
                 "completed_tasks_total": len(completed_tasks),
                 "tasks_needing_ceo_total": len(tasks_needing_ceo),
+                "coding_tasks_ready_total": coding_summary["ready_total"],
+                "coding_tasks_review_total": coding_summary["review_total"],
+                "coding_tasks_committed_total": coding_summary["committed_total"],
+                "coding_tasks_waiting_ceo_total": coding_summary["tasks_waiting_ceo_total"],
                 "decisions_waiting_total": len(waiting_decisions),
                 "high_risks_total": len(high_risks),
                 "active_agent_runs_total": sum(

@@ -49,12 +49,12 @@ executive_dashboard:
       name: "CrewAI i control plane"
       owner_agent: "system_lead_agent"
       status: "W toku"
-      progress_pct: 84
+      progress_pct: 88
       direction: "Bezpieczna praca agentów przez policy gate, review i kontrolę kosztów"
-      current_focus: "Utrzymać ciągłą pracę autopilota i usunąć fallback do mock przy części runów"
-      next_milestone: "Mieć stabilny, wielocyklowy autopilot z czytelnym raportowaniem lead agenta i bez niepotrzebnych fallbacków"
+      current_focus: "Przestawić system na lead queue, worktree per task i supervised write dla agentów kodujących"
+      next_milestone: "Mieć stabilny coding supervisor z jednym agentem kodującym naraz i pełnym raportowaniem do prezesa"
       risk_level: "Wysokie"
-      executive_note: "Ciągła pętla już działa; teraz dopinamy jakość runów i spójność raportowania"
+      executive_note: "Ciągła pętla już działa; teraz lead ma delegować taski, a agenci modułowi mają kodować w izolowanych worktree"
       paths:
         - "ai_agents/runtime/"
         - "ai_agents/config/"
@@ -98,12 +98,12 @@ executive_dashboard:
       name: "Control layer"
       owner_agent: "control_layer_agent"
       status: "W toku"
-      progress_pct: 58
+      progress_pct: 72
       direction: "Budować prawdziwy mózg systemowy nad Freqtrade"
-      current_focus: "Rozwijać szkielety orchestratora, managerów i API bez psucia runtime tradingowego"
-      next_milestone: "Doprecyzować odpowiedzialności między strategy_manager, risk_manager i control API"
+      current_focus: "Stać się pierwszym agentem kodującym w supervised write i dowozić małe offline'owe przyrosty w core/"
+      next_milestone: "Dowiezc pierwszy commit z brancha worktree control_layer_agent po review agenta"
       risk_level: "Średnie"
-      executive_note: "Ten moduł będzie kiedyś najważniejszy dla logiki działania systemu"
+      executive_note: "To pierwszy moduł, na którym testujemy model: lead deleguje, agent koduje, review zatwierdza, a main pozostaje bez auto-merge"
       paths:
         - "core/"
 
@@ -164,6 +164,15 @@ executive_dashboard:
       needs_human: "Nie"
       next_step: "Wielocyklowość potwierdzona; teraz usuwać fallback do mock i wzmacniać jakość ciągłych runów"
 
+    - id: "coding_supervisor_v1"
+      module_id: "crewai_control_plane"
+      title: "Uruchomić supervised write: lead queue, worktree i review przed commitem"
+      status: "W toku"
+      owner_agent: "system_lead_agent"
+      priority: "Wysoki"
+      needs_human: "Nie"
+      next_step: "Spiać coding tasks, workspaces, operator panel i executive dashboard w jeden przepływ"
+
     - id: "docs_ci_checks"
       module_id: "canonical_docs"
       title: "Dodać lekkie kontrole jakości dokumentacji w CI"
@@ -191,14 +200,41 @@ executive_dashboard:
       needs_human: "Nie"
       next_step: "Wyeksponować status modułów, ryzyka, decyzje, aktywność agentów i ostatnie efekty pracy"
 
+    - id: "monitoring_coding_flow"
+      module_id: "monitoring_and_visibility"
+      title: "Pokazać coding tasks, workspaces i review w pulpicie prezesa"
+      status: "W toku"
+      owner_agent: "monitoring_agent"
+      priority: "Średni"
+      needs_human: "Nie"
+      next_step: "Wyeksponować co jest teraz budowane, co czeka na review i co jest już zacommitowane"
+
     - id: "control_layer_scope"
       module_id: "control_layer_runtime"
       title: "Doprecyzować plan rozwoju control layer bez naruszania runtime"
-      status: "Gotowe do startu"
+      status: "W toku"
       owner_agent: "control_layer_agent"
       priority: "Średni"
       needs_human: "Nie"
-      next_step: "Rozbić rozwój core/ na małe przyrosty zamiast jednego dużego refaktoru"
+      next_step: "Po pierwszym offline'owym slice wybrać następny mały workflow bez integracji z runtime"
+
+    - id: "control_layer_first_coding_flow"
+      module_id: "control_layer_runtime"
+      title: "Dowieźć pierwszy commit control_layer_agent z izolowanego worktree"
+      status: "W toku"
+      owner_agent: "control_layer_agent"
+      priority: "Wysoki"
+      needs_human: "Tak"
+      next_step: "Po review sprawdzić pierwszy diff i zdecydować, czy zaakceptować commit na branchu taska"
+
+    - id: "control_layer_first_slice"
+      module_id: "control_layer_runtime"
+      title: "Zbudować pierwszy offline'owy slice control layer z local-only registry"
+      status: "Zamknięte"
+      owner_agent: "control_layer_agent"
+      priority: "Wysoki"
+      needs_human: "Nie"
+      next_step: "Przyrost wykonany; kolejne workflow muszą pozostać małe, odwracalne i oddzielone od runtime tradingowego"
 
     - id: "strategy_reporting_depth"
       module_id: "strategy_and_backtests"

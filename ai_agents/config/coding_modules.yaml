@@ -1,0 +1,104 @@
+coding_runtime:
+  enabled: true
+  auto_start: true
+  lead_refresh_interval_seconds: 300
+  dispatcher_poll_interval_seconds: 60
+  max_active_tasks: 1
+  max_target_files: 6
+
+  modules:
+    - module_id: "control_layer_runtime"
+      owner_agent: "control_layer_agent"
+      enabled: true
+      priority: 100
+      title: "Control layer"
+      module_summary: "Buduj male, offline'owe przyrosty control layer w core/ bez dotykania runtime tradingowego."
+      read_only_context:
+        - "docs/ARCHITECTURE.md"
+        - "docs/PROJECT_MAP.md"
+        - "AGENT_BOUNDARIES.md"
+      target_candidates:
+        - "core/"
+        - "core/README.md"
+        - "core/control_layer/"
+      acceptance_checks:
+        - "Zmiana zostaje w core/ i nie dotyka runtime tradingowego."
+        - "Nie ma integracji z Freqtrade, gielda ani sekretami."
+        - "Diff pozostaje maly i reviewable."
+      required_tests:
+        - "python -m compileall core"
+        - "python -m unittest discover -s core/tests -p test_*.py"
+      definition_of_done:
+        - "Kod dziala lokalnie i przechodzi wskazane checki."
+        - "Nie ma zmian poza owned scope."
+        - "Review agent moze ocenic diff bez dodatkowego kontekstu."
+
+    - module_id: "monitoring_and_visibility"
+      owner_agent: "monitoring_agent"
+      enabled: true
+      priority: 80
+      title: "Monitoring i widocznosc"
+      module_summary: "Rozwijaj Grafane, Prometheusa i raportowanie dla prezesa bez dotykania runtime tradingowego."
+      read_only_context:
+        - "docs/ARCHITECTURE.md"
+        - "docs/PROJECT_MAP.md"
+        - "ai_agents/config/executive_roadmap.yaml"
+      target_candidates:
+        - "infrastructure/grafana/"
+        - "infrastructure/prometheus/"
+        - "monitoring/"
+      acceptance_checks:
+        - "Zmiana zostaje w monitoringu i dashboardach."
+        - "Nie ma zmian w trading runtime ani sekretach."
+        - "Raportowanie jest po polsku i czytelne dla prezesa."
+      required_tests:
+        - "python -m compileall core"
+      definition_of_done:
+        - "Dashboard lub metryki sa czytelne i spójne."
+        - "Diff nie narusza ownership innych warstw."
+
+    - module_id: "api_contracts"
+      owner_agent: "api_agent"
+      enabled: true
+      priority: 70
+      title: "API i kontrakty"
+      module_summary: "Rozwijaj wewnetrzne API control layer i kontrakty bez wchodzenia w trading runtime."
+      read_only_context:
+        - "docs/openapi.yaml"
+        - "docs/ARCHITECTURE.md"
+        - "AGENT_BOUNDARIES.md"
+      target_candidates:
+        - "core/api.py"
+        - "core/schemas.py"
+        - "docs/openapi.yaml"
+      acceptance_checks:
+        - "Zmiana pozostaje w API i kontraktach."
+        - "Brak dotkniecia live tradingu i sekretow."
+        - "Kontrakt i implementacja sa spójne."
+      required_tests:
+        - "python -m compileall core"
+      definition_of_done:
+        - "Endpointy lub typy sa zrozumiale i reviewable."
+        - "Zmiana nie wykracza poza approved scope."
+
+    - module_id: "operator_gui"
+      owner_agent: "gui_agent"
+      enabled: true
+      priority: 60
+      title: "GUI operatorskie"
+      module_summary: "Poprawiaj panel operatorski i zarzadcze widoki bez zamieniania ich w kosztowny chat."
+      read_only_context:
+        - "docs/ARCHITECTURE.md"
+        - "ai_agents/config/executive_roadmap.yaml"
+        - "core/api.py"
+      target_candidates:
+        - "core/templates/"
+      acceptance_checks:
+        - "Widoki sa po polsku i czytelne."
+        - "Zmiana nie wymaga dotkniecia runtime tradingowego."
+        - "Panel pozostaje operacyjny, a nie chatowy."
+      required_tests:
+        - "python -m compileall core"
+      definition_of_done:
+        - "UI jest czytelne i dziala z aktualnym API."
+        - "Diff pozostaje we wlasnym scope GUI."

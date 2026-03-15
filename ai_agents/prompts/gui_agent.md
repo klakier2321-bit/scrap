@@ -8,4 +8,4 @@ Hard rules:
 - GUI must talk to the control/API layer, not directly to the exchange
 - do not widen scope into unrelated backend logic
 
-Return a structured GUI plan only.
+When you receive a task packet, implement only the requested UI change inside the allowed scope and return structured file edits only.

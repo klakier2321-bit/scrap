@@ -17,6 +17,7 @@ from opentelemetry import trace
 
 from .bot_manager import BotManager
 from .autopilot import AutopilotService
+from .coding_service import CodingSupervisorService
 from .config import AppSettings
 from .executive_report import ExecutiveReportService
 from .metrics import (
@@ -51,10 +52,16 @@ class Orchestrator:
             user_data_dir=settings.freqtrade_user_data_path,
             reports_dir=settings.strategy_reports_dir,
         )
-        self.executive_report = ExecutiveReportService(settings.repo_root)
         self.store = RunStore(settings.database_path)
         stale_runs = self.store.reconcile_stale_runs()
         self.agent_runtime = AgentRuntimeService(settings=settings)
+        self.executive_report = ExecutiveReportService(settings.repo_checkout_path)
+        self.coding_supervisor = CodingSupervisorService(
+            settings=settings,
+            store=self.store,
+            agent_runtime=self.agent_runtime,
+            executive_report_provider=self.get_executive_report,
+        )
         self.executor = ThreadPoolExecutor(max_workers=settings.agent_max_parallel_runs)
         self.futures: dict[str, Future[Any]] = {}
         self.autopilot = AutopilotService(
@@ -160,6 +167,9 @@ class Orchestrator:
             runs=self.store.list_runs(limit=200),
             autopilot_status=self.autopilot.status(),
             strategy_report=self.get_latest_strategy_report(),
+            coding_status=self.coding_supervisor.status(),
+            coding_tasks=self.store.list_coding_tasks(limit=100),
+            coding_workspaces=self.store.list_coding_workspaces(),
         )
 
     def autopilot_status(self) -> dict[str, Any]:
@@ -170,6 +180,49 @@ class Orchestrator:
 
     def stop_autopilot(self) -> dict[str, Any]:
         return self.autopilot.stop()
+
+    def coding_status(self) -> dict[str, Any]:
+        return self.coding_supervisor.status()
+
+    def start_coding_supervisor(self) -> dict[str, Any]:
+        return self.coding_supervisor.start()
+
+    def stop_coding_supervisor(self) -> dict[str, Any]:
+        return self.coding_supervisor.stop()
+
+    def list_coding_tasks(self, limit: int = 50) -> list[dict[str, Any]]:
+        return self.coding_supervisor.list_coding_tasks(limit=limit)
+
+    def get_coding_task(self, task_id: str) -> dict[str, Any]:
+        return self.coding_supervisor.get_coding_task(task_id)
+
+    def create_coding_task(
+        self,
+        *,
+        module_id: str,
+        goal_override: str | None = None,
+        business_reason: str | None = None,
+    ) -> dict[str, Any]:
+        return self.coding_supervisor.create_manual_task(
+            module_id=module_id,
+            goal_override=goal_override,
+            business_reason=business_reason,
+        )
+
+    def approve_coding_review(self, task_id: str) -> dict[str, Any]:
+        return self.coding_supervisor.approve_review(task_id)
+
+    def reject_coding_review(self, task_id: str, reason: str = "Manual review rejection.") -> dict[str, Any]:
+        return self.coding_supervisor.reject_review(task_id, reason=reason)
+
+    def list_workspaces(self) -> list[dict[str, Any]]:
+        return self.coding_supervisor.list_workspaces()
+
+    def get_workspace_diff(self, task_id: str) -> dict[str, Any]:
+        return self.coding_supervisor.get_workspace_diff(task_id)
+
+    def reset_workspace(self, task_id: str) -> dict[str, Any]:
+        return self.coding_supervisor.reset_workspace(task_id)
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         run = self.store.get_run(run_id)

@@ -64,6 +64,66 @@ CREATE TABLE IF NOT EXISTS agent_response_cache (
     created_at TEXT NOT NULL,
     expires_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS coding_tasks (
+    task_id TEXT PRIMARY KEY,
+    module_id TEXT NOT NULL,
+    owner_agent TEXT NOT NULL,
+    goal TEXT NOT NULL,
+    business_reason TEXT NOT NULL,
+    owned_scope_json TEXT NOT NULL,
+    read_only_context_json TEXT NOT NULL,
+    target_files_json TEXT NOT NULL,
+    forbidden_paths_json TEXT NOT NULL,
+    risk_level TEXT NOT NULL,
+    acceptance_checks_json TEXT NOT NULL,
+    required_tests_json TEXT NOT NULL,
+    definition_of_done_json TEXT NOT NULL,
+    created_by_run_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    attempt_count INTEGER DEFAULT 0,
+    review_attempt_count INTEGER DEFAULT 0,
+    worktree_path TEXT,
+    branch_name TEXT,
+    base_ref TEXT,
+    base_commit TEXT,
+    diff_summary TEXT,
+    check_results_json TEXT,
+    review_json TEXT,
+    commit_sha TEXT,
+    planning_cost_usd REAL DEFAULT 0,
+    coding_cost_usd REAL DEFAULT 0,
+    review_cost_usd REAL DEFAULT 0,
+    total_cost_usd REAL DEFAULT 0,
+    last_error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    started_at TEXT,
+    finished_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS coding_workspaces (
+    task_id TEXT PRIMARY KEY,
+    agent_name TEXT NOT NULL,
+    worktree_path TEXT NOT NULL,
+    branch_name TEXT NOT NULL,
+    base_ref TEXT NOT NULL,
+    base_commit TEXT NOT NULL,
+    changed_files_json TEXT,
+    diff_text TEXT,
+    check_results_json TEXT,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS coding_task_events (
+    event_id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    payload_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -100,6 +160,20 @@ class RunStore:
                 connection.execute(
                     "ALTER TABLE agent_runs ADD COLUMN request_fingerprint TEXT"
                 )
+            existing_task_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(coding_tasks)").fetchall()
+            }
+            for column_name in (
+                "planning_cost_usd",
+                "coding_cost_usd",
+                "review_cost_usd",
+                "total_cost_usd",
+            ):
+                if column_name not in existing_task_columns:
+                    connection.execute(
+                        f"ALTER TABLE coding_tasks ADD COLUMN {column_name} REAL DEFAULT 0"
+                    )
             connection.commit()
 
     def create_run(self, record: dict[str, Any]) -> None:
@@ -242,6 +316,45 @@ class RunStore:
             "does_touch_runtime",
         ):
             data[key] = bool(data.get(key))
+        return data
+
+    def _coding_row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
+        data = dict(row)
+        for key in (
+            "owned_scope_json",
+            "read_only_context_json",
+            "target_files_json",
+            "forbidden_paths_json",
+            "acceptance_checks_json",
+            "required_tests_json",
+            "definition_of_done_json",
+            "check_results_json",
+            "review_json",
+        ):
+            value = data.get(key)
+            if value:
+                data[key] = json.loads(value)
+            elif key in {"check_results_json", "review_json"}:
+                data[key] = {}
+            else:
+                data[key] = []
+        data["owned_scope"] = data.get("owned_scope_json", [])
+        data["read_only_context"] = data.get("read_only_context_json", [])
+        data["target_files"] = data.get("target_files_json", [])
+        data["forbidden_paths"] = data.get("forbidden_paths_json", [])
+        data["acceptance_checks"] = data.get("acceptance_checks_json", [])
+        data["required_tests"] = data.get("required_tests_json", [])
+        data["definition_of_done"] = data.get("definition_of_done_json", [])
+        data["check_results"] = data.get("check_results_json", {})
+        return data
+
+    def _workspace_row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
+        data = dict(row)
+        for key in ("changed_files_json", "check_results_json"):
+            value = data.get(key)
+            data[key] = json.loads(value) if value else ([] if key == "changed_files_json" else {})
+        data["changed_files"] = data.get("changed_files_json", [])
+        data["check_results"] = data.get("check_results_json", {})
         return data
 
     def get_run(self, run_id: str) -> dict[str, Any] | None:
@@ -426,3 +539,234 @@ class RunStore:
                 (f"{today_prefix}%",),
             ).fetchone()
         return float(row["spend"]) if row else 0.0
+
+    def create_coding_task(self, record: dict[str, Any]) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        values = {
+            "task_id": record["task_id"],
+            "module_id": record["module_id"],
+            "owner_agent": record["owner_agent"],
+            "goal": record["goal"],
+            "business_reason": record["business_reason"],
+            "owned_scope_json": json.dumps(record.get("owned_scope", [])),
+            "read_only_context_json": json.dumps(record.get("read_only_context", [])),
+            "target_files_json": json.dumps(record.get("target_files", [])),
+            "forbidden_paths_json": json.dumps(record.get("forbidden_paths", [])),
+            "risk_level": record["risk_level"],
+            "acceptance_checks_json": json.dumps(record.get("acceptance_checks", [])),
+            "required_tests_json": json.dumps(record.get("required_tests", [])),
+            "definition_of_done_json": json.dumps(record.get("definition_of_done", [])),
+            "created_by_run_id": record["created_by_run_id"],
+            "status": record["status"],
+            "attempt_count": int(record.get("attempt_count", 0)),
+            "review_attempt_count": int(record.get("review_attempt_count", 0)),
+            "worktree_path": record.get("worktree_path"),
+            "branch_name": record.get("branch_name"),
+            "base_ref": record.get("base_ref"),
+            "base_commit": record.get("base_commit"),
+            "diff_summary": record.get("diff_summary"),
+            "check_results_json": json.dumps(record.get("check_results", {})),
+            "review_json": json.dumps(record.get("review_json", {})),
+            "commit_sha": record.get("commit_sha"),
+            "planning_cost_usd": float(record.get("planning_cost_usd", 0)),
+            "coding_cost_usd": float(record.get("coding_cost_usd", 0)),
+            "review_cost_usd": float(record.get("review_cost_usd", 0)),
+            "total_cost_usd": float(record.get("total_cost_usd", 0)),
+            "last_error": record.get("last_error"),
+            "created_at": record.get("created_at", now),
+            "updated_at": record.get("updated_at", now),
+            "started_at": record.get("started_at"),
+            "finished_at": record.get("finished_at"),
+        }
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO coding_tasks (
+                    task_id, module_id, owner_agent, goal, business_reason,
+                    owned_scope_json, read_only_context_json, target_files_json, forbidden_paths_json,
+                    risk_level, acceptance_checks_json, required_tests_json, definition_of_done_json,
+                    created_by_run_id, status, attempt_count, review_attempt_count,
+                    worktree_path, branch_name, base_ref, base_commit, diff_summary,
+                    check_results_json, review_json, commit_sha,
+                    planning_cost_usd, coding_cost_usd, review_cost_usd, total_cost_usd,
+                    last_error,
+                    created_at, updated_at, started_at, finished_at
+                ) VALUES (
+                    :task_id, :module_id, :owner_agent, :goal, :business_reason,
+                    :owned_scope_json, :read_only_context_json, :target_files_json, :forbidden_paths_json,
+                    :risk_level, :acceptance_checks_json, :required_tests_json, :definition_of_done_json,
+                    :created_by_run_id, :status, :attempt_count, :review_attempt_count,
+                    :worktree_path, :branch_name, :base_ref, :base_commit, :diff_summary,
+                    :check_results_json, :review_json, :commit_sha,
+                    :planning_cost_usd, :coding_cost_usd, :review_cost_usd, :total_cost_usd,
+                    :last_error,
+                    :created_at, :updated_at, :started_at, :finished_at
+                )
+                """,
+                values,
+            )
+            connection.commit()
+
+    def update_coding_task(self, task_id: str, **fields: Any) -> None:
+        if not fields:
+            return
+        json_fields = {
+            "owned_scope",
+            "read_only_context",
+            "target_files",
+            "forbidden_paths",
+            "acceptance_checks",
+            "required_tests",
+            "definition_of_done",
+            "check_results",
+            "review_json",
+        }
+        field_map = {
+            "owned_scope": "owned_scope_json",
+            "read_only_context": "read_only_context_json",
+            "target_files": "target_files_json",
+            "forbidden_paths": "forbidden_paths_json",
+            "acceptance_checks": "acceptance_checks_json",
+            "required_tests": "required_tests_json",
+            "definition_of_done": "definition_of_done_json",
+            "check_results": "check_results_json",
+            "review_json": "review_json",
+        }
+        payload: dict[str, Any] = {"task_id": task_id}
+        for key, value in fields.items():
+            if key in json_fields:
+                payload[field_map[key]] = json.dumps(value)
+            else:
+                payload[key] = value
+        payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+        assignments = ", ".join(f"{key} = :{key}" for key in payload if key != "task_id")
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                f"UPDATE coding_tasks SET {assignments} WHERE task_id = :task_id",
+                payload,
+            )
+            connection.commit()
+
+    def get_coding_task(self, task_id: str) -> dict[str, Any] | None:
+        with self._lock, self._connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM coding_tasks WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+        return self._coding_row_to_dict(row) if row else None
+
+    def list_coding_tasks(self, limit: int = 50) -> list[dict[str, Any]]:
+        with self._lock, self._connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM coding_tasks ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [self._coding_row_to_dict(row) for row in rows]
+
+    def list_coding_tasks_by_status(self, statuses: list[str]) -> list[dict[str, Any]]:
+        if not statuses:
+            return []
+        placeholders = ", ".join("?" for _ in statuses)
+        query = (
+            "SELECT * FROM coding_tasks "
+            f"WHERE status IN ({placeholders}) ORDER BY created_at ASC"
+        )
+        with self._lock, self._connection() as connection:
+            rows = connection.execute(query, tuple(statuses)).fetchall()
+        return [self._coding_row_to_dict(row) for row in rows]
+
+    def get_active_coding_task(self) -> dict[str, Any] | None:
+        active_statuses = ("dispatched", "coding", "review", "approved")
+        placeholders = ", ".join("?" for _ in active_statuses)
+        query = (
+            "SELECT * FROM coding_tasks "
+            f"WHERE status IN ({placeholders}) ORDER BY created_at ASC LIMIT 1"
+        )
+        with self._lock, self._connection() as connection:
+            row = connection.execute(query, active_statuses).fetchone()
+        return self._coding_row_to_dict(row) if row else None
+
+    def create_coding_workspace(self, record: dict[str, Any]) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        values = {
+            "task_id": record["task_id"],
+            "agent_name": record["agent_name"],
+            "worktree_path": record["worktree_path"],
+            "branch_name": record["branch_name"],
+            "base_ref": record["base_ref"],
+            "base_commit": record["base_commit"],
+            "changed_files_json": json.dumps(record.get("changed_files", [])),
+            "diff_text": record.get("diff_text", ""),
+            "check_results_json": json.dumps(record.get("check_results", {})),
+            "status": record["status"],
+            "created_at": record.get("created_at", now),
+            "updated_at": record.get("updated_at", now),
+        }
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO coding_workspaces (
+                    task_id, agent_name, worktree_path, branch_name, base_ref, base_commit,
+                    changed_files_json, diff_text, check_results_json, status, created_at, updated_at
+                ) VALUES (
+                    :task_id, :agent_name, :worktree_path, :branch_name, :base_ref, :base_commit,
+                    :changed_files_json, :diff_text, :check_results_json, :status, :created_at, :updated_at
+                )
+                """,
+                values,
+            )
+            connection.commit()
+
+    def update_coding_workspace(self, task_id: str, **fields: Any) -> None:
+        if not fields:
+            return
+        payload: dict[str, Any] = {"task_id": task_id}
+        for key, value in fields.items():
+            if key in {"changed_files", "check_results"}:
+                payload[f"{key}_json"] = json.dumps(value)
+            else:
+                payload[key] = value
+        payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+        assignments = ", ".join(f"{key} = :{key}" for key in payload if key != "task_id")
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                f"UPDATE coding_workspaces SET {assignments} WHERE task_id = :task_id",
+                payload,
+            )
+            connection.commit()
+
+    def get_coding_workspace(self, task_id: str) -> dict[str, Any] | None:
+        with self._lock, self._connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM coding_workspaces WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+        return self._workspace_row_to_dict(row) if row else None
+
+    def list_coding_workspaces(self) -> list[dict[str, Any]]:
+        with self._lock, self._connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM coding_workspaces ORDER BY updated_at DESC",
+            ).fetchall()
+        return [self._workspace_row_to_dict(row) for row in rows]
+
+    def add_coding_task_event(self, event: dict[str, Any]) -> None:
+        payload = {
+            "event_id": event["event_id"],
+            "task_id": event["task_id"],
+            "event_type": event["event_type"],
+            "payload_json": json.dumps(event.get("payload", {})),
+            "created_at": event["created_at"],
+        }
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO coding_task_events (
+                    event_id, task_id, event_type, payload_json, created_at
+                ) VALUES (
+                    :event_id, :task_id, :event_type, :payload_json, :created_at
+                )
+                """,
+                payload,
+            )
+            connection.commit()

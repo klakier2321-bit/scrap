@@ -313,6 +313,71 @@
           </table>
         </section>
 
+        <section class="panel medium">
+          <h2>Supervisor kodujących agentów</h2>
+          <div class="stats" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px;">
+            <div class="stat"><span>Stan</span><strong id="coding-running">...</strong></div>
+            <div class="stat"><span>Aktywny task</span><strong id="coding-active-task">...</strong></div>
+            <div class="stat"><span>Taski gotowe</span><strong id="coding-ready-tasks">...</strong></div>
+            <div class="stat"><span>Taski do review</span><strong id="coding-review-tasks">...</strong></div>
+            <div class="stat"><span>Zacommitowane</span><strong id="coding-committed-tasks">...</strong></div>
+            <div class="stat"><span>Ostatni błąd</span><strong id="coding-last-error">...</strong></div>
+          </div>
+          <div class="stack">
+            <label>
+              <div class="muted">Moduł do ręcznego taska</div>
+              <select id="coding-module"></select>
+            </label>
+            <label>
+              <div class="muted">Nadpisany cel taska</div>
+              <input id="coding-goal" type="text" style="width:100%;border-radius:14px;border:1px solid var(--line);padding:12px;font:inherit;" placeholder="Opcjonalny, mały przyrost w jednym module" />
+            </label>
+            <div class="run-actions">
+              <button id="coding-start" class="primary">Uruchom supervisor</button>
+              <button id="coding-stop" class="danger">Zatrzymaj supervisor</button>
+              <button id="coding-create-task" class="warn">Dodaj ręczny task</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel large">
+          <h2>Taski kodujące</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Moduł</th>
+                <th>Agent</th>
+                <th>Status</th>
+                <th>Koszt</th>
+                <th>Review</th>
+                <th>Akcje</th>
+              </tr>
+            </thead>
+            <tbody id="coding-tasks-table"></tbody>
+          </table>
+        </section>
+
+        <section class="panel medium">
+          <h2>Workspaces agentów</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Branch</th>
+                <th>Zmiany</th>
+                <th>Akcje</th>
+              </tr>
+            </thead>
+            <tbody id="coding-workspaces-table"></tbody>
+          </table>
+        </section>
+
+        <section class="panel medium">
+          <h2>Diff aktywnego worktree</h2>
+          <div class="log-box" id="workspace-diff-box">Wybierz task kodujący, aby zobaczyć diff.</div>
+        </section>
+
         <section class="panel large">
           <h2>Historia raportów strategii</h2>
           <div class="run-actions" style="margin-bottom: 12px;">
@@ -361,6 +426,13 @@
           awaiting_approval: "Oczekuje na zatwierdzenie",
           started: "Uruchomiony",
           rejected: "Odrzucony",
+          proposed: "Proponowany",
+          ready: "Gotowy",
+          dispatched: "Przydzielony",
+          coding: "Kodowanie",
+          review: "Review",
+          approved: "Zatwierdzony do commita",
+          committed: "Zacommitowany",
           needs_manual_review: "Wymaga decyzji",
           candidate_for_next_stage: "Kandydat"
         };
@@ -381,7 +453,7 @@
         const lowered = (status || "").toLowerCase();
         let cls = "";
         if (["blocked", "failed", "stopped"].includes(lowered)) cls = "danger";
-        else if (["awaiting_approval", "queued", "running"].includes(lowered)) cls = "pending";
+        else if (["awaiting_approval", "queued", "running", "ready", "coding", "review", "dispatched", "approved"].includes(lowered)) cls = "pending";
         return `<span class="pill ${cls}">${translateStatus(status)}</span>`;
       }
 
@@ -479,6 +551,77 @@
             </td>
           </tr>
         `).join("");
+      }
+
+      async function refreshCodingStatus() {
+        const status = await fetchJson("/ops/coding-status");
+        const moduleSelect = document.getElementById("coding-module");
+        moduleSelect.innerHTML = (status.modules || []).map((module) =>
+          `<option value="${module.module_id}">${module.title}</option>`
+        ).join("");
+        document.getElementById("coding-running").textContent = status.running ? "Aktywny" : "Wyłączony";
+        document.getElementById("coding-active-task").textContent = status.active_task_id ? status.active_task_id.slice(0, 12) : "Brak";
+        document.getElementById("coding-ready-tasks").textContent = String(status.ready_tasks || 0);
+        document.getElementById("coding-review-tasks").textContent = String(status.review_tasks || 0);
+        document.getElementById("coding-committed-tasks").textContent = String(status.committed_tasks || 0);
+        document.getElementById("coding-last-error").textContent = status.last_error || "Brak";
+      }
+
+      async function refreshCodingTasks() {
+        const tasks = await fetchJson("/ops/coding-tasks?limit=20");
+        const tbody = document.getElementById("coding-tasks-table");
+        if (!tasks.length) {
+          tbody.innerHTML = `<tr><td colspan="7" class="muted">Brak tasków kodujących.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = tasks.map((task) => {
+          const reviewDecision = task.review_json?.decision ? translateReviewDecision(task.review_json.decision) : "Brak";
+          const requiresManual = task.review_json?.decision === "human_review_required";
+          return `
+            <tr>
+              <td><strong>${task.task_id.slice(0, 12)}</strong><div class="muted">${task.goal}</div></td>
+              <td>${task.module_id}</td>
+              <td>${task.owner_agent}</td>
+              <td>${statusPill(task.status)}</td>
+              <td>$${Number(task.total_cost_usd || 0).toFixed(4)}</td>
+              <td>${reviewDecision}</td>
+              <td class="run-actions">
+                <button onclick="loadWorkspaceDiff('${task.task_id}')">Diff</button>
+                ${requiresManual ? `<button class="warn" onclick="approveCodingTask('${task.task_id}')">Zatwierdź</button>` : ""}
+                ${["review","coding","ready","dispatched","approved","rejected","blocked"].includes(task.status) ? `<button class="danger" onclick="rejectCodingTask('${task.task_id}')">Odrzuć</button>` : ""}
+                ${task.status !== "committed" ? `<button onclick="resetCodingWorkspace('${task.task_id}')">Reset</button>` : ""}
+              </td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      async function refreshWorkspaces() {
+        const workspaces = await fetchJson("/ops/workspaces");
+        const tbody = document.getElementById("coding-workspaces-table");
+        if (!workspaces.length) {
+          tbody.innerHTML = `<tr><td colspan="4" class="muted">Brak aktywnych workspace'ów.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = workspaces.map((workspace) => `
+          <tr>
+            <td><strong>${workspace.task_id.slice(0, 12)}</strong><div class="muted">${workspace.agent_name}</div></td>
+            <td>${workspace.branch_name}</td>
+            <td>${Number((workspace.changed_files || []).length)}</td>
+            <td class="run-actions">
+              <button onclick="loadWorkspaceDiff('${workspace.task_id}')">Pokaż diff</button>
+            </td>
+          </tr>
+        `).join("");
+      }
+
+      async function loadWorkspaceDiff(taskId) {
+        try {
+          const workspace = await fetchJson(`/ops/workspaces/${taskId}/diff`);
+          document.getElementById("workspace-diff-box").textContent = workspace.diff_text || "Brak zmian w diffie.";
+        } catch (error) {
+          alert(`Nie udalo sie pobrac diffa: ${error.message}`);
+        }
       }
 
       async function refreshLogs() {
@@ -607,6 +750,89 @@
         }
       }
 
+      async function startCodingSupervisor() {
+        try {
+          await fetchJson("/ops/coding-status/start", { method: "POST" });
+          await refreshCodingStatus();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie uruchomic supervisora: ${error.message}`);
+        }
+      }
+
+      async function stopCodingSupervisor() {
+        try {
+          await fetchJson("/ops/coding-status/stop", { method: "POST" });
+          await refreshCodingStatus();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie zatrzymac supervisora: ${error.message}`);
+        }
+      }
+
+      async function createCodingTask() {
+        const moduleId = document.getElementById("coding-module").value;
+        const goalOverride = document.getElementById("coding-goal").value.trim();
+        const payload = {
+          module_id: moduleId,
+          goal_override: goalOverride || null,
+          business_reason: "Ręczne dodanie taska z panelu operatorskiego"
+        };
+        try {
+          await fetchJson("/ops/coding-tasks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          await refreshCodingStatus();
+          await refreshCodingTasks();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie dodac taska kodującego: ${error.message}`);
+        }
+      }
+
+      async function approveCodingTask(taskId) {
+        try {
+          await fetchJson(`/ops/coding-tasks/${taskId}/approve-review`, { method: "POST" });
+          await refreshCodingStatus();
+          await refreshCodingTasks();
+          await refreshWorkspaces();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie zatwierdzic taska: ${error.message}`);
+        }
+      }
+
+      async function rejectCodingTask(taskId) {
+        try {
+          await fetchJson(`/ops/coding-tasks/${taskId}/reject-review`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reason: "Odrzucone ręcznie z panelu operatorskiego" })
+          });
+          await refreshCodingStatus();
+          await refreshCodingTasks();
+          await refreshWorkspaces();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie odrzucic taska: ${error.message}`);
+        }
+      }
+
+      async function resetCodingWorkspace(taskId) {
+        try {
+          await fetchJson(`/ops/workspaces/${taskId}/reset`, { method: "POST" });
+          await refreshCodingStatus();
+          await refreshCodingTasks();
+          await refreshWorkspaces();
+          await loadWorkspaceDiff(taskId);
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie zresetowac workspace: ${error.message}`);
+        }
+      }
+
       async function refreshAll() {
         await Promise.all([
           refreshHealth(),
@@ -614,6 +840,9 @@
           refreshAgents(),
           refreshAutopilot(),
           refreshRuns(),
+          refreshCodingStatus(),
+          refreshCodingTasks(),
+          refreshWorkspaces(),
           refreshLogs(),
           refreshStrategyReports()
         ]);
@@ -626,6 +855,9 @@
       document.getElementById("refresh-strategy-report").addEventListener("click", generateStrategyAssessment);
       document.getElementById("autopilot-start").addEventListener("click", startAutopilot);
       document.getElementById("autopilot-stop").addEventListener("click", stopAutopilot);
+      document.getElementById("coding-start").addEventListener("click", startCodingSupervisor);
+      document.getElementById("coding-stop").addEventListener("click", stopCodingSupervisor);
+      document.getElementById("coding-create-task").addEventListener("click", createCodingTask);
 
       refreshAll();
       setInterval(refreshAll, 10000);

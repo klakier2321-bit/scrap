@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from .schemas import PlanOutput, ReviewOutput, StepUsage, StrategyAssessmentOutput
+from .schemas import (
+    CodingChangeOutput,
+    CodingTaskPacketOutput,
+    FileEditOutput,
+    PlanOutput,
+    ReviewOutput,
+    StepUsage,
+    StrategyAssessmentOutput,
+)
 
 
 class MockExecutionEngine:
@@ -119,6 +127,114 @@ class MockExecutionEngine:
             StepUsage(
                 agent_name="strategy_agent",
                 model=run_context["selected_model"],
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                successful_requests=0,
+                estimated_cost_usd=0.0,
+            ),
+        )
+
+    def run_lead_task_packet_agent(
+        self,
+        *,
+        module_context: dict,
+        executive_context: dict,
+    ) -> tuple[CodingTaskPacketOutput, StepUsage]:
+        packet = CodingTaskPacketOutput(
+            summary=f"Mock packet dla modułu {module_context['module_id']}.",
+            module_id=module_context["module_id"],
+            owner_agent=module_context["owner_agent"],
+            goal=f"Wykonaj mały przyrost w module {module_context['title']}.",
+            business_reason=module_context["module_summary"],
+            owned_scope=module_context.get("owned_scope", []),
+            read_only_context=module_context.get("read_only_context", []),
+            target_files=module_context.get("target_candidates", [])[:2],
+            forbidden_paths=module_context.get("forbidden_paths", []),
+            risk_level="low",
+            acceptance_checks=module_context.get("acceptance_checks", []),
+            required_tests=module_context.get("required_tests", []),
+            definition_of_done=module_context.get("definition_of_done", []),
+            warnings=["Mock task packet generated."],
+            review_required=True,
+            human_decision_required=False,
+        )
+        return (
+            packet,
+            StepUsage(
+                agent_name="system_lead_agent",
+                model="mock/system-lead",
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                successful_requests=0,
+                estimated_cost_usd=0.0,
+            ),
+        )
+
+    def run_coding_agent(
+        self,
+        *,
+        agent_name: str,
+        selected_model_tier: str,
+        task_packet: dict,
+        file_contexts: list[dict[str, str]],
+        review_feedback: list[str] | None = None,
+    ) -> tuple[CodingChangeOutput, StepUsage]:
+        target_path = (task_packet.get("target_files") or ["README.md"])[0]
+        existing = next((item for item in file_contexts if item.get("path") == target_path), None)
+        base_content = existing.get("content", "") if existing else ""
+        content = base_content
+        if not content:
+            content = "# Mock change\n\nTen plik został przygotowany w trybie mock.\n"
+        change = CodingChangeOutput(
+            summary=f"Mock coding change dla {agent_name}.",
+            file_edits=[
+                FileEditOutput(
+                    path=target_path,
+                    content=content,
+                    is_new_file=existing is None,
+                    rationale="Mock coding flow created a placeholder edit.",
+                )
+            ],
+            notes=["No real coding LLM call was made."],
+            required_checks=task_packet.get("required_tests", []),
+        )
+        return (
+            change,
+            StepUsage(
+                agent_name=agent_name,
+                model=f"mock/{selected_model_tier}",
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                successful_requests=0,
+                estimated_cost_usd=0.0,
+            ),
+        )
+
+    def run_coding_review_agent(
+        self,
+        *,
+        task_packet: dict,
+        diff_text: str,
+        check_results: dict,
+        change_summary: str,
+    ) -> tuple[ReviewOutput, StepUsage]:
+        review = ReviewOutput(
+            decision="approve",
+            risk_level=task_packet.get("risk_level", "low"),
+            main_findings=[
+                "Mock coding review completed successfully.",
+                f"Summary: {change_summary}",
+            ],
+            required_changes=[],
+        )
+        return (
+            review,
+            StepUsage(
+                agent_name="review_agent",
+                model="mock/review",
                 prompt_tokens=0,
                 completion_tokens=0,
                 total_tokens=0,
