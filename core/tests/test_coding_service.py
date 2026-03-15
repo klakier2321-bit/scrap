@@ -23,6 +23,14 @@ class FakeAgentRuntime:
         self.scope_manifest = load_scope_manifest()
 
     def generate_coding_task_packet(self, *, module_context, executive_context):
+        target_file = next(
+            (
+                candidate
+                for candidate in module_context["target_candidates"]
+                if not str(candidate).endswith("/")
+            ),
+            "core/README.md",
+        )
         return (
             {
                 "summary": module_context["module_summary"],
@@ -32,7 +40,7 @@ class FakeAgentRuntime:
                 "business_reason": "Potwierdzic supervised write w izolowanym worktree.",
                 "owned_scope": module_context["owned_scope"],
                 "read_only_context": module_context["read_only_context"],
-                "target_files": ["core/README.md"],
+                "target_files": [target_file],
                 "forbidden_paths": module_context["forbidden_paths"],
                 "risk_level": "low",
                 "acceptance_checks": module_context["acceptance_checks"],
@@ -126,6 +134,22 @@ coding_runtime:
   max_active_tasks: 1
   max_target_files: 6
   modules:
+    - module_id: "secondary_control_layer"
+      owner_agent: "control_layer_agent"
+      enabled: true
+      priority: 10
+      title: "Secondary control"
+      module_summary: "Nizszy priorytet."
+      read_only_context:
+        - "docs/ARCHITECTURE.md"
+      target_candidates:
+        - "core/README.md"
+      acceptance_checks:
+        - "Zmiana zostaje w core/"
+      required_tests:
+        - "python -m compileall core"
+      definition_of_done:
+        - "Diff jest maly i reviewable."
     - module_id: "control_layer_runtime"
       owner_agent: "control_layer_agent"
       enabled: true
@@ -264,3 +288,10 @@ coding_runtime:
         updated = service.get_coding_task(task["task_id"])
         self.assertEqual(updated["status"], "blocked")
         self.assertIn("timeout", (updated["last_error"] or "").lower())
+
+    def test_refresh_queue_prefers_highest_priority_module(self) -> None:
+        self.service._refresh_lead_queue()
+
+        tasks = self.service.list_coding_tasks(limit=5)
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0]["module_id"], "control_layer_runtime")

@@ -7,12 +7,40 @@ coding_runtime:
   max_target_files: 6
 
   modules:
+    - module_id: "strategy_and_backtests"
+      owner_agent: "strategy_agent"
+      enabled: true
+      priority: 120
+      title: "Strategie i backtesty"
+      module_summary: "Naucz warstwe strategii czytac read-only snapshoty dry_run, budowac assessmenty i executive summary, ktore przyblizaja nas do skutecznego, risk-adjusted zarabiania bez zmian live tradingu."
+      read_only_context:
+        - "docs/ARCHITECTURE.md"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
+        - "core/strategy_manager.py"
+      target_candidates:
+        - "trading/DRY_RUN_RUNTIME_ASSESSMENT.md"
+        - "trading/DRY_RUN_NEXT_STEPS.md"
+        - "data/ai_control/strategy_reports/README.md"
+        - "data/ai_control/strategy_reports/assessments/README.md"
+      acceptance_checks:
+        - "Zmiana nie modyfikuje strategii handlowej ani configow runtime."
+        - "Dane dry_run sa konsumowane tylko read-only."
+        - "Artefakt strategii lub raport jest czytelny dla review i dla prezesa."
+      required_tests:
+        - "python -m compileall core"
+        - "python -m unittest discover -s core/tests -p test_*.py"
+      definition_of_done:
+        - "Warstwa strategii umie pracowac na snapshotach dry_run lub raportach strategii."
+        - "Diff nie wykracza poza approved scope i dane raportowe."
+        - "Wynik przybliza system do skutecznej pracy na danych dry_run, bez drogi do live tradingu."
+
     - module_id: "control_layer_runtime"
       owner_agent: "control_layer_agent"
       enabled: true
-      priority: 100
+      priority: 90
       title: "Control layer"
-      module_summary: "Buduj male, reviewable przyrosty control layer w core/, w tym read-only bridge do dry_run i snapshoty runtime bez dawania agentom bezposredniego dostepu do Freqtrade API."
+      module_summary: "Buduj tylko te male, reviewable przyrosty control layer w core/, ktore bezposrednio odblokowuja dane dry_run, strategie i bezpieczna obserwowalnosc systemu."
       read_only_context:
         - "docs/ARCHITECTURE.md"
         - "docs/PROJECT_MAP.md"
@@ -38,17 +66,16 @@ coding_runtime:
     - module_id: "monitoring_and_visibility"
       owner_agent: "monitoring_agent"
       enabled: true
-      priority: 85
+      priority: 100
       title: "Monitoring i widocznosc"
-      module_summary: "Rozwijaj Grafane, Prometheusa i raportowanie dla prezesa, w tym gotowosc dry_run, wiek snapshotow i blokady danych runtime."
+      module_summary: "Rozwijaj Grafane, Prometheusa i raportowanie dla prezesa tak, aby bylo jasno widac gotowosc dry_run, swiezosc snapshotow i droge systemu do skutecznego zarabiania."
       read_only_context:
         - "docs/ARCHITECTURE.md"
         - "docs/PROJECT_MAP.md"
         - "ai_agents/config/executive_roadmap.yaml"
       target_candidates:
-        - "infrastructure/grafana/"
-        - "infrastructure/prometheus/"
-        - "monitoring/"
+        - "infrastructure/grafana/dashboards/executive-roadmap.json"
+        - "infrastructure/prometheus/alerts/ai_control_rules.yml"
         - "core/metrics.py"
       acceptance_checks:
         - "Zmiana zostaje w monitoringu i dashboardach."
@@ -104,27 +131,3 @@ coding_runtime:
       definition_of_done:
         - "UI jest czytelne i dziala z aktualnym API."
         - "Diff pozostaje we wlasnym scope GUI."
-
-    - module_id: "strategy_and_backtests"
-      owner_agent: "strategy_agent"
-      enabled: true
-      priority: 50
-      title: "Strategie i backtesty"
-      module_summary: "Naucz warstwe strategii czytac read-only snapshoty dry_run i pracowac na danych runtime bez zmian strategii i bez zadnych write akcji na trading runtime."
-      read_only_context:
-        - "docs/ARCHITECTURE.md"
-        - "data/ai_control/dry_run_snapshots/"
-        - "core/strategy_manager.py"
-      target_candidates:
-        - "trading/"
-        - "data/ai_control/strategy_reports/"
-      acceptance_checks:
-        - "Zmiana nie modyfikuje strategii handlowej ani configow runtime."
-        - "Dane dry_run sa konsumowane tylko read-only."
-        - "Raport lub artefakt strategii pozostaje czytelny dla review."
-      required_tests:
-        - "python -m compileall core"
-        - "python -m unittest discover -s core/tests -p test_*.py"
-      definition_of_done:
-        - "Warstwa strategii umie czytac snapshoty dry_run."
-        - "Diff nie wykracza poza approved scope i dane raportowe."

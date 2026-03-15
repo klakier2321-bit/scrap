@@ -1,33 +1,21 @@
 autopilot:
-  objective: "Stale rozwijac projekt warstwowo, bez chaosu, bez dotykania runtime tradingowego i bez obchodzenia zasad bezpieczenstwa."
+  objective: "Budowac skuteczny, risk-adjusted system tradingowy: stale pracowac na danych dry_run, wzmacniac droge do zarabiania i nie obchodzic zasad bezpieczenstwa."
   auto_start: true
   poll_interval_seconds: 300
   max_cycles: 0
 
   tasks:
-    - name: "review_spec_core"
-      agent_name: "review_agent"
-      goal: "Sprawdz spojnosci dokumentacji kanonicznej i wskaz jeden nastepny bezpieczny krok rozwojowy bez zmian runtime."
-      business_reason: "Chcemy utrzymac porzadek i stale usuwac niespojnosci przed dalsza rozbudowa systemu."
-      requested_paths:
-        - "docs/"
-        - "ai_agents/"
-      risk_level: "low"
-      cross_layer: false
-      does_touch_contract: false
-      does_touch_runtime: false
-      force_strong_model: false
-      auto_approve: false
-
     - name: "lead_next_increment"
       agent_name: "system_lead_agent"
-      goal: "Wyznacz jeden maly, konkretny i bezpieczny krok rozwoju systemu, ktory poprawia gotowosc platformy do dalszej budowy control layer, agentow lub monitoringu."
-      business_reason: "Chcemy, aby glowny agent stale pilnowal kolejnosci prac i proponowal kolejny sensowny przyrost systemu."
+      goal: "Wyznacz jeden maly, konkretny i bezpieczny krok rozwoju systemu, ktory poprawia gotowosc platformy do skutecznej pracy na danych dry_run i przybliza nas do zarabiajacego systemu."
+      business_reason: "Glowny agent ma stale pilnowac kolejnosci prac i kierowac zespol najpierw w strategy/backtest workflow na danych dry_run."
       requested_paths:
         - "docs/"
         - "core/"
         - "ai_agents/"
         - "monitoring/"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
       risk_level: "medium"
       cross_layer: true
       does_touch_contract: false
@@ -37,13 +25,15 @@ autopilot:
 
     - name: "lead_executive_watch"
       agent_name: "system_lead_agent"
-      goal: "Na podstawie roadmapi executive i ostatnich runow przygotuj krotka notatke zarzadcza: co sie zmienilo, jakie zadania mozna uznac za domkniete, co wymaga uwagi oraz czego potrzebujemy od prezesa."
-      business_reason: "Chcemy, aby glowny agent stale zasilał pulpit prezesa wnioskiem zarzadczym, a nie tylko technicznym statusem."
+      goal: "Na podstawie roadmapy executive, snapshotow dry_run, raportow strategii i ostatnich runow przygotuj krotka notatke zarzadcza: co sie zmienilo, co przybliza nas do zarabiania w dry_run, co wymaga uwagi oraz czego potrzebujemy od prezesa."
+      business_reason: "Pulpit prezesa ma stale pokazywac nie tylko status techniczny, ale przede wszystkim droge do skutecznego systemu pracujacego na danych dry_run."
       requested_paths:
         - "ai_agents/config/executive_roadmap.yaml"
         - "core/executive_report.py"
         - "infrastructure/grafana/"
         - "docs/"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
       risk_level: "medium"
       cross_layer: true
       does_touch_contract: false
@@ -51,10 +41,43 @@ autopilot:
       force_strong_model: false
       auto_approve: true
 
-    - name: "architecture_refinement"
+    - name: "strategy_dry_run_watch"
+      agent_name: "strategy_agent"
+      goal: "Na podstawie najnowszego snapshotu dry_run, ostatniego raportu strategii i assessmentu przygotuj jeden maly, bezpieczny krok, ktory poprawia gotowosc systemu do skutecznego zarabiania w trybie dry_run."
+      business_reason: "Chcemy, aby strategy_agent juz stale pracowal na danych runtime i wyprowadzal rekomendacje oparte na risk-adjusted profit, a nie na domyslach."
+      requested_paths:
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
+        - "docs/ARCHITECTURE.md"
+        - "core/strategy_manager.py"
+      risk_level: "low"
+      cross_layer: false
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false
+
+    - name: "monitoring_dry_run_watch"
+      agent_name: "monitoring_agent"
+      goal: "Sprawdz, czy dashboardy, metryki i alerty jasno pokazuja gotowosc dry_run, swiezosc snapshotow oraz to, czy strategia zbliza sie do skutecznego systemu."
+      business_reason: "Chcemy, aby prezes i operator widzieli, czy system realnie uczy sie na danych dry_run i co blokuje droge do zarabiania."
+      requested_paths:
+        - "infrastructure/grafana/"
+        - "infrastructure/prometheus/"
+        - "core/metrics.py"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
+      risk_level: "low"
+      cross_layer: false
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false
+
+    - name: "architecture_business_refinement"
       agent_name: "architecture_agent"
-      goal: "Doprecyzuj docelowa architekture platformy i sprawdz, czy przeplyw miedzy warstwami pozostaje czytelny, bezpieczny i zgodny z rola Freqtrade jako execution engine."
-      business_reason: "Chcemy unikac dryfu architektury i utrzymac jasny podzial odpowiedzialnosci miedzy AI, control layer i trading runtime."
+      goal: "Doprecyzuj docelowa architekture platformy jezykiem biznesowym i sprawdz, czy przeplyw miedzy warstwami pozostaje czytelny, bezpieczny i zgodny z zasada: control layer steruje, Freqtrade wykonuje."
+      business_reason: "Chcemy unikac dryfu architektury, ale jednoczesnie miec opis zrozumialy dla prezesa i zespolu bez ukrywania odpowiedzialnosci warstw."
       requested_paths:
         - "docs/ARCHITECTURE.md"
         - "docs/PROJECT_MAP.md"

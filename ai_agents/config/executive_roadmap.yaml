@@ -1,7 +1,7 @@
 executive_dashboard:
   title: "Pulpit Prezesa"
   subtitle: "Jeden widok dla decyzji zarządczych, priorytetów, ryzyk i postępu pracy nad platformą tradingową."
-  strategic_goal: "Budować bezpieczną platformę tradingową krok po kroku: najpierw porządek, kontrola ryzyka i obserwowalność, potem szersza automatyzacja i rozwój strategii."
+  strategic_goal: "Budować skuteczny, risk-adjusted system tradingowy: najpierw uruchomić powtarzalną pracę na realnych danych w dry_run, wyciągać wnioski z wyników i dopiero potem rozszerzać automatyzację."
 
   assumptions:
     - id: "assumption_control_over_execution"
@@ -68,8 +68,8 @@ executive_dashboard:
       status: "W toku"
       progress_pct: 88
       direction: "Jedna wersja prawdy dla architektury, decyzji i zasad bezpieczeństwa"
-      current_focus: "Domknąć spójność opisów control layer, agentów i execution engine"
-      next_milestone: "Automatyczna kontrola jakości dokumentacji w CI"
+      current_focus: "Przepisać kluczowe opisy architektury na język biznesowy i stanowczy: control layer steruje, Freqtrade wykonuje"
+      next_milestone: "Mieć krótką, zarządczą wersję architektury bez rozmywania odpowiedzialności między warstwami"
       risk_level: "Niskie"
       executive_note: "Możesz oczekiwać jasnych, biznesowych opisów zamiast technicznego chaosu"
       paths:
@@ -100,8 +100,8 @@ executive_dashboard:
       status: "W toku"
       progress_pct: 72
       direction: "Budować prawdziwy mózg systemowy nad Freqtrade"
-      current_focus: "Stać się pierwszym agentem kodującym w supervised write i dowozić małe offline'owe przyrosty w core/"
-      next_milestone: "Dowiezc pierwszy commit z brancha worktree control_layer_agent po review agenta"
+      current_focus: "Dowozic tylko te małe przyrosty control layer, które bezpośrednio odblokowują pracę strategii i danych dry_run"
+      next_milestone: "Stabilnie wspierać strategię i monitoring bez rozbudowywania control layer ponad to, co potrzebne do dry_run"
       risk_level: "Średnie"
       executive_note: "To pierwszy moduł, na którym testujemy model: lead deleguje, agent koduje, review zatwierdza, a main pozostaje bez auto-merge"
       paths:
@@ -111,12 +111,12 @@ executive_dashboard:
       name: "Strategie i backtesty"
       owner_agent: "strategy_agent"
       status: "W toku"
-      progress_pct: 58
-      direction: "Pracować na danych, wynikach i raportach, nie na życzeniowym tradingu"
-      current_focus: "Przygotować warstwę strategii do pracy na snapshotach dry_run obok raportów backtestowych"
-      next_milestone: "Mieć czytelne raporty backtestów i pierwszy read-only wgląd w dane z aktywnego dry_run"
+      progress_pct: 64
+      direction: "Pracować na realnych danych dry_run i raportach, budując drogę do zysku skorygowanego o ryzyko"
+      current_focus: "Analizować najnowsze snapshoty dry_run i raporty strategii, aby wyprowadzać małe kroki poprawiające gotowość systemu do zarabiania"
+      next_milestone: "Mieć pierwszy powtarzalny workflow strategii oparty o snapshoty dry_run oraz jasny executive summary z wnioskami"
       risk_level: "Średnie"
-      executive_note: "Tu zacznie się realna praca na danych runtime, ale nadal bez zmian strategii i bez live tradingu"
+      executive_note: "To jest teraz główny priorytet: pracować na danych dry_run i szukać drogi do skutecznego zarabiania bez wchodzenia w live trading"
       paths:
         - "trading/"
         - "data/ai_control/strategy_reports/"
@@ -127,8 +127,8 @@ executive_dashboard:
       status: "Stabilny zakres"
       progress_pct: 78
       direction: "Utrzymać Freqtrade jako execution engine w dry_run i dać agentom tylko bezpieczny, read-only wgląd w runtime"
-      current_focus: "Przełączyć runtime z webserver-only na prawdziwy dry_run i zbudować read-only bridge do snapshotów"
-      next_milestone: "Mieć działający smoke test dry_run i świeże snapshoty dostępne dla agentów"
+      current_focus: "Utrzymać stabilny dry_run i świeże snapshoty jako paliwo dla pracy strategii"
+      next_milestone: "Mieć stale świeże dane runtime, na których agenci mogą pracować bez dotykania live tradingu"
       risk_level: "Wysokie"
       executive_note: "To jest obszar, gdzie bezpieczeństwo wygrywa z tempem zmian; jedyny wysoki-risk krok wymaga ręcznego gate człowieka"
       paths:
@@ -189,8 +189,8 @@ executive_dashboard:
       status: "W toku"
       owner_agent: "architecture_agent"
       priority: "Średni"
-      needs_human: "Tak"
-      next_step: "Potwierdzić poziom stanowczości opisu: control layer steruje, Freqtrade wykonuje"
+      needs_human: "Nie"
+      next_step: "Przepisać ARCHITECTURE.md i PROJECT_MAP.md językiem biznesowym i stanowczym: control layer steruje, Freqtrade wykonuje"
 
     - id: "monitoring_for_management"
       module_id: "monitoring_and_visibility"
@@ -240,11 +240,20 @@ executive_dashboard:
     - id: "strategy_reporting_depth"
       module_id: "strategy_and_backtests"
       title: "Rozszerzyć raport strategii o czytelne porównanie zysku i drawdownu"
-      status: "Planowane"
+      status: "W toku"
       owner_agent: "strategy_agent"
-      priority: "Średni"
+      priority: "Wysoki"
       needs_human: "Nie"
-      next_step: "Dodać prosty executive summary dla wyników backtestów"
+      next_step: "Analizować latest snapshoty dry_run i raporty strategii, a potem podać executive summary: co poprawiać, by dojść do zarabiającego systemu"
+
+    - id: "strategy_dry_run_loop"
+      module_id: "strategy_and_backtests"
+      title: "Uruchomić stałą analizę danych dry_run przez strategy_agent"
+      status: "W toku"
+      owner_agent: "strategy_agent"
+      priority: "Wysoki"
+      needs_human: "Nie"
+      next_step: "Na podstawie snapshotów dry_run i assessmentów wyznaczać jeden bezpieczny krok poprawiający gotowość systemu do zarabiania"
 
     - id: "dry_run_runtime_bridge"
       module_id: "control_layer_runtime"
@@ -287,25 +296,25 @@ executive_dashboard:
       title: "Wybrać następny priorytet po dashboardzie prezesa"
       area: "Roadmapa produktu"
       priority: "Wysoki"
-      status: "Oczekuje"
-      expected_from_ceo: "Czy po stabilizacji autopilota idziemy najpierw w control layer, czy w strategy/backtest workflow?"
-      impact: "To ustawia kolejność sprintów i budżet pracy agentów na najbliższy etap."
+      status: "Potwierdzone"
+      expected_from_ceo: "Priorytet potwierdzony: najpierw strategy/backtest workflow na danych dry_run; control layer rozwijamy tylko tyle, ile odblokowuje strategię."
+      impact: "Sprinty i budżet agentów mają teraz iść przede wszystkim w pracę na danych dry_run i budowę drogi do skutecznego, risk-adjusted zarabiania."
 
     - id: "architecture_language_level"
       title: "Potwierdzić docelowy język opisu architektury"
       area: "Dokumentacja i komunikacja"
       priority: "Średni"
-      status: "Oczekuje"
-      expected_from_ceo: "Czy chcesz dokumenty bardziej biznesowe, czy bardziej techniczne?"
-      impact: "Od tego zależy, jak będą wyglądały materiały dla zarządu i zespołu."
+      status: "Potwierdzone"
+      expected_from_ceo: "Dokumenty mają być przede wszystkim biznesowe, krótkie i stanowcze. Wprost: control layer steruje, Freqtrade wykonuje."
+      impact: "Materiały dla zarządu i zespołu mają upraszczać decyzje, a nie rozmywać architekturę technicznym językiem."
 
     - id: "autopilot_expansion"
       title: "Zgoda na rozszerzenie autopilota po stabilizacji"
       area: "Praca agentów"
       priority: "Średni"
-      status: "Jeszcze nie teraz"
-      expected_from_ceo: "Na razie nic. Decyzja wróci po potwierdzeniu, że autopilot działa wielocyklowo."
-      impact: "Bez tej zgody nie będziemy rozszerzać pracy ciągłej na kolejne agenty."
+      status: "Potwierdzone"
+      expected_from_ceo: "Rozszerzyć autopilota tylko o bezpieczne, read-only zadania na danych dry_run i raportowaniu strategii. Bez live tradingu i bez write do runtime."
+      impact: "Agenci mogą już stale pracować na danych dry_run, ale nadal bez prawa do sterowania tradingiem."
 
   risks:
     - id: "autopilot_fallback"
@@ -327,7 +336,7 @@ executive_dashboard:
       area: "Trading"
       severity: "Wysokie"
       status: "Otwarte"
-      mitigation: "Trzymać dry_run, review człowieka i zasadę risk-adjusted profit ponad agresją."
+      mitigation: "Zarabiania szukamy najpierw w dry_run, na metrykach risk-adjusted profit. Żadnych skrótów do live tradingu bez review i decyzji człowieka."
 
     - id: "scope_chaos"
       title: "Agenci mogą zacząć rozmywać odpowiedzialności między warstwami"

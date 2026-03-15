@@ -301,7 +301,7 @@ class CodingSupervisorService:
         )
         if open_tasks:
             return
-        for module in self.modules_by_id.values():
+        for module in self._ordered_modules():
             packet, usage = self._generate_task_packet(module)
             if packet is None:
                 continue
@@ -312,6 +312,12 @@ class CodingSupervisorService:
                 usage=usage,
             )
             break
+
+    def _ordered_modules(self) -> list[CodingModuleProfile]:
+        return sorted(
+            self.modules_by_id.values(),
+            key=lambda module: (-int(module.priority), module.module_id),
+        )
 
     def _dispatch_ready_task(self) -> None:
         self._last_dispatch_at = self._now()

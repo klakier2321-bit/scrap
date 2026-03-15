@@ -102,11 +102,14 @@ def evaluate_request(
         request_payload.get("business_reason", "")
     )
     requested_paths_chars = sum(len(path_value) for path_value in requested_paths)
-    owned_scope = scope_manifest["agents"][agent_profile.name]["owned_scope"]
+    manifest_entry = scope_manifest["agents"][agent_profile.name]
+    owned_scope = manifest_entry["owned_scope"]
+    read_only_scope = manifest_entry.get("read_only_scope", [])
+    allowed_request_scope = list(dict.fromkeys(owned_scope + read_only_scope))
     path_outside_scope = [
         path_value
         for path_value in requested_paths
-        if not any(_matches_scope(path_value, rule) for rule in owned_scope)
+        if not any(_matches_scope(path_value, rule) for rule in allowed_request_scope)
     ]
 
     if any(_is_repo_wide_request(path_value) for path_value in requested_paths):
@@ -210,7 +213,7 @@ def evaluate_request(
         )
 
     if path_outside_scope and agent_profile.name not in CROSS_LAYER_COORDINATORS:
-        warnings.append("Requested paths exceed the owned scope for this agent.")
+        warnings.append("Requested paths exceed the allowed read/write scope for this agent.")
         return PolicyDecision(
             allowed=False,
             blocked_reason="scope_violation",
