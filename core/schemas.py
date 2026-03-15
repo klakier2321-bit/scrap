@@ -230,6 +230,7 @@ class CodingTaskCreateRequest(BaseModel):
     module_id: str
     goal_override: str | None = None
     business_reason: str | None = None
+    target_files_override: list[str] = Field(default_factory=list)
 
 
 class CodingTaskRecord(BaseModel):

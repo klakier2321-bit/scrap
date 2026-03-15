@@ -94,6 +94,11 @@ class HangingAgentRuntime(FakeAgentRuntime):
         )
 
 
+class AliveWorker:
+    def is_alive(self) -> bool:
+        return True
+
+
 class CodingSupervisorServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -158,6 +163,7 @@ coding_runtime:
       module_summary: "Maly offlineowy przyrost control layer."
       read_only_context:
         - "docs/ARCHITECTURE.md"
+      max_target_files: 2
       target_candidates:
         - "core/README.md"
       acceptance_checks:
@@ -209,6 +215,37 @@ coding_runtime:
         workspace = self.store.get_coding_workspace(task["task_id"])
         self.assertIsNotNone(workspace)
         self.assertIn("core/generated_runtime_slice.py", workspace["changed_files"])
+
+    def test_manual_task_accepts_narrow_target_override_within_scope(self) -> None:
+        task = self.service.create_manual_task(
+            module_id="control_layer_runtime",
+            target_files_override=["core/generated_runtime_slice.py"],
+        )
+
+        self.assertEqual(task["target_files"], ["core/generated_runtime_slice.py"])
+
+    def test_validate_task_packet_filters_disallowed_required_tests(self) -> None:
+        module = self.service.modules_by_id["control_layer_runtime"]
+        packet = {
+            "module_id": module.module_id,
+            "owner_agent": module.owner_agent,
+            "goal": "Maly task",
+            "business_reason": "Test",
+            "target_files": ["core/README.md"],
+            "read_only_context": [],
+            "acceptance_checks": [],
+            "required_tests": [
+                "python -m compileall core",
+                "python scripts/not_allowed.py --help",
+            ],
+            "definition_of_done": [],
+            "risk_level": "low",
+        }
+
+        validated = self.service._validate_task_packet(module=module, packet=packet)
+
+        self.assertIsNotNone(validated)
+        self.assertEqual(validated["required_tests"], ["python -m compileall core"])
 
     def test_validate_task_packet_blocks_forbidden_target(self) -> None:
         module = self.service.modules_by_id["control_layer_runtime"]
@@ -295,3 +332,21 @@ coding_runtime:
         tasks = self.service.list_coding_tasks(limit=5)
         self.assertEqual(len(tasks), 1)
         self.assertEqual(tasks[0]["module_id"], "control_layer_runtime")
+
+    def test_status_ignores_stale_last_error_when_active_worker_is_healthy(self) -> None:
+        task = self.service.create_manual_task(module_id="control_layer_runtime")
+        self.store.update_coding_task(
+            task["task_id"],
+            status="coding",
+            started_at="2099-01-01T00:00:00+00:00",
+        )
+        self.service._last_error = "Previous task failed."
+        self.service._worker_thread = AliveWorker()
+        self.service._worker_task_id = task["task_id"]
+        self.service._worker_started_monotonic = time.monotonic()
+
+        status = self.service.status()
+
+        self.assertFalse(status["attention_needed"])
+        self.assertTrue(status["active_worker_alive"])
+        self.assertEqual(status["active_task_id"], task["task_id"])

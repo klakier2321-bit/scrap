@@ -11,8 +11,9 @@ coding_runtime:
       owner_agent: "strategy_agent"
       enabled: true
       priority: 120
+      max_target_files: 2
       title: "Strategie i backtesty"
-      module_summary: "Naucz warstwe strategii czytac read-only snapshoty dry_run, budowac assessmenty i executive summary, ktore przyblizaja nas do skutecznego, risk-adjusted zarabiania bez zmian live tradingu."
+      module_summary: "Naucz warstwe strategii czytac read-only snapshoty dry_run, budowac assessmenty i executive summary, ale zawsze jednym malym, reviewowalnym krokiem naraz."
       read_only_context:
         - "docs/ARCHITECTURE.md"
         - "data/ai_control/dry_run_snapshots/"
@@ -31,7 +32,7 @@ coding_runtime:
         - "python -m compileall core"
         - "python -m unittest discover -s core/tests -p test_*.py"
       definition_of_done:
-        - "Warstwa strategii umie pracowac na snapshotach dry_run lub raportach strategii."
+        - "Warstwa strategii dowozi jeden maly, reviewowalny krok pracy na snapshotach dry_run lub raportach strategii."
         - "Diff nie wykracza poza approved scope i dane raportowe."
         - "Wynik przybliza system do skutecznej pracy na danych dry_run, bez drogi do live tradingu."
 

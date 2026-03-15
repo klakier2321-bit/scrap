@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 from ai_agents.runtime.config import CodingModuleProfile, load_coding_runtime_config
 
 from .storage import RunStore
-from .worktree_manager import WorktreeInfo, WorktreeManager
+from .worktree_manager import ALLOWED_CHECK_PREFIXES, WorktreeInfo, WorktreeManager
 
 if TYPE_CHECKING:
     from ai_agents.runtime.service import AgentRuntimeService
@@ -90,13 +90,16 @@ class CodingSupervisorService:
         active_task = self.store.get_active_coding_task()
         task_timeout_seconds = self._coding_task_timeout_seconds()
         active_task_age_seconds = self._task_age_seconds(active_task)
-        attention_needed = bool(self._last_error)
-        if (
-            active_task is not None
-            and active_task_age_seconds is not None
-            and active_task_age_seconds > task_timeout_seconds
-        ):
-            attention_needed = True
+        active_worker_alive = bool(self._worker_thread and self._worker_thread.is_alive())
+        attention_needed = False
+        if active_task is not None:
+            if (
+                active_task_age_seconds is not None
+                and active_task_age_seconds > task_timeout_seconds
+            ):
+                attention_needed = True
+            elif not active_worker_alive:
+                attention_needed = True
         return {
             "running": bool(self._thread and self._thread.is_alive()),
             "enabled": bool(self.settings.agent_coding_enabled),
@@ -116,7 +119,7 @@ class CodingSupervisorService:
             "task_timeout_seconds": task_timeout_seconds,
             "active_task_id": active_task["task_id"] if active_task else None,
             "active_task_age_seconds": active_task_age_seconds,
-            "active_worker_alive": bool(self._worker_thread and self._worker_thread.is_alive()),
+            "active_worker_alive": active_worker_alive,
             "ready_tasks": sum(1 for task in tasks if task.get("status") == "ready"),
             "review_tasks": sum(1 for task in tasks if task.get("status") == "review"),
             "committed_tasks": sum(1 for task in tasks if task.get("status") == "committed"),
@@ -147,12 +150,14 @@ class CodingSupervisorService:
         module_id: str,
         goal_override: str | None = None,
         business_reason: str | None = None,
+        target_files_override: list[str] | None = None,
     ) -> dict[str, Any]:
         module = self._require_module(module_id)
         packet = self._build_manual_task_packet(
             module=module,
             goal_override=goal_override,
             business_reason=business_reason,
+            target_files_override=target_files_override,
         )
         record = self._persist_task_packet(
             packet=packet,
@@ -558,6 +563,7 @@ class CodingSupervisorService:
         with self._lock:
             if self._worker_thread and self._worker_thread.is_alive():
                 return
+            self._last_error = None
             self._worker_task_id = task["task_id"]
             self._worker_started_monotonic = time.monotonic()
             self._worker_thread = threading.Thread(
@@ -727,6 +733,7 @@ class CodingSupervisorService:
             "title": module.title,
             "owner_agent": module.owner_agent,
             "module_summary": module.module_summary,
+            "max_target_files": module.max_target_files,
             "owned_scope": manifest_entry.get("owned_scope", []),
             "read_only_scope": manifest_entry.get("read_only_scope", []),
             "forbidden_paths": list(
@@ -757,7 +764,8 @@ class CodingSupervisorService:
             )
         )
         target_files = list(dict.fromkeys(packet.get("target_files", [])))
-        if not target_files or len(target_files) > int(self.runtime_config.get("max_target_files", 6)):
+        target_limit = int(module.max_target_files or self.runtime_config.get("max_target_files", 6))
+        if not target_files or len(target_files) > target_limit:
             return None
         for path in target_files:
             if path.endswith("/"):
@@ -766,6 +774,10 @@ class CodingSupervisorService:
                 return None
             if any(path == forbidden or path.startswith(f"{forbidden.rstrip('/')}/") for forbidden in forbidden_paths):
                 return None
+        required_tests = self._sanitize_required_tests(
+            packet.get("required_tests", []),
+            fallback=module.required_tests,
+        )
         risk_level = packet.get("risk_level", "low")
         if risk_level not in {"low", "medium"}:
             risk_level = "medium"
@@ -790,7 +802,7 @@ class CodingSupervisorService:
             "forbidden_paths": forbidden_paths,
             "risk_level": risk_level,
             "acceptance_checks": packet.get("acceptance_checks") or module.acceptance_checks,
-            "required_tests": packet.get("required_tests") or module.required_tests,
+            "required_tests": required_tests,
             "definition_of_done": packet.get("definition_of_done") or module.definition_of_done,
             "warnings": packet.get("warnings", []),
             "review_required": True,
@@ -803,11 +815,29 @@ class CodingSupervisorService:
         module: CodingModuleProfile,
         goal_override: str | None,
         business_reason: str | None,
+        target_files_override: list[str] | None,
     ) -> dict[str, Any]:
         manifest_entry = self.scope_manifest["agents"][module.owner_agent]
         file_candidates = [candidate for candidate in module.target_candidates if not candidate.endswith("/")]
         if not file_candidates:
             file_candidates = module.target_candidates[:1]
+        if target_files_override:
+            file_candidates = list(dict.fromkeys(target_files_override))
+        target_limit = int(module.max_target_files or self.runtime_config.get("max_target_files", 6))
+        target_files = file_candidates[:target_limit]
+        forbidden_paths = list(
+            dict.fromkeys(
+                self.scope_manifest.get("rules", {}).get("sensitive_paths", [])
+                + manifest_entry.get("forbidden_scope", [])
+            )
+        )
+        for path in target_files:
+            if path.endswith("/"):
+                raise RuntimeError("Manual coding task cannot target a directory path.")
+            if not any(path.startswith(scope.rstrip("/") + "/") or path == scope.rstrip("/") for scope in manifest_entry.get("owned_scope", [])):
+                raise RuntimeError(f"Manual coding task target is outside owned scope: {path}")
+            if any(path == forbidden or path.startswith(f"{forbidden.rstrip('/')}/") for forbidden in forbidden_paths):
+                raise RuntimeError(f"Manual coding task target is forbidden: {path}")
         return {
             "summary": module.module_summary,
             "module_id": module.module_id,
@@ -816,18 +846,30 @@ class CodingSupervisorService:
             "business_reason": business_reason or module.module_summary,
             "owned_scope": list(manifest_entry.get("owned_scope", [])),
             "read_only_context": module.read_only_context,
-            "target_files": file_candidates[:2],
-            "forbidden_paths": list(
-                dict.fromkeys(
-                    self.scope_manifest.get("rules", {}).get("sensitive_paths", [])
-                    + manifest_entry.get("forbidden_scope", [])
-                )
-            ),
+            "target_files": target_files,
+            "forbidden_paths": forbidden_paths,
             "risk_level": "low",
             "acceptance_checks": module.acceptance_checks,
-            "required_tests": module.required_tests,
+            "required_tests": self._sanitize_required_tests(module.required_tests, fallback=module.required_tests),
             "definition_of_done": module.definition_of_done,
         }
+
+    @staticmethod
+    def _sanitize_required_tests(raw_tests: list[str], *, fallback: list[str]) -> list[str]:
+        chosen = raw_tests or fallback
+        sanitized = [
+            command.strip()
+            for command in chosen
+            if command.strip().startswith(ALLOWED_CHECK_PREFIXES)
+        ]
+        if sanitized:
+            return list(dict.fromkeys(sanitized))
+        fallback_sanitized = [
+            command.strip()
+            for command in fallback
+            if command.strip().startswith(ALLOWED_CHECK_PREFIXES)
+        ]
+        return list(dict.fromkeys(fallback_sanitized))
 
     def _task_packet_from_record(self, task: dict[str, Any]) -> dict[str, Any]:
         return {

@@ -12,6 +12,8 @@ import yaml
 class ExecutiveReportService:
     """Builds a CEO-friendly view of modules, tasks, risks, and decisions."""
 
+    _INACTIVE_RISK_STATUSES = {"zamknięte", "zamkniete", "monitorowane", "kontrolowane", "ograniczone"}
+
     def __init__(self, repo_root: Path) -> None:
         self.repo_root = repo_root
         self.config_path = repo_root / "ai_agents" / "config" / "executive_roadmap.yaml"
@@ -92,6 +94,65 @@ class ExecutiveReportService:
         if not goal:
             return "Aktualizacja pracy agenta"
         return goal[:140]
+
+    def _is_active_risk(self, risk: dict[str, Any]) -> bool:
+        return str(risk.get("status", "")).strip().lower() not in self._INACTIVE_RISK_STATUSES
+
+    def _recent_mock_fallback_count(self, runs: list[dict[str, Any]], *, limit: int = 40) -> int:
+        count = 0
+        for run in runs[:limit]:
+            warnings = run.get("warnings_json") or []
+            text = " ".join(
+                str(part)
+                for part in (
+                    *warnings,
+                    run.get("error") or "",
+                    run.get("blocked_reason") or "",
+                )
+            ).lower()
+            if "mock_fallback" in text:
+                count += 1
+        return count
+
+    def _normalize_risks(
+        self,
+        *,
+        risks: list[dict[str, Any]],
+        runs: list[dict[str, Any]],
+        autopilot_status: dict[str, Any],
+        autopilot_attention_needed: bool,
+        dry_run_health: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        normalized = [dict(risk) for risk in risks]
+        recent_mock_fallbacks = self._recent_mock_fallback_count(runs)
+        dry_run_guardrails_active = bool(
+            dry_run_health.get("ready") and dry_run_health.get("runtime_mode") == "dry_run"
+        )
+
+        for risk in normalized:
+            risk_id = risk.get("id")
+            if risk_id == "autopilot_fallback":
+                if autopilot_status.get("running") and not autopilot_attention_needed and recent_mock_fallbacks == 0:
+                    risk["status"] = "Monitorowane"
+                    risk["mitigation"] = (
+                        "W ostatnich runach nie widać mock fallback. Utrzymać obserwację jakości structured output "
+                        "i przywrócić alert dopiero wtedy, gdy fallback wróci."
+                    )
+                else:
+                    risk["status"] = "Otwarte"
+                    risk["mitigation"] = (
+                        "Utrzymać działającą pętlę, ale dopracować integrację z realnym modelem i structured output, "
+                        "żeby lead agent raportował stabilnie bez awaryjnego fallbacku."
+                    )
+
+            if risk_id == "strategy_overreach" and dry_run_guardrails_active:
+                risk["status"] = "Kontrolowane"
+                risk["mitigation"] = (
+                    "Guardraile są aktywne: system działa w dry_run, agenci dostają tylko read-only dane runtime, "
+                    "a droga do live tradingu nadal wymaga review i decyzji człowieka."
+                )
+
+        return normalized
 
     def _build_recent_changes(
         self,
@@ -389,10 +450,17 @@ class ExecutiveReportService:
         waiting_decisions = [
             decision for decision in decisions if decision.get("status") not in {"Zamknięta", "Potwierdzone"}
         ]
+        risks = self._normalize_risks(
+            risks=risks,
+            runs=runs,
+            autopilot_status=autopilot_status,
+            autopilot_attention_needed=autopilot_attention_needed,
+            dry_run_health=dry_run_health,
+        )
         high_risks = [
             risk
             for risk in risks
-            if risk.get("severity") in {"Wysokie", "Krytyczne"} and risk.get("status") != "Zamknięte"
+            if risk.get("severity") in {"Wysokie", "Krytyczne"} and self._is_active_risk(risk)
         ]
 
         recent_changes = self._build_recent_changes(runs, modules)
@@ -400,7 +468,7 @@ class ExecutiveReportService:
         blockers = self._build_blockers(
             tasks=open_tasks,
             decisions=waiting_decisions,
-            risks=[risk for risk in risks if risk.get("status") != "Zamknięte"],
+            risks=[risk for risk in risks if self._is_active_risk(risk)],
             modules=modules,
             autopilot_status={**autopilot_status, "attention_needed": autopilot_attention_needed},
         )
@@ -513,7 +581,7 @@ class ExecutiveReportService:
             "tasks": open_tasks,
             "completed_tasks": completed_tasks[:6],
             "decisions": waiting_decisions,
-            "risks": [risk for risk in risks if risk.get("status") != "Zamknięte"],
+            "risks": risks,
             "recent_changes": recent_changes,
             "lead_notes": lead_notes,
             "blockers": blockers,

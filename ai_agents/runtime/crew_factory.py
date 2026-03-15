@@ -416,7 +416,7 @@ class CrewAIExecutionEngine:
             "- one module only\n"
             "- owned-scope only\n"
             "- no cross-layer coding task\n"
-            "- max 6 target files\n"
+            f"- max {int(module_context.get('max_target_files', 6))} target files for this module\n"
             "- no secrets, docker-compose, runtime configs, Freqtrade runtime or live trading\n"
             "- keep the task small and reviewable\n\n"
             f"{self._build_json_output_instruction(CodingTaskPacketOutput)}"

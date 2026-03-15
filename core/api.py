@@ -251,6 +251,7 @@ async def ops_create_coding_task(request: CodingTaskCreateRequest) -> CodingTask
             module_id=request.module_id,
             goal_override=request.goal_override,
             business_reason=request.business_reason,
+            target_files_override=request.target_files_override,
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

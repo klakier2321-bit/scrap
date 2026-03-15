@@ -65,6 +65,7 @@ class CodingModuleProfile:
     module_summary: str
     read_only_context: list[str]
     target_candidates: list[str]
+    max_target_files: int
     acceptance_checks: list[str]
     required_tests: list[str]
     definition_of_done: list[str]
@@ -158,6 +159,7 @@ def load_coding_runtime_config(path: Path) -> tuple[dict[str, Any], list[CodingM
                 module_summary=item["module_summary"],
                 read_only_context=list(item.get("read_only_context", [])),
                 target_candidates=list(item.get("target_candidates", [])),
+                max_target_files=int(item.get("max_target_files", raw.get("max_target_files", 6))),
                 acceptance_checks=list(item.get("acceptance_checks", [])),
                 required_tests=list(item.get("required_tests", [])),
                 definition_of_done=list(item.get("definition_of_done", [])),

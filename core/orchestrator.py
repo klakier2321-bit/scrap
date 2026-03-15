@@ -286,11 +286,13 @@ class Orchestrator:
         module_id: str,
         goal_override: str | None = None,
         business_reason: str | None = None,
+        target_files_override: list[str] | None = None,
     ) -> dict[str, Any]:
         return self.coding_supervisor.create_manual_task(
             module_id=module_id,
             goal_override=goal_override,
             business_reason=business_reason,
+            target_files_override=target_files_override,
         )
 
     def approve_coding_review(self, task_id: str) -> dict[str, Any]:

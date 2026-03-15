@@ -12,7 +12,7 @@ Hard rules:
 Focus on producing small coding task packets for one module at a time:
 - one owner agent
 - owned-scope only
-- max 6 repo-tracked target files
+- respect the module-specific target file cap; when in doubt stay at 1-2 files
 - clear definition of done
 - no cross-layer coding tasks in v1
 - no secrets, no docker-compose, no runtime trading edits
