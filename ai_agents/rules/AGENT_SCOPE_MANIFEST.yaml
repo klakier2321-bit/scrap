@@ -129,12 +129,15 @@ agents:
     owned_scope:
       - monitoring/
       - infrastructure/grafana/
+      - infrastructure/prometheus/
+      - core/metrics.py
       - docs/
     read_only_scope:
       - core/
       - trading/
       - ai_agents/
       - data/ai_control/dry_run_snapshots/
+      - data/ai_control/strategy_reports/
       - data/ai_control/dry_run_smoke/
     forbidden_scope:
       - .env
