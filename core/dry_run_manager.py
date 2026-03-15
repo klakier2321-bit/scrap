@@ -121,9 +121,16 @@ class DryRunManager:
             trades_payload = self.client.trades()
             count_payload = self.client.count()
             performance_payload = self.client.performance()
+            status_payload = self.client.status()
             runtime_mode = str(config.get("runmode") or "").strip() or "unknown"
 
-            open_trades = self._extract_open_trades(trades_payload)
+            count_summary = self._count_summary(count_payload)
+            open_trades = self._extract_open_trades(status_payload) or self._extract_open_trades(
+                trades_payload
+            )
+            open_trades_count = len(open_trades)
+            if open_trades_count == 0 and isinstance(count_summary.get("current_open_trades"), int):
+                open_trades_count = int(count_summary["current_open_trades"])
             snapshot = {
                 "bot_id": bot_status["bot_id"],
                 "generated_at": generated_at,
@@ -136,8 +143,8 @@ class DryRunManager:
                 "balance_summary": self._balance_summary(balance, config),
                 "profit_summary": self._profit_summary(profit),
                 "performance_summary": self._performance_summary(performance_payload),
-                "trade_count_summary": self._count_summary(count_payload),
-                "open_trades_count": len(open_trades),
+                "trade_count_summary": count_summary,
+                "open_trades_count": open_trades_count,
                 "open_trades": open_trades,
                 "runtime_warnings": self._extract_runtime_warnings(logs),
                 "ping_status": ping.get("status", "unknown"),
@@ -400,7 +407,7 @@ class DryRunManager:
             return {
                 "current_open_trades": payload.get("current"),
                 "max_open_trades": payload.get("max"),
-                "total_open_trades_stakes": payload.get("total_open_trades_stakes"),
+                "total_open_trades_stakes": payload.get("total_open_trades_stakes", payload.get("total_stake")),
             }
         return {
             "current_open_trades": None,

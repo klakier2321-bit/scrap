@@ -20,10 +20,12 @@ class FakeRuntimeClient:
         runmode: str = "dry_run",
         dry_run: bool = True,
         trades: list[dict] | None = None,
+        status_trades: list[dict] | None = None,
     ) -> None:
         self.runmode = runmode
         self.dry_run = dry_run
         self._trades = trades or []
+        self._status_trades = status_trades if status_trades is not None else self._trades
 
     def ping(self) -> dict:
         return {"status": "pong"}
@@ -64,15 +66,18 @@ class FakeRuntimeClient:
         return self._trades
 
     def count(self) -> dict:
-        open_count = sum(1 for trade in self._trades if trade.get("is_open"))
+        open_count = sum(1 for trade in self._status_trades if trade.get("is_open"))
         return {
             "current": open_count,
             "max": 3,
-            "total_open_trades_stakes": 50.0 if open_count else 0.0,
+            "total_stake": 50.0 if open_count else 0.0,
         }
 
     def performance(self) -> list[dict]:
         return [{"pair": "BTC/USDT", "profit_ratio": 0.01, "profit_abs": 10.0, "count": 2}]
+
+    def status(self) -> list[dict]:
+        return self._status_trades
 
 
 class DryRunManagerTests(unittest.TestCase):
@@ -124,6 +129,56 @@ class DryRunManagerTests(unittest.TestCase):
         latest = self.manager.latest_snapshot(bot_id="freqtrade")
         self.assertIsNotNone(latest)
         self.assertEqual(latest["open_trades_count"], 1)
+
+    def test_create_snapshot_prefers_status_endpoint_for_open_trades(self) -> None:
+        manager = DryRunManager(
+            client=FakeRuntimeClient(
+                trades=[
+                    {
+                        "trade_id": 7,
+                        "pair": "BTC/USDT",
+                        "is_open": False,
+                    }
+                ],
+                status_trades=[
+                    {
+                        "trade_id": 8,
+                        "pair": "ETH/USDT",
+                        "is_open": True,
+                        "stake_amount": 40.0,
+                        "amount": 0.02,
+                        "open_rate": 2000.0,
+                        "current_rate": 2010.0,
+                        "profit_ratio": 0.005,
+                        "profit_abs": 0.2,
+                        "open_date": "2026-03-15T13:00:00+00:00",
+                    },
+                    {
+                        "trade_id": 9,
+                        "pair": "SOL/USDT",
+                        "is_open": True,
+                        "stake_amount": 45.0,
+                        "amount": 1.0,
+                        "open_rate": 90.0,
+                        "current_rate": 91.0,
+                        "profit_ratio": 0.011,
+                        "profit_abs": 0.5,
+                        "open_date": "2026-03-15T13:05:00+00:00",
+                    },
+                ],
+            ),
+            snapshots_dir=Path(self.temp_dir.name) / "snapshots-status",
+            smoke_dir=Path(self.temp_dir.name) / "smoke-status",
+            stale_after_seconds=180,
+        )
+
+        snapshot = manager.create_snapshot(bot_status=self.bot_status, logs=self.logs)
+
+        self.assertEqual(snapshot["trade_count_summary"]["current_open_trades"], 2)
+        self.assertEqual(snapshot["trade_count_summary"]["total_open_trades_stakes"], 50.0)
+        self.assertEqual(snapshot["open_trades_count"], 2)
+        self.assertEqual(snapshot["open_trades"][0]["pair"], "ETH/USDT")
+        self.assertEqual(snapshot["open_trades"][1]["pair"], "SOL/USDT")
 
     def test_health_is_ready_with_fresh_snapshot_and_trade_mode(self) -> None:
         self.manager.create_snapshot(bot_status=self.bot_status, logs=self.logs)
