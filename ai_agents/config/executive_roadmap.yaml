@@ -111,12 +111,12 @@ executive_dashboard:
       name: "Strategie i backtesty"
       owner_agent: "strategy_agent"
       status: "W toku"
-      progress_pct: 54
+      progress_pct: 58
       direction: "Pracować na danych, wynikach i raportach, nie na życzeniowym tradingu"
-      current_focus: "Porządkować raporty strategii i decyzje o tym, co wolno promować dalej"
-      next_milestone: "Rozszerzyć ocenę strategii o bardziej czytelną historię wyników"
+      current_focus: "Przygotować warstwę strategii do pracy na snapshotach dry_run obok raportów backtestowych"
+      next_milestone: "Mieć czytelne raporty backtestów i pierwszy read-only wgląd w dane z aktywnego dry_run"
       risk_level: "Średnie"
-      executive_note: "Tu będziemy później oceniać, czy strategia naprawdę ma sens biznesowy"
+      executive_note: "Tu zacznie się realna praca na danych runtime, ale nadal bez zmian strategii i bez live tradingu"
       paths:
         - "trading/"
         - "data/ai_control/strategy_reports/"
@@ -125,16 +125,17 @@ executive_dashboard:
       name: "Runtime tradingowy"
       owner_agent: "review_agent"
       status: "Stabilny zakres"
-      progress_pct: 72
-      direction: "Utrzymać Freqtrade jako execution engine w dry_run i nie mieszać go z AI"
-      current_focus: "Chronić runtime przed niekontrolowanymi zmianami agentów"
-      next_milestone: "Przygotować bezpieczne wejście do kolejnych testów strategii"
+      progress_pct: 78
+      direction: "Utrzymać Freqtrade jako execution engine w dry_run i dać agentom tylko bezpieczny, read-only wgląd w runtime"
+      current_focus: "Przełączyć runtime z webserver-only na prawdziwy dry_run i zbudować read-only bridge do snapshotów"
+      next_milestone: "Mieć działający smoke test dry_run i świeże snapshoty dostępne dla agentów"
       risk_level: "Wysokie"
-      executive_note: "To jest obszar, gdzie bezpieczeństwo wygrywa z tempem zmian"
+      executive_note: "To jest obszar, gdzie bezpieczeństwo wygrywa z tempem zmian; jedyny wysoki-risk krok wymaga ręcznego gate człowieka"
       paths:
         - "trading/freqtrade/"
         - "RISK_RULES.md"
         - "CONFIGURATION_POLICY.md"
+        - "core/"
 
   tasks:
     - id: "exec_dashboard_main"
@@ -221,11 +222,11 @@ executive_dashboard:
     - id: "control_layer_first_coding_flow"
       module_id: "control_layer_runtime"
       title: "Dowieźć pierwszy commit control_layer_agent z izolowanego worktree"
-      status: "W toku"
+      status: "Zamknięte"
       owner_agent: "control_layer_agent"
       priority: "Wysoki"
       needs_human: "Tak"
-      next_step: "Po review sprawdzić pierwszy diff i zdecydować, czy zaakceptować commit na branchu taska"
+      next_step: "Pierwszy commit z supervised write został dowieziony; teraz utrzymywać małe, reviewowalne przyrosty."
 
     - id: "control_layer_first_slice"
       module_id: "control_layer_runtime"
@@ -244,6 +245,33 @@ executive_dashboard:
       priority: "Średni"
       needs_human: "Nie"
       next_step: "Dodać prosty executive summary dla wyników backtestów"
+
+    - id: "dry_run_runtime_bridge"
+      module_id: "control_layer_runtime"
+      title: "Zbudować read-only bridge do runtime Freqtrade i pipeline snapshotów"
+      status: "Zamknięte"
+      owner_agent: "control_layer_agent"
+      priority: "Wysoki"
+      needs_human: "Nie"
+      next_step: "Bridge działa, snapshoty powstają i dane są bezpiecznie przekazywane do panelu oraz executive report."
+
+    - id: "dry_run_runtime_activation"
+      module_id: "trading_runtime"
+      title: "Przełączyć Freqtrade z webserver-only na prawdziwy dry_run i aktywować wewnętrzne API"
+      status: "Zamknięte"
+      owner_agent: "review_agent"
+      priority: "Wysoki"
+      needs_human: "Tak"
+      next_step: "Runtime działa już w prawdziwym dry_run; teraz utrzymywać read-only dostęp i pilnować bezpieczeństwa."
+
+    - id: "dry_run_visibility"
+      module_id: "monitoring_and_visibility"
+      title: "Pokazać gotowość dry_run, wiek snapshotów i blokady danych runtime"
+      status: "Zamknięte"
+      owner_agent: "monitoring_agent"
+      priority: "Wysoki"
+      needs_human: "Nie"
+      next_step: "Pulpit prezesa i panel operatora pokazują gotowość dry run, świeżość snapshotów i główne blokady."
 
     - id: "runtime_protection"
       module_id: "trading_runtime"

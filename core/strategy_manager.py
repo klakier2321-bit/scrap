@@ -22,6 +22,7 @@ class StrategyManager:
         self,
         user_data_dir: Path | None = None,
         reports_dir: Path | None = None,
+        dry_run_snapshots_dir: Path | None = None,
     ) -> None:
         self.user_data_dir = user_data_dir or (
             Path(__file__).resolve().parents[1]
@@ -34,6 +35,9 @@ class StrategyManager:
             / "data"
             / "ai_control"
             / "strategy_reports"
+        )
+        self.dry_run_snapshots_dir = dry_run_snapshots_dir or (
+            self.reports_dir.parent / "dry_run_snapshots"
         )
 
     def list_data_files(self) -> list[str]:
@@ -116,6 +120,26 @@ class StrategyManager:
             reports.append(payload)
         reports.sort(key=lambda item: str(item.get("generated_at", "")), reverse=True)
         return reports[:limit]
+
+    def latest_dry_run_snapshot(self, bot_id: str = "freqtrade") -> dict[str, Any] | None:
+        snapshot_path = self.dry_run_snapshots_dir / f"latest-{bot_id}.json"
+        if not snapshot_path.exists():
+            return None
+        return json.loads(snapshot_path.read_text(encoding="utf-8"))
+
+    def list_dry_run_snapshots(
+        self,
+        bot_id: str = "freqtrade",
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        if not self.dry_run_snapshots_dir.exists():
+            return []
+        snapshots: list[dict[str, Any]] = []
+        for path in sorted(self.dry_run_snapshots_dir.glob(f"{bot_id}-*.json"), reverse=True):
+            snapshots.append(json.loads(path.read_text(encoding="utf-8")))
+            if len(snapshots) >= limit:
+                break
+        return snapshots
 
     def latest_strategy_assessment(
         self,

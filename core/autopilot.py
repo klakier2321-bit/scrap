@@ -136,6 +136,7 @@ class AutopilotService:
         return self.status()
 
     def status(self) -> dict[str, Any]:
+        self._sync_active_run_state()
         tasks: list[AutopilotTask] = self._loaded_config.get("tasks", [])
         next_task_name = tasks[self._cycle_index % len(tasks)].name if tasks else None
         return {
@@ -154,6 +155,23 @@ class AutopilotService:
             "next_task_name": next_task_name,
             "config_path": str(self.config_path),
         }
+
+    def _sync_active_run_state(self) -> None:
+        runs = self.orchestrator.list_runs(limit=50)
+        active = [run for run in runs if run.get("status") in ACTIVE_RUN_STATUSES]
+        if not active:
+            self._current_run_id = None
+            if self._current_task_name and not (self._thread and self._thread.is_alive()):
+                self._current_task_name = None
+            return
+
+        current = active[0]
+        self._current_run_id = current["run_id"]
+        payload = current.get("payload_json") or {}
+        metadata = payload.get("metadata") or {}
+        task_name = metadata.get("autopilot_task")
+        if task_name:
+            self._current_task_name = str(task_name)
 
     def _has_active_runs(self) -> bool:
         runs = self.orchestrator.list_runs(limit=50)
@@ -240,8 +258,10 @@ class AutopilotService:
 
             self._cycle_count += 1
             self._cycle_index = (self._cycle_index + 1) % len(tasks)
-            self._current_task_name = None
-            if self._current_run_id and not self._has_active_runs():
-                self._current_run_id = None
+            self._sync_active_run_state()
+            if self._current_run_id is None:
+                self._current_task_name = None
             self._sleep_until_next_cycle(config.get("poll_interval_seconds", 60))
-            self._current_task_name = None
+            self._sync_active_run_state()
+            if self._current_run_id is None:
+                self._current_task_name = None

@@ -41,9 +41,15 @@ class AppSettings(BaseSettings):
     agent_coding_auto_start: bool = True
     agent_lead_queue_refresh_interval_seconds: int = 300
     agent_coding_dispatcher_poll_interval_seconds: int = 60
+    agent_coding_task_timeout_seconds: int = 180
     agent_git_author_name: str = "Crypto System Agent"
     agent_git_author_email: str = "agents@crypto-system.local"
     agent_coding_modules_config: str = "/app/ai_agents/config/coding_modules.yaml"
+    freqtrade_api_base_url: str = "http://freqtrade:8080/api/v1"
+    freqtrade_api_username: str = ""
+    freqtrade_api_password: str = ""
+    freqtrade_api_timeout_seconds: int = 5
+    dry_run_snapshot_stale_seconds: int = 180
 
     model_config = SettingsConfigDict(
         env_file=".env.ai.control.local",
@@ -91,6 +97,14 @@ class AppSettings(BaseSettings):
     @property
     def strategy_reports_dir(self) -> Path:
         return self.data_dir / "strategy_reports"
+
+    @property
+    def dry_run_snapshots_dir(self) -> Path:
+        return self.data_dir / "dry_run_snapshots"
+
+    @property
+    def dry_run_smoke_dir(self) -> Path:
+        return self.data_dir / "dry_run_smoke"
 
     @property
     def autopilot_config_path(self) -> Path:

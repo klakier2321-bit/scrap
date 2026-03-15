@@ -29,6 +29,9 @@ from .schemas import (
     CodingTaskCreateRequest,
     CodingTaskRecord,
     CodingWorkspaceRecord,
+    DryRunHealthResponse,
+    DryRunSmokeResponse,
+    DryRunSnapshotResponse,
     HealthResponse,
     StrategyReportResponse,
 )
@@ -175,10 +178,15 @@ async def bot_logs(
 
 @app.get("/metrics", include_in_schema=False)
 async def metrics() -> PlainTextResponse:
+    latest_dry_run_snapshot = get_orchestrator().get_latest_dry_run_snapshot(
+        refresh_if_stale=True
+    )
     payload, content_type = render_metrics(
         get_orchestrator().list_bots(),
         get_orchestrator().get_latest_strategy_report(),
         get_orchestrator().list_strategy_report_history(limit=20),
+        get_orchestrator().get_dry_run_health(),
+        latest_dry_run_snapshot,
         get_orchestrator().get_executive_report(),
     )
     return PlainTextResponse(payload.decode("utf-8"), media_type=content_type)
@@ -448,3 +456,76 @@ async def ops_generate_strategy_report(
     if merged is None:
         raise HTTPException(status_code=404, detail="No strategy report is available yet.")
     return StrategyReportResponse(**merged)
+
+
+@app.get(
+    "/ops/dry-run/health",
+    response_model=DryRunHealthResponse,
+    include_in_schema=False,
+)
+async def ops_dry_run_health(
+    bot_id: str = Query(default="freqtrade"),
+) -> DryRunHealthResponse:
+    try:
+        return DryRunHealthResponse(**get_orchestrator().get_dry_run_health(bot_id=bot_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post(
+    "/ops/dry-run/snapshot",
+    response_model=DryRunSnapshotResponse,
+    include_in_schema=False,
+)
+async def ops_dry_run_snapshot(
+    bot_id: str = Query(default="freqtrade"),
+) -> DryRunSnapshotResponse:
+    try:
+        return DryRunSnapshotResponse(**get_orchestrator().create_dry_run_snapshot(bot_id=bot_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get(
+    "/ops/dry-run/snapshot/latest",
+    response_model=DryRunSnapshotResponse,
+    include_in_schema=False,
+)
+async def ops_latest_dry_run_snapshot(
+    bot_id: str = Query(default="freqtrade"),
+) -> DryRunSnapshotResponse:
+    snapshot = get_orchestrator().get_latest_dry_run_snapshot(bot_id=bot_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="No dry run snapshot is available yet.")
+    return DryRunSnapshotResponse(**snapshot)
+
+
+@app.get("/ops/dry-run/snapshot/history", include_in_schema=False)
+async def ops_dry_run_snapshot_history(
+    bot_id: str = Query(default="freqtrade"),
+    limit: int = Query(default=20, ge=1, le=100),
+) -> JSONResponse:
+    return JSONResponse(
+        {
+            "snapshots": get_orchestrator().list_dry_run_snapshot_history(
+                bot_id=bot_id,
+                limit=limit,
+            )
+        }
+    )
+
+
+@app.post(
+    "/ops/dry-run/smoke",
+    response_model=DryRunSmokeResponse,
+    include_in_schema=False,
+)
+async def ops_dry_run_smoke(
+    bot_id: str = Query(default="freqtrade"),
+) -> DryRunSmokeResponse:
+    try:
+        return DryRunSmokeResponse(**get_orchestrator().run_dry_run_smoke_test(bot_id=bot_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc

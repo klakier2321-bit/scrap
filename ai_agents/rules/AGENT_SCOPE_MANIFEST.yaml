@@ -82,6 +82,8 @@ agents:
       - core/
       - ai_agents/
       - scripts/
+      - data/ai_control/dry_run_snapshots/
+      - data/ai_control/dry_run_smoke/
     forbidden_scope:
       - .env
       - docker-compose.yml
@@ -132,6 +134,8 @@ agents:
       - core/
       - trading/
       - ai_agents/
+      - data/ai_control/dry_run_snapshots/
+      - data/ai_control/dry_run_smoke/
     forbidden_scope:
       - .env
       - docker-compose.yml

@@ -19,11 +19,15 @@ from .bot_manager import BotManager
 from .autopilot import AutopilotService
 from .coding_service import CodingSupervisorService
 from .config import AppSettings
+from .dry_run_manager import DryRunManager
 from .executive_report import ExecutiveReportService
+from .freqtrade_runtime import FreqtradeRuntimeClient, FreqtradeRuntimeError
 from .metrics import (
     record_blocked_call,
     record_cache_hit,
     record_cache_miss,
+    record_dry_run_bridge_error,
+    record_dry_run_smoke_failure,
     record_human_escalation,
     record_review_required,
     record_run_created,
@@ -51,6 +55,19 @@ class Orchestrator:
         self.strategy_manager = StrategyManager(
             user_data_dir=settings.freqtrade_user_data_path,
             reports_dir=settings.strategy_reports_dir,
+            dry_run_snapshots_dir=settings.dry_run_snapshots_dir,
+        )
+        self.freqtrade_runtime_client = FreqtradeRuntimeClient(
+            base_url=settings.freqtrade_api_base_url,
+            username=settings.freqtrade_api_username,
+            password=settings.freqtrade_api_password,
+            timeout_seconds=settings.freqtrade_api_timeout_seconds,
+        )
+        self.dry_run_manager = DryRunManager(
+            client=self.freqtrade_runtime_client,
+            snapshots_dir=settings.dry_run_snapshots_dir,
+            smoke_dir=settings.dry_run_smoke_dir,
+            stale_after_seconds=settings.dry_run_snapshot_stale_seconds,
         )
         self.store = RunStore(settings.database_path)
         stale_runs = self.store.reconcile_stale_runs()
@@ -105,6 +122,68 @@ class Orchestrator:
 
     def get_bot_logs(self, bot_id: str, tail: int | None = None) -> list[str]:
         return self.bot_manager.get_bot_logs(bot_id, tail=tail)
+
+    def get_dry_run_health(self, bot_id: str = "freqtrade") -> dict[str, Any]:
+        bot_status = self.bot_manager.get_bot_status(bot_id)
+        logs = self.bot_manager.get_bot_logs(bot_id, tail=200)
+        return self.dry_run_manager.health(bot_status=bot_status, logs=logs)
+
+    def create_dry_run_snapshot(self, bot_id: str = "freqtrade") -> dict[str, Any]:
+        bot_status = self.bot_manager.get_bot_status(bot_id)
+        logs = self.bot_manager.get_bot_logs(bot_id, tail=200)
+        try:
+            return self.dry_run_manager.create_snapshot(bot_status=bot_status, logs=logs)
+        except FreqtradeRuntimeError as exc:
+            record_dry_run_bridge_error(exc.code)
+            raise
+
+    def get_latest_dry_run_snapshot(
+        self,
+        bot_id: str = "freqtrade",
+        *,
+        refresh_if_stale: bool = False,
+    ) -> dict[str, Any] | None:
+        if not refresh_if_stale:
+            return self.dry_run_manager.latest_snapshot(bot_id=bot_id)
+        bot_status = self.bot_manager.get_bot_status(bot_id)
+        logs = self.bot_manager.get_bot_logs(bot_id, tail=200)
+        try:
+            return self.dry_run_manager.sync_snapshot_if_stale(
+                bot_status=bot_status,
+                logs=logs,
+            )
+        except FreqtradeRuntimeError as exc:
+            record_dry_run_bridge_error(exc.code)
+            logger.warning(
+                "Dry run snapshot refresh failed.",
+                extra={
+                    "bot_id": bot_id,
+                    "event": "dry_run_snapshot_refresh_failed",
+                    "blocked_reason": exc.code,
+                },
+            )
+            return self.dry_run_manager.latest_snapshot(bot_id=bot_id)
+
+    def list_dry_run_snapshot_history(
+        self,
+        bot_id: str = "freqtrade",
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        return self.dry_run_manager.list_snapshots(bot_id=bot_id, limit=limit)
+
+    def run_dry_run_smoke_test(self, bot_id: str = "freqtrade") -> dict[str, Any]:
+        bot_status = self.bot_manager.get_bot_status(bot_id)
+        logs = self.bot_manager.get_bot_logs(bot_id, tail=200)
+        result = self.dry_run_manager.run_smoke_test(bot_status=bot_status, logs=logs)
+        if result.get("status") != "pass":
+            record_dry_run_smoke_failure(
+                bot_id,
+                result.get("blocking_reason") or "unknown",
+            )
+        return result
+
+    def get_latest_dry_run_smoke(self, bot_id: str = "freqtrade") -> dict[str, Any] | None:
+        return self.dry_run_manager.latest_smoke(bot_id=bot_id)
 
     def get_latest_strategy_report(self, strategy_name: str | None = None) -> dict[str, Any] | None:
         return self.strategy_manager.latest_strategy_report(strategy_name=strategy_name)
@@ -163,10 +242,15 @@ class Orchestrator:
         return self.store.list_runs(limit=limit)
 
     def get_executive_report(self) -> dict[str, Any]:
+        latest_snapshot = self.get_latest_dry_run_snapshot(refresh_if_stale=True)
+        dry_run_health = self.get_dry_run_health()
         return self.executive_report.build_report(
             runs=self.store.list_runs(limit=200),
             autopilot_status=self.autopilot.status(),
             strategy_report=self.get_latest_strategy_report(),
+            dry_run_health=dry_run_health,
+            dry_run_snapshot=latest_snapshot,
+            dry_run_smoke=self.get_latest_dry_run_smoke(),
             coding_status=self.coding_supervisor.status(),
             coding_tasks=self.store.list_coding_tasks(limit=100),
             coding_workspaces=self.store.list_coding_workspaces(),

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 
@@ -74,6 +75,17 @@ class FakeAgentRuntime:
         )
 
 
+class HangingAgentRuntime(FakeAgentRuntime):
+    def generate_coding_change(self, *, agent_name, task_packet, file_contexts, review_feedback=None):
+        time.sleep(0.2)
+        return super().generate_coding_change(
+            agent_name=agent_name,
+            task_packet=task_packet,
+            file_contexts=file_contexts,
+            review_feedback=review_feedback,
+        )
+
+
 class CodingSupervisorServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -140,6 +152,8 @@ coding_runtime:
             agent_coding_auto_start=False,
             agent_lead_queue_refresh_interval_seconds=300,
             agent_coding_dispatcher_poll_interval_seconds=60,
+            agent_coding_task_timeout_seconds=180,
+            agent_run_timeout_seconds=180,
             repo_checkout_path=self.repo_path,
             agent_worktree_root_path=self.worktree_root,
             agent_git_author_name="Agent Test",
@@ -190,3 +204,63 @@ coding_runtime:
         validated = self.service._validate_task_packet(module=module, packet=packet)
 
         self.assertIsNone(validated)
+
+    def test_reconcile_orphaned_active_task_blocks_stale_task(self) -> None:
+        task = self.service.create_manual_task(module_id="control_layer_runtime")
+        info = self.service.worktree_manager.create_workspace(
+            task_id=task["task_id"],
+            agent_name=task["owner_agent"],
+        )
+        self.store.create_coding_workspace(
+            {
+                "task_id": task["task_id"],
+                "agent_name": task["owner_agent"],
+                "worktree_path": info.worktree_path,
+                "branch_name": info.branch_name,
+                "base_ref": info.base_ref,
+                "base_commit": info.base_commit,
+                "changed_files": [],
+                "diff_text": "",
+                "check_results": {},
+                "status": "coding",
+                "created_at": "2026-03-15T00:00:00+00:00",
+                "updated_at": "2026-03-15T00:00:00+00:00",
+            }
+        )
+        self.store.update_coding_task(task["task_id"], status="coding", started_at="2026-03-15T00:00:00+00:00")
+
+        self.service._reconcile_orphaned_active_tasks(
+            reason="Task lost worker context.",
+            event_type="worker_context_lost",
+        )
+
+        updated = self.store.get_coding_task(task["task_id"])
+        workspace = self.store.get_coding_workspace(task["task_id"])
+        self.assertEqual(updated["status"], "blocked")
+        self.assertEqual(workspace["status"], "blocked")
+        self.assertEqual(updated["last_error"], "Task lost worker context.")
+
+    def test_timeout_marks_hanging_task_blocked(self) -> None:
+        timeout_settings = SimpleNamespace(**self.settings.__dict__)
+        timeout_settings.agent_coding_task_timeout_seconds = 0
+        service = CodingSupervisorService(
+            settings=timeout_settings,
+            store=self.store,
+            agent_runtime=HangingAgentRuntime(),
+            executive_report_provider=lambda: {
+                "strategic_goal": "Zrobic maly slice.",
+                "modules": [{"id": "control_layer_runtime", "name": "Control layer"}],
+                "recent_changes": [],
+                "blockers": [],
+            },
+        )
+
+        task = service.create_manual_task(module_id="control_layer_runtime")
+        service._dispatch_ready_task()
+        time.sleep(0.05)
+        service._reconcile_worker_state()
+        time.sleep(0.25)
+
+        updated = service.get_coding_task(task["task_id"])
+        self.assertEqual(updated["status"], "blocked")
+        self.assertIn("timeout", (updated["last_error"] or "").lower())

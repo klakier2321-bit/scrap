@@ -93,6 +93,31 @@ BOT_RUNNING = Gauge(
     "Whether a bot container is currently running.",
     ["bot_id"],
 )
+DRY_RUN_READY = Gauge(
+    "crypto_dry_run_ready",
+    "Whether the dry run runtime and snapshot pipeline are ready for agent consumption.",
+    ["bot_id"],
+)
+DRY_RUN_SNAPSHOT_AGE_SECONDS = Gauge(
+    "crypto_dry_run_snapshot_age_seconds",
+    "Age of the latest dry run snapshot in seconds.",
+    ["bot_id"],
+)
+DRY_RUN_OPEN_TRADES = Gauge(
+    "crypto_dry_run_open_trades",
+    "Open trade count from the latest dry run snapshot.",
+    ["bot_id"],
+)
+DRY_RUN_SMOKE_FAILURES_TOTAL = Counter(
+    "crypto_dry_run_smoke_failures_total",
+    "Number of failed dry run smoke tests.",
+    ["bot_id", "reason"],
+)
+DRY_RUN_BRIDGE_ERRORS_TOTAL = Counter(
+    "crypto_dry_run_bridge_errors_total",
+    "Number of dry run runtime bridge errors by reason.",
+    ["reason"],
+)
 STRATEGY_LATEST_PROFIT_PCT = Gauge(
     "crypto_strategy_latest_profit_pct",
     "Latest normalized strategy profit ratio from the most recent backtest report.",
@@ -413,6 +438,33 @@ def update_bot_statuses(bots: list[dict[str, Any]]) -> None:
         BOT_RUNNING.labels(bot_id=bot["bot_id"]).set(1 if bot["state"] == "running" else 0)
 
 
+def record_dry_run_smoke_failure(bot_id: str, reason: str) -> None:
+    DRY_RUN_SMOKE_FAILURES_TOTAL.labels(bot_id=bot_id, reason=reason).inc()
+
+
+def record_dry_run_bridge_error(reason: str) -> None:
+    DRY_RUN_BRIDGE_ERRORS_TOTAL.labels(reason=reason).inc()
+
+
+def update_dry_run_metrics(
+    dry_run_health: dict[str, Any] | None,
+    dry_run_snapshot: dict[str, Any] | None,
+) -> None:
+    if not dry_run_health:
+        return
+    bot_id = dry_run_health.get("bot_id", "freqtrade")
+    DRY_RUN_READY.labels(bot_id=bot_id).set(1 if dry_run_health.get("ready") else 0)
+    snapshot_age = dry_run_health.get("snapshot_age_seconds")
+    if snapshot_age is not None:
+        DRY_RUN_SNAPSHOT_AGE_SECONDS.labels(bot_id=bot_id).set(float(snapshot_age))
+    if dry_run_snapshot:
+        DRY_RUN_OPEN_TRADES.labels(bot_id=bot_id).set(
+            int(dry_run_snapshot.get("open_trades_count", 0))
+        )
+    else:
+        DRY_RUN_OPEN_TRADES.labels(bot_id=bot_id).set(0)
+
+
 def update_strategy_metrics(strategy_report: dict[str, Any] | None) -> None:
     if not strategy_report:
         return
@@ -698,10 +750,13 @@ def render_metrics(
     bot_states: list[dict[str, Any]],
     strategy_report: dict[str, Any] | None = None,
     strategy_report_history: list[dict[str, Any]] | None = None,
+    dry_run_health: dict[str, Any] | None = None,
+    dry_run_snapshot: dict[str, Any] | None = None,
     executive_report: dict[str, Any] | None = None,
 ) -> tuple[bytes, str]:
     update_bot_statuses(bot_states)
     update_strategy_metrics(strategy_report)
     update_strategy_history_metrics(strategy_report_history or [])
+    update_dry_run_metrics(dry_run_health, dry_run_snapshot)
     update_executive_metrics(executive_report)
     return generate_latest(), CONTENT_TYPE_LATEST

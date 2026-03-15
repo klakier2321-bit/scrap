@@ -296,6 +296,26 @@
           </table>
         </section>
 
+        <section class="panel medium">
+          <h2>Dry run i dane dla agentów</h2>
+          <div class="stats" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px;">
+            <div class="stat"><span>Gotowość</span><strong id="dry-run-ready">...</strong></div>
+            <div class="stat"><span>Tryb runtime</span><strong id="dry-run-mode">...</strong></div>
+            <div class="stat"><span>Most danych</span><strong id="dry-run-bridge">...</strong></div>
+            <div class="stat"><span>Wiek snapshotu</span><strong id="dry-run-snapshot-age">...</strong></div>
+            <div class="stat"><span>Otwarte pozycje</span><strong id="dry-run-open-trades">...</strong></div>
+            <div class="stat"><span>Ostatni smoke</span><strong id="dry-run-last-smoke">...</strong></div>
+          </div>
+          <div class="stack">
+            <div class="muted" id="dry-run-blocking">Ładowanie statusu dry run...</div>
+            <div class="muted" id="dry-run-warnings">Ładowanie ostrzeżeń runtime...</div>
+            <div class="run-actions">
+              <button id="dry-run-smoke" class="warn">Uruchom smoke test</button>
+              <button id="dry-run-snapshot" class="primary">Zbuduj snapshot</button>
+            </div>
+          </div>
+        </section>
+
         <section class="panel large">
           <h2>Runy agentów</h2>
           <table>
@@ -399,6 +419,23 @@
         </section>
 
         <section class="panel large">
+          <h2>Historia snapshotów dry run</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Czas</th>
+                <th>Tryb</th>
+                <th>Strategia</th>
+                <th>Otwarte pozycje</th>
+                <th>Stan snapshotu</th>
+                <th>Ostrzeżenia</th>
+              </tr>
+            </thead>
+            <tbody id="dry-run-history-table"></tbody>
+          </table>
+        </section>
+
+        <section class="panel large">
           <h2>Logi ai_control</h2>
           <div class="log-box" id="control-logs">Ładowanie logów...</div>
         </section>
@@ -434,7 +471,10 @@
           approved: "Zatwierdzony do commita",
           committed: "Zacommitowany",
           needs_manual_review: "Wymaga decyzji",
-          candidate_for_next_stage: "Kandydat"
+          candidate_for_next_stage: "Kandydat",
+          ok: "OK",
+          pass: "Zdany",
+          fail: "Nieudany"
         };
         const lowered = (status || "").toLowerCase();
         return labels[lowered] || status || "-";
@@ -452,7 +492,7 @@
       function statusPill(status) {
         const lowered = (status || "").toLowerCase();
         let cls = "";
-        if (["blocked", "failed", "stopped"].includes(lowered)) cls = "danger";
+        if (["blocked", "failed", "stopped", "fail"].includes(lowered)) cls = "danger";
         else if (["awaiting_approval", "queued", "running", "ready", "coding", "review", "dispatched", "approved"].includes(lowered)) cls = "pending";
         return `<span class="pill ${cls}">${translateStatus(status)}</span>`;
       }
@@ -501,6 +541,61 @@
             <td>${agent.model_tier}</td>
             <td>$${Number(agent.default_daily_budget_usd).toFixed(2)}</td>
             <td>$${Number(agent.default_per_run_budget_usd).toFixed(2)}</td>
+          </tr>
+        `).join("");
+      }
+
+      function formatAge(seconds) {
+        if (seconds === null || seconds === undefined) return "Brak";
+        const value = Number(seconds);
+        if (!Number.isFinite(value)) return "Brak";
+        if (value < 60) return `${Math.round(value)} s`;
+        if (value < 3600) return `${Math.round(value / 60)} min`;
+        return `${(value / 3600).toFixed(1)} h`;
+      }
+
+      async function refreshDryRun() {
+        const health = await fetchJson("/ops/dry-run/health");
+        let latestSnapshot = null;
+        let snapshotHistory = [];
+        try {
+          latestSnapshot = await fetchJson("/ops/dry-run/snapshot/latest");
+        } catch (error) {
+          latestSnapshot = null;
+        }
+        try {
+          const historyPayload = await fetchJson("/ops/dry-run/snapshot/history?limit=10");
+          snapshotHistory = historyPayload.snapshots || [];
+        } catch (error) {
+          snapshotHistory = [];
+        }
+
+        document.getElementById("dry-run-ready").textContent = health.ready ? "Gotowy" : "Nie";
+        document.getElementById("dry-run-mode").textContent = health.runtime_mode || "Brak";
+        document.getElementById("dry-run-bridge").textContent = health.bridge_status || "Brak";
+        document.getElementById("dry-run-snapshot-age").textContent = formatAge(health.snapshot_age_seconds);
+        document.getElementById("dry-run-open-trades").textContent = String(latestSnapshot?.open_trades_count || 0);
+        document.getElementById("dry-run-last-smoke").textContent = translateStatus(health.last_smoke_status || "brak");
+        document.getElementById("dry-run-blocking").textContent = health.ready
+          ? "Dry run działa, snapshot jest dostępny i agenci mogą pracować na danych runtime."
+          : `Blokada: ${health.blocking_reason || "brak świeżego snapshotu lub runtime nie jest jeszcze gotowy."}`;
+        document.getElementById("dry-run-warnings").textContent = (health.warnings || []).length
+          ? `Ostrzeżenia runtime: ${health.warnings.join(" | ")}`
+          : "Brak nowych ostrzeżeń runtime.";
+
+        const tbody = document.getElementById("dry-run-history-table");
+        if (!snapshotHistory.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="muted">Brak snapshotów dry run.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = snapshotHistory.map((snapshot) => `
+          <tr>
+            <td><strong>${snapshot.generated_at || "-"}</strong></td>
+            <td>${snapshot.runmode || "-"}</td>
+            <td>${snapshot.strategy || "-"}</td>
+            <td>${Number(snapshot.open_trades_count || 0)}</td>
+            <td>${statusPill(snapshot.snapshot_status || "unknown")}</td>
+            <td>${(snapshot.runtime_warnings || []).slice(0, 1).join("") || "Brak"}</td>
           </tr>
         `).join("");
       }
@@ -728,6 +823,26 @@
         }
       }
 
+      async function runDryRunSmoke() {
+        try {
+          await fetchJson("/ops/dry-run/smoke", { method: "POST" });
+          await refreshDryRun();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie uruchomic smoke testu dry run: ${error.message}`);
+        }
+      }
+
+      async function createDryRunSnapshot() {
+        try {
+          await fetchJson("/ops/dry-run/snapshot", { method: "POST" });
+          await refreshDryRun();
+          await refreshLogs();
+        } catch (error) {
+          alert(`Nie udalo sie zbudowac snapshotu dry run: ${error.message}`);
+        }
+      }
+
       async function startAutopilot() {
         try {
           await fetchJson("/ops/autopilot/start", { method: "POST" });
@@ -838,6 +953,7 @@
           refreshHealth(),
           refreshBots(),
           refreshAgents(),
+          refreshDryRun(),
           refreshAutopilot(),
           refreshRuns(),
           refreshCodingStatus(),
@@ -852,6 +968,8 @@
       document.getElementById("refresh-all").addEventListener("click", refreshAll);
       document.getElementById("run-low").addEventListener("click", () => createRun("low"));
       document.getElementById("run-medium").addEventListener("click", () => createRun("medium"));
+      document.getElementById("dry-run-smoke").addEventListener("click", runDryRunSmoke);
+      document.getElementById("dry-run-snapshot").addEventListener("click", createDryRunSnapshot);
       document.getElementById("refresh-strategy-report").addEventListener("click", generateStrategyAssessment);
       document.getElementById("autopilot-start").addEventListener("click", startAutopilot);
       document.getElementById("autopilot-stop").addEventListener("click", stopAutopilot);

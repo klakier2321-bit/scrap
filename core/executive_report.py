@@ -262,6 +262,9 @@ class ExecutiveReportService:
         runs: list[dict[str, Any]],
         autopilot_status: dict[str, Any],
         strategy_report: dict[str, Any] | None,
+        dry_run_health: dict[str, Any] | None,
+        dry_run_snapshot: dict[str, Any] | None,
+        dry_run_smoke: dict[str, Any] | None,
         coding_status: dict[str, Any] | None = None,
         coding_tasks: list[dict[str, Any]] | None = None,
         coding_workspaces: list[dict[str, Any]] | None = None,
@@ -276,6 +279,29 @@ class ExecutiveReportService:
         coding_status = dict(coding_status or {})
         coding_tasks = list(coding_tasks or [])
         coding_workspaces = list(coding_workspaces or [])
+        dry_run_health = dict(dry_run_health or {})
+        dry_run_snapshot = dict(dry_run_snapshot or {}) if dry_run_snapshot else None
+        dry_run_smoke = dict(dry_run_smoke or {}) if dry_run_smoke else None
+        dry_run_ready = bool(dry_run_health.get("ready"))
+        control_layer_has_commits = any(
+            task.get("module_id") == "control_layer_runtime" and task.get("status") == "committed"
+            for task in coding_tasks
+        )
+
+        for task in tasks:
+            task_id = task.get("id")
+            if dry_run_ready and task_id == "dry_run_runtime_bridge":
+                task["status"] = "Zamknięte"
+                task["next_step"] = "Bridge runtime, snapshoty i smoke test działają poprawnie."
+            elif dry_run_ready and task_id == "dry_run_runtime_activation":
+                task["status"] = "Zamknięte"
+                task["next_step"] = "Freqtrade działa w prawdziwym dry_run z aktywnym wewnętrznym API."
+            elif dry_run_ready and task_id == "dry_run_visibility":
+                task["status"] = "Zamknięte"
+                task["next_step"] = "Pulpit prezesa i panel operatora pokazują gotowość dry run oraz świeżość danych."
+            elif control_layer_has_commits and task_id == "control_layer_first_coding_flow":
+                task["status"] = "Zamknięte"
+                task["next_step"] = "Pierwszy supervised write został dowieziony; teraz stabilizować kolejne małe taski."
 
         runs_by_module: dict[str, dict[str, Any]] = {
             module["id"]: {"active_runs": 0, "recent_runs_24h": 0, "last_run_status": None}
@@ -399,6 +425,46 @@ class ExecutiveReportService:
                 }
             )
 
+        if dry_run_health and not dry_run_health.get("ready"):
+            blockers.append(
+                {
+                    "blocker_id": "dry-run:not-ready",
+                    "source": "Dry run",
+                    "area": "Runtime tradingowy",
+                    "title": "Dry run nie daje jeszcze stabilnych danych dla agentów",
+                    "severity": "Wysoki",
+                    "status": "Wymaga uwagi",
+                    "why_blocking": (
+                        dry_run_health.get("blocking_reason")
+                        or "Brakuje świeżego snapshotu lub runtime nie jest jeszcze gotowy."
+                    ),
+                    "expected_action": "Uruchomić smoke test, potwierdzić gotowość runtime i odświeżyć snapshot.",
+                }
+            )
+
+        if coding_status.get("attention_needed"):
+            active_task = next(
+                (
+                    task
+                    for task in coding_tasks
+                    if task.get("status") in {"dispatched", "coding", "review", "approved"}
+                ),
+                None,
+            )
+            blockers.append(
+                {
+                    "blocker_id": "coding:attention-needed",
+                    "source": "Coding supervisor",
+                    "area": "Control layer",
+                    "title": "Aktywny coding task wymaga uwagi",
+                    "severity": "Wysoki",
+                    "status": active_task.get("status") if active_task else "Wymaga uwagi",
+                    "why_blocking": coding_status.get("last_error")
+                    or "Jeden z tasków kodujących przekroczył bezpieczny czas wykonania albo utracił worker context.",
+                    "expected_action": "Sprawdzić task, potwierdzić diff albo pozwolić supervisorowi zablokować go i ruszyć dalej.",
+                }
+            )
+
         active_coding_task = next(
             (
                 task
@@ -437,6 +503,11 @@ class ExecutiveReportService:
                 "attention_needed": autopilot_attention_needed,
             },
             "strategy_report": strategy_report,
+            "dry_run": {
+                "health": dry_run_health,
+                "latest_snapshot": dry_run_snapshot,
+                "latest_smoke": dry_run_smoke,
+            },
             "assumptions": assumptions,
             "modules": modules,
             "tasks": open_tasks,
@@ -470,5 +541,6 @@ class ExecutiveReportService:
                 ),
                 "blockers_total": len(blockers),
                 "autopilot_attention_needed": 1 if autopilot_attention_needed else 0,
+                "dry_run_ready": 1 if dry_run_ready else 0,
             },
         }

@@ -12,7 +12,7 @@ coding_runtime:
       enabled: true
       priority: 100
       title: "Control layer"
-      module_summary: "Buduj male, offline'owe przyrosty control layer w core/ bez dotykania runtime tradingowego."
+      module_summary: "Buduj male, reviewable przyrosty control layer w core/, w tym read-only bridge do dry_run i snapshoty runtime bez dawania agentom bezposredniego dostepu do Freqtrade API."
       read_only_context:
         - "docs/ARCHITECTURE.md"
         - "docs/PROJECT_MAP.md"
@@ -21,9 +21,11 @@ coding_runtime:
         - "core/"
         - "core/README.md"
         - "core/control_layer/"
+        - "core/dry_run_manager.py"
+        - "core/freqtrade_runtime.py"
       acceptance_checks:
-        - "Zmiana zostaje w core/ i nie dotyka runtime tradingowego."
-        - "Nie ma integracji z Freqtrade, gielda ani sekretami."
+        - "Zmiana zostaje w core/ i nie daje agentom write dostepu do runtime tradingowego."
+        - "Read-only bridge nie ujawnia sekretow ani configow agentom."
         - "Diff pozostaje maly i reviewable."
       required_tests:
         - "python -m compileall core"
@@ -36,9 +38,9 @@ coding_runtime:
     - module_id: "monitoring_and_visibility"
       owner_agent: "monitoring_agent"
       enabled: true
-      priority: 80
+      priority: 85
       title: "Monitoring i widocznosc"
-      module_summary: "Rozwijaj Grafane, Prometheusa i raportowanie dla prezesa bez dotykania runtime tradingowego."
+      module_summary: "Rozwijaj Grafane, Prometheusa i raportowanie dla prezesa, w tym gotowosc dry_run, wiek snapshotow i blokady danych runtime."
       read_only_context:
         - "docs/ARCHITECTURE.md"
         - "docs/PROJECT_MAP.md"
@@ -47,6 +49,7 @@ coding_runtime:
         - "infrastructure/grafana/"
         - "infrastructure/prometheus/"
         - "monitoring/"
+        - "core/metrics.py"
       acceptance_checks:
         - "Zmiana zostaje w monitoringu i dashboardach."
         - "Nie ma zmian w trading runtime ani sekretach."
@@ -70,11 +73,10 @@ coding_runtime:
       target_candidates:
         - "core/api.py"
         - "core/schemas.py"
-        - "docs/openapi.yaml"
       acceptance_checks:
         - "Zmiana pozostaje w API i kontraktach."
         - "Brak dotkniecia live tradingu i sekretow."
-        - "Kontrakt i implementacja sa spójne."
+        - "Publiczny kontrakt openapi nie jest rozszerzany przez endpointy operatorskie."
       required_tests:
         - "python -m compileall core"
       definition_of_done:
@@ -102,3 +104,27 @@ coding_runtime:
       definition_of_done:
         - "UI jest czytelne i dziala z aktualnym API."
         - "Diff pozostaje we wlasnym scope GUI."
+
+    - module_id: "strategy_and_backtests"
+      owner_agent: "strategy_agent"
+      enabled: true
+      priority: 50
+      title: "Strategie i backtesty"
+      module_summary: "Naucz warstwe strategii czytac read-only snapshoty dry_run i pracowac na danych runtime bez zmian strategii i bez zadnych write akcji na trading runtime."
+      read_only_context:
+        - "docs/ARCHITECTURE.md"
+        - "data/ai_control/dry_run_snapshots/"
+        - "core/strategy_manager.py"
+      target_candidates:
+        - "trading/"
+        - "data/ai_control/strategy_reports/"
+      acceptance_checks:
+        - "Zmiana nie modyfikuje strategii handlowej ani configow runtime."
+        - "Dane dry_run sa konsumowane tylko read-only."
+        - "Raport lub artefakt strategii pozostaje czytelny dla review."
+      required_tests:
+        - "python -m compileall core"
+        - "python -m unittest discover -s core/tests -p test_*.py"
+      definition_of_done:
+        - "Warstwa strategii umie czytac snapshoty dry_run."
+        - "Diff nie wykracza poza approved scope i dane raportowe."

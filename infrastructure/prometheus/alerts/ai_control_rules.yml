@@ -64,3 +64,27 @@ groups:
           severity: critical
         annotations:
           summary: "Wykryto probe uzycia modelu spoza allowlisty"
+
+      - alert: DryRunNotReady
+        expr: max(crypto_dry_run_ready{bot_id="freqtrade"}) < 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Dry run nie jest gotowy dla operatora i agentow"
+
+      - alert: DryRunSnapshotStale
+        expr: max(crypto_dry_run_snapshot_age_seconds{bot_id="freqtrade"}) > 180
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Ostatni snapshot dry run jest zbyt stary"
+
+      - alert: DryRunSmokeFailures
+        expr: increase(crypto_dry_run_smoke_failures_total{bot_id="freqtrade"}[30m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Smoke test dry run zakonczyl sie niepowodzeniem"

@@ -52,6 +52,9 @@ class CodingSupervisorService:
         self._lock = threading.RLock()
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
+        self._worker_thread: threading.Thread | None = None
+        self._worker_task_id: str | None = None
+        self._worker_started_monotonic: float | None = None
         self._last_queue_refresh_at: str | None = None
         self._last_dispatch_at: str | None = None
         self._last_error: str | None = None
@@ -63,6 +66,10 @@ class CodingSupervisorService:
             if self._thread and self._thread.is_alive():
                 return self.status()
             self.worktree_manager.ensure_repo()
+            self._reconcile_orphaned_active_tasks(
+                reason="Coding task was left active after ai_control restart.",
+                event_type="restart_reconcile",
+            )
             self._stop_event.clear()
             self._thread = threading.Thread(
                 target=self._run_loop,
@@ -81,6 +88,15 @@ class CodingSupervisorService:
     def status(self) -> dict[str, Any]:
         tasks = self.store.list_coding_tasks(limit=100)
         active_task = self.store.get_active_coding_task()
+        task_timeout_seconds = self._coding_task_timeout_seconds()
+        active_task_age_seconds = self._task_age_seconds(active_task)
+        attention_needed = bool(self._last_error)
+        if (
+            active_task is not None
+            and active_task_age_seconds is not None
+            and active_task_age_seconds > task_timeout_seconds
+        ):
+            attention_needed = True
         return {
             "running": bool(self._thread and self._thread.is_alive()),
             "enabled": bool(self.settings.agent_coding_enabled),
@@ -96,7 +112,11 @@ class CodingSupervisorService:
             "last_queue_refresh_at": self._last_queue_refresh_at,
             "last_dispatch_at": self._last_dispatch_at,
             "last_error": self._last_error,
+            "attention_needed": attention_needed,
+            "task_timeout_seconds": task_timeout_seconds,
             "active_task_id": active_task["task_id"] if active_task else None,
+            "active_task_age_seconds": active_task_age_seconds,
+            "active_worker_alive": bool(self._worker_thread and self._worker_thread.is_alive()),
             "ready_tasks": sum(1 for task in tasks if task.get("status") == "ready"),
             "review_tasks": sum(1 for task in tasks if task.get("status") == "review"),
             "committed_tasks": sum(1 for task in tasks if task.get("status") == "committed"),
@@ -246,6 +266,7 @@ class CodingSupervisorService:
         while not self._stop_event.is_set():
             now = time.time()
             try:
+                self._reconcile_worker_state()
                 if now >= next_queue_refresh:
                     self._refresh_lead_queue()
                     next_queue_refresh = (
@@ -294,37 +315,20 @@ class CodingSupervisorService:
 
     def _dispatch_ready_task(self) -> None:
         self._last_dispatch_at = self._now()
+        if self._worker_thread and self._worker_thread.is_alive():
+            return
+        if self.store.get_active_coding_task() is not None:
+            self._reconcile_orphaned_active_tasks(
+                reason="Coding task lost its worker context and was blocked for safety.",
+                event_type="worker_context_lost",
+            )
         if self.store.get_active_coding_task() is not None:
             return
         ready_tasks = self.store.list_coding_tasks_by_status(["ready"])
         if not ready_tasks:
             return
         task = ready_tasks[0]
-        try:
-            self._execute_task(task)
-        except Exception as exc:  # noqa: BLE001
-            now = self._now()
-            self.store.update_coding_task(
-                task["task_id"],
-                status="blocked",
-                last_error=str(exc),
-                finished_at=now,
-            )
-            if self.store.get_coding_workspace(task["task_id"]) is not None:
-                self.store.update_coding_workspace(
-                    task["task_id"],
-                    status="blocked",
-                )
-            self.store.add_coding_task_event(
-                {
-                    "event_id": str(uuid.uuid4()),
-                    "task_id": task["task_id"],
-                    "event_type": "failed",
-                    "payload": {"error": str(exc)},
-                    "created_at": now,
-                }
-            )
-            raise
+        self._start_task_worker(task)
 
     def _generate_task_packet(
         self,
@@ -452,7 +456,9 @@ class CodingSupervisorService:
             file_contexts=file_contexts,
             review_feedback=review_feedback,
         )
+        self._ensure_task_active(task["task_id"])
         self._apply_coding_changes(task, info, change_output)
+        self._ensure_task_active(task["task_id"])
         diff_text = self.worktree_manager.show_git_diff(worktree_path=Path(info.worktree_path))
         changed_files = self.worktree_manager.changed_files(worktree_path=Path(info.worktree_path))
         check_results = self.worktree_manager.run_allowed_checks(
@@ -484,6 +490,7 @@ class CodingSupervisorService:
             check_results=check_results,
             change_summary=change_output["summary"],
         )
+        self._ensure_task_active(task["task_id"])
         updated_task = self.get_coding_task(task["task_id"])
         total_cost = (
             float(updated_task.get("planning_cost_usd", 0.0))
@@ -540,6 +547,149 @@ class CodingSupervisorService:
             last_error="Human review required before commit.",
         )
         return self.get_coding_task(task["task_id"])
+
+    def _start_task_worker(self, task: dict[str, Any]) -> None:
+        with self._lock:
+            if self._worker_thread and self._worker_thread.is_alive():
+                return
+            self._worker_task_id = task["task_id"]
+            self._worker_started_monotonic = time.monotonic()
+            self._worker_thread = threading.Thread(
+                target=self._execute_task_worker,
+                args=(task["task_id"],),
+                name=f"crypto-coding-task-{task['task_id'][:8]}",
+                daemon=True,
+            )
+            self._worker_thread.start()
+        logger.info(
+            "Coding task worker started.",
+            extra={
+                "event": "coding_task_worker_started",
+                "task_id": task["task_id"],
+                "agent_name": task["owner_agent"],
+            },
+        )
+
+    def _execute_task_worker(self, task_id: str) -> None:
+        try:
+            task = self.get_coding_task(task_id)
+            self._execute_task(task)
+        except Exception as exc:  # noqa: BLE001
+            self._last_error = str(exc)
+            logger.exception(
+                "Coding task worker failed.",
+                extra={"event": "coding_task_worker_failed", "task_id": task_id},
+            )
+            self._mark_task_blocked(
+                task_id,
+                reason=str(exc),
+                event_type="failed",
+            )
+        finally:
+            with self._lock:
+                if self._worker_task_id == task_id:
+                    self._worker_task_id = None
+                    self._worker_started_monotonic = None
+                    self._worker_thread = None
+
+    def _reconcile_worker_state(self) -> None:
+        with self._lock:
+            worker = self._worker_thread
+            worker_task_id = self._worker_task_id
+            worker_started_monotonic = self._worker_started_monotonic
+
+        if worker is None:
+            return
+
+        if worker.is_alive():
+            if (
+                worker_task_id
+                and worker_started_monotonic is not None
+                and (time.monotonic() - worker_started_monotonic) > self._coding_task_timeout_seconds()
+            ):
+                reason = (
+                    "Coding task exceeded the configured timeout and was blocked for safety."
+                )
+                self._last_error = reason
+                logger.warning(
+                    "Coding task timed out.",
+                    extra={"event": "coding_task_timeout", "task_id": worker_task_id},
+                )
+                self._mark_task_blocked(
+                    worker_task_id,
+                    reason=reason,
+                    event_type="timeout",
+                )
+                with self._lock:
+                    if self._worker_task_id == worker_task_id:
+                        self._worker_task_id = None
+                        self._worker_started_monotonic = None
+                        self._worker_thread = None
+            return
+
+        with self._lock:
+            self._worker_task_id = None
+            self._worker_started_monotonic = None
+            self._worker_thread = None
+
+    def _reconcile_orphaned_active_tasks(self, *, reason: str, event_type: str) -> None:
+        active_tasks = self.store.list_coding_tasks_by_status(list(ACTIVE_CODING_STATUSES))
+        for task in active_tasks:
+            if self._worker_task_id and task["task_id"] == self._worker_task_id:
+                continue
+            self._mark_task_blocked(task["task_id"], reason=reason, event_type=event_type)
+
+    def _mark_task_blocked(self, task_id: str, *, reason: str, event_type: str) -> None:
+        task = self.store.get_coding_task(task_id)
+        if task is None or task.get("status") in FINAL_CODING_STATUSES:
+            return
+        now = self._now()
+        self.store.update_coding_task(
+            task_id,
+            status="blocked",
+            last_error=reason,
+            finished_at=now,
+        )
+        workspace = self.store.get_coding_workspace(task_id)
+        if workspace is not None:
+            self.store.update_coding_workspace(
+                task_id,
+                status="blocked",
+            )
+        self.store.add_coding_task_event(
+            {
+                "event_id": str(uuid.uuid4()),
+                "task_id": task_id,
+                "event_type": event_type,
+                "payload": {"reason": reason},
+                "created_at": now,
+            }
+        )
+
+    def _ensure_task_active(self, task_id: str) -> None:
+        task = self.get_coding_task(task_id)
+        if task["status"] not in ACTIVE_CODING_STATUSES:
+            raise RuntimeError(
+                f"Coding task {task_id} is no longer active (status={task['status']})."
+            )
+
+    def _coding_task_timeout_seconds(self) -> int:
+        explicit_timeout = getattr(self.settings, "agent_coding_task_timeout_seconds", None)
+        if explicit_timeout is not None:
+            return int(explicit_timeout)
+        return int(getattr(self.settings, "agent_run_timeout_seconds", 180))
+
+    def _task_age_seconds(self, task: dict[str, Any] | None) -> float | None:
+        if task is None:
+            return None
+        timestamp = task.get("started_at") or task.get("updated_at") or task.get("created_at")
+        if not timestamp:
+            return None
+        try:
+            parsed = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return max(0.0, round((datetime.now(timezone.utc) - parsed).total_seconds(), 2))
 
     def _apply_coding_changes(
         self,

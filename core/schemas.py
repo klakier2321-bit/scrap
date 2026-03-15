@@ -149,6 +149,62 @@ class StrategyReportResponse(BaseModel):
     generated_at: datetime | str
 
 
+class DryRunHealthResponse(BaseModel):
+    """Read-only health view of the active dry-run runtime."""
+
+    bot_id: str
+    bot_state: str
+    dry_run: bool = False
+    runtime_mode: str
+    bridge_status: str
+    api_authenticated: bool = False
+    ready: bool = False
+    blocking_reason: str | None = None
+    snapshot_available: bool = False
+    snapshot_age_seconds: float | None = None
+    last_snapshot_at: datetime | str | None = None
+    last_smoke_status: str | None = None
+    last_smoke_at: datetime | str | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
+class DryRunSnapshotResponse(BaseModel):
+    """Normalized runtime snapshot generated from active dry-run state."""
+
+    bot_id: str
+    generated_at: datetime | str
+    source: str
+    bridge_status: str
+    dry_run: bool = False
+    runmode: str
+    strategy: str | None = None
+    config_summary: dict[str, Any] = Field(default_factory=dict)
+    balance_summary: dict[str, Any] = Field(default_factory=dict)
+    profit_summary: dict[str, Any] = Field(default_factory=dict)
+    performance_summary: dict[str, Any] = Field(default_factory=dict)
+    trade_count_summary: dict[str, Any] = Field(default_factory=dict)
+    open_trades_count: int = 0
+    open_trades: list[dict[str, Any]] = Field(default_factory=list)
+    runtime_warnings: list[str] = Field(default_factory=list)
+    ping_status: str = "unknown"
+    snapshot_status: str = "unknown"
+    snapshot_stale_after_seconds: int = 0
+
+
+class DryRunSmokeResponse(BaseModel):
+    """Result of the dry-run smoke test."""
+
+    bot_id: str
+    generated_at: datetime | str
+    status: str
+    dry_run: bool = False
+    runtime_mode: str
+    blocking_reason: str | None = None
+    steps: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    snapshot_path: str | None = None
+
+
 class AutopilotStatusResponse(BaseModel):
     """Status of the continuous planning autopilot."""
 
@@ -243,7 +299,11 @@ class CodingStatusResponse(BaseModel):
     last_queue_refresh_at: datetime | str | None = None
     last_dispatch_at: datetime | str | None = None
     last_error: str | None = None
+    attention_needed: bool = False
+    task_timeout_seconds: int | None = None
     active_task_id: str | None = None
+    active_task_age_seconds: float | None = None
+    active_worker_alive: bool = False
     ready_tasks: int = 0
     review_tasks: int = 0
     committed_tasks: int = 0

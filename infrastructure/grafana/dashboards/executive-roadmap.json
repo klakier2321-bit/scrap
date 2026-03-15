@@ -1321,6 +1321,134 @@
         }
       ],
       "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 160
+      },
+      "id": 29,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "max(crypto_dry_run_ready{bot_id=\"freqtrade\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Dry run gotowy",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 160
+      },
+      "id": 30,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "max(crypto_dry_run_snapshot_age_seconds{bot_id=\"freqtrade\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Wiek ostatniego snapshotu",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 160
+      },
+      "id": 31,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "max(crypto_dry_run_open_trades{bot_id=\"freqtrade\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Otwarte pozycje dry run",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 160
+      },
+      "id": 32,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "center"
+      },
+      "targets": [
+        {
+          "expr": "sum(crypto_dry_run_smoke_failures_total{bot_id=\"freqtrade\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "Nieudane smoke testy dry run",
+      "type": "stat"
     }
   ],
   "refresh": "30s",
@@ -1340,5 +1468,5 @@
   },
   "title": "Pulpit Prezesa",
   "uid": "crypto-executive-overview",
-  "version": 3
+  "version": 4
 }
