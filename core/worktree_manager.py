@@ -220,6 +220,33 @@ class WorktreeManager:
             )
         )
 
+    def is_ignored(self, *, path: str, cwd: Path | None = None) -> bool:
+        cwd = cwd or self.repo_path
+        completed = subprocess.run(
+            ["git", "check-ignore", "-q", "--", path],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return completed.returncode == 0
+
+    def ignored_files(self, *, worktree_path: Path) -> list[str]:
+        completed = subprocess.run(
+            ["git", "status", "--porcelain", "--ignored", "--untracked-files=all", "--", "."],
+            cwd=worktree_path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if completed.returncode != 0:
+            return []
+        ignored: list[str] = []
+        for line in completed.stdout.splitlines():
+            if line.startswith("!! "):
+                ignored.append(line[3:].strip())
+        return ignored
+
     def run_allowed_checks(self, *, worktree_path: Path, commands: list[str]) -> dict[str, Any]:
         results: list[dict[str, Any]] = []
         all_passed = True
@@ -262,6 +289,12 @@ class WorktreeManager:
     def commit_changes(self, *, worktree_path: Path, message: str) -> str:
         changed_files = self.changed_files(worktree_path=worktree_path)
         if not changed_files:
+            ignored_files = self.ignored_files(worktree_path=worktree_path)
+            if ignored_files:
+                raise RuntimeError(
+                    "No git-trackable changes to commit in worktree. "
+                    f"Ignored paths: {', '.join(sorted(ignored_files))}"
+                )
             raise RuntimeError("No changed files to commit in worktree.")
         self._git(["add", "--all", "--", "."], cwd=worktree_path)
         self._git(

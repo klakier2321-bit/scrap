@@ -676,7 +676,7 @@ class RunStore:
         return [self._coding_row_to_dict(row) for row in rows]
 
     def get_active_coding_task(self) -> dict[str, Any] | None:
-        active_statuses = ("dispatched", "coding", "review", "approved")
+        active_statuses = ("dispatched", "coding")
         placeholders = ", ".join("?" for _ in active_statuses)
         query = (
             "SELECT * FROM coding_tasks "

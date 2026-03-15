@@ -20,8 +20,17 @@ class WorktreeManagerTests(unittest.TestCase):
         self.repo_path = Path(self.temp_dir.name) / "repo"
         self.worktree_root = Path(self.temp_dir.name) / "worktrees"
         (self.repo_path / "core").mkdir(parents=True)
+        (self.repo_path / "data" / "ai_control").mkdir(parents=True)
         (self.repo_path / "core" / "README.md").write_text(
             "Pierwsza wersja README control layer.\n",
+            encoding="utf-8",
+        )
+        (self.repo_path / "data" / "ai_control" / ".gitkeep").write_text(
+            "",
+            encoding="utf-8",
+        )
+        (self.repo_path / ".gitignore").write_text(
+            "data/ai_control/*\n!data/ai_control/.gitkeep\n",
             encoding="utf-8",
         )
         _run(["git", "init", "-b", "main"], cwd=self.repo_path)
@@ -79,3 +88,27 @@ class WorktreeManagerTests(unittest.TestCase):
         self.assertIn("generated_slice.py", diff_text)
         self.assertEqual(len(commit_sha), 40)
 
+    def test_is_ignored_detects_gitignored_runtime_paths(self) -> None:
+        self.assertTrue(
+            self.manager.is_ignored(path="data/ai_control/runtime-report.json")
+        )
+        self.assertFalse(self.manager.is_ignored(path="core/README.md"))
+
+    def test_commit_changes_reports_ignored_paths_when_only_ignored_files_changed(self) -> None:
+        info = self.manager.create_workspace(
+            task_id="task-ignored",
+            agent_name="strategy_agent",
+        )
+        worktree_path = Path(info.worktree_path)
+        self.manager.write_allowed_file(
+            path="data/ai_control/runtime-report.json",
+            worktree_path=worktree_path,
+            content='{"status": "ignored"}\n',
+        )
+
+        self.assertEqual(self.manager.changed_files(worktree_path=worktree_path), [])
+        with self.assertRaisesRegex(RuntimeError, "Ignored paths"):
+            self.manager.commit_changes(
+                worktree_path=worktree_path,
+                message="Ignored runtime artifact",
+            )

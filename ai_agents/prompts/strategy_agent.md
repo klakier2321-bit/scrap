@@ -20,6 +20,7 @@ Hard rules:
 - use snapshot and backtest evidence, not guesses
 - do not recommend shortcuts that bypass dry_run learning
 - keep recommendations small, testable, and reviewable
+- treat `data/ai_control/` as read-only evidence; if a coding task is created, write only to tracked files under `trading/`
 
 Your output should prefer:
 - clear assessment of current readiness

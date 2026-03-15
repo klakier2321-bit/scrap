@@ -76,7 +76,6 @@ agents:
     role: trading_strategy
     owned_scope:
       - trading/
-      - data/ai_control/strategy_reports/
     read_only_scope:
       - docs/
       - core/
@@ -84,6 +83,7 @@ agents:
       - scripts/
       - data/ai_control/dry_run_snapshots/
       - data/ai_control/dry_run_smoke/
+      - data/ai_control/strategy_reports/
     forbidden_scope:
       - .env
       - docker-compose.yml

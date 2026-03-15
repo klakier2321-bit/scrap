@@ -301,6 +301,46 @@ coding_runtime:
         self.assertEqual(workspace["status"], "blocked")
         self.assertEqual(updated["last_error"], "Task lost worker context.")
 
+    def test_review_task_is_not_blocked_as_orphaned_worker(self) -> None:
+        task = self.service.create_manual_task(module_id="control_layer_runtime")
+        info = self.service.worktree_manager.create_workspace(
+            task_id=task["task_id"],
+            agent_name=task["owner_agent"],
+        )
+        self.store.create_coding_workspace(
+            {
+                "task_id": task["task_id"],
+                "agent_name": task["owner_agent"],
+                "worktree_path": info.worktree_path,
+                "branch_name": info.branch_name,
+                "base_ref": info.base_ref,
+                "base_commit": info.base_commit,
+                "changed_files": ["core/generated_runtime_slice.py"],
+                "diff_text": "diff --git a/core/generated_runtime_slice.py b/core/generated_runtime_slice.py",
+                "check_results": {},
+                "status": "review",
+                "created_at": "2026-03-15T00:00:00+00:00",
+                "updated_at": "2026-03-15T00:00:00+00:00",
+            }
+        )
+        self.store.update_coding_task(
+            task["task_id"],
+            status="review",
+            started_at="2026-03-15T00:00:00+00:00",
+        )
+
+        self.service._reconcile_orphaned_active_tasks(
+            reason="Task lost worker context.",
+            event_type="worker_context_lost",
+        )
+
+        updated = self.store.get_coding_task(task["task_id"])
+        status = self.service.status()
+        self.assertEqual(updated["status"], "review")
+        self.assertIsNone(status["active_task_id"])
+        self.assertEqual(status["review_tasks"], 1)
+        self.assertFalse(status["attention_needed"])
+
     def test_timeout_marks_hanging_task_blocked(self) -> None:
         timeout_settings = SimpleNamespace(**self.settings.__dict__)
         timeout_settings.agent_coding_task_timeout_seconds = 0

@@ -22,8 +22,8 @@ coding_runtime:
       target_candidates:
         - "trading/DRY_RUN_RUNTIME_ASSESSMENT.md"
         - "trading/DRY_RUN_NEXT_STEPS.md"
-        - "data/ai_control/strategy_reports/README.md"
-        - "data/ai_control/strategy_reports/assessments/README.md"
+        - "trading/generate_dry_run_assessment.py"
+        - "trading/README.md"
       acceptance_checks:
         - "Zmiana nie modyfikuje strategii handlowej ani configow runtime."
         - "Dane dry_run sa konsumowane tylko read-only."

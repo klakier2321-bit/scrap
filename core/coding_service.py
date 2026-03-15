@@ -22,7 +22,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 FINAL_CODING_STATUSES = {"committed", "blocked", "rejected"}
-ACTIVE_CODING_STATUSES = {"dispatched", "coding", "review", "approved"}
+WORKER_CODING_STATUSES = {"dispatched", "coding"}
+IN_FLIGHT_CODING_STATUSES = {"dispatched", "coding", "review", "approved"}
 
 
 class CodingSupervisorService:
@@ -472,6 +473,20 @@ class CodingSupervisorService:
         self._ensure_task_active(task["task_id"])
         diff_text = self.worktree_manager.show_git_diff(worktree_path=Path(info.worktree_path))
         changed_files = self.worktree_manager.changed_files(worktree_path=Path(info.worktree_path))
+        if not changed_files:
+            ignored_paths = [
+                edit["path"]
+                for edit in change_output.get("file_edits", [])
+                if self.worktree_manager.is_ignored(path=edit["path"])
+            ]
+            if ignored_paths:
+                raise RuntimeError(
+                    "Coding task only produced Git-ignored changes: "
+                    + ", ".join(sorted(dict.fromkeys(ignored_paths)))
+                )
+            raise RuntimeError(
+                "Coding task produced no Git-visible diff after applying changes."
+            )
         check_results = self.worktree_manager.run_allowed_checks(
             worktree_path=Path(info.worktree_path),
             commands=task["required_tests"],
@@ -645,7 +660,7 @@ class CodingSupervisorService:
             self._worker_thread = None
 
     def _reconcile_orphaned_active_tasks(self, *, reason: str, event_type: str) -> None:
-        active_tasks = self.store.list_coding_tasks_by_status(list(ACTIVE_CODING_STATUSES))
+        active_tasks = self.store.list_coding_tasks_by_status(list(WORKER_CODING_STATUSES))
         for task in active_tasks:
             if self._worker_task_id and task["task_id"] == self._worker_task_id:
                 continue
@@ -680,7 +695,7 @@ class CodingSupervisorService:
 
     def _ensure_task_active(self, task_id: str) -> None:
         task = self.get_coding_task(task_id)
-        if task["status"] not in ACTIVE_CODING_STATUSES:
+        if task["status"] not in IN_FLIGHT_CODING_STATUSES:
             raise RuntimeError(
                 f"Coding task {task_id} is no longer active (status={task['status']})."
             )
@@ -720,6 +735,10 @@ class CodingSupervisorService:
                 raise RuntimeError(f"Coding agent attempted to edit path outside task scope: {path}")
             if any(path == forbidden or path.startswith(f"{forbidden.rstrip('/')}/") for forbidden in task["forbidden_paths"]):
                 raise RuntimeError(f"Coding agent attempted forbidden path: {path}")
+            if self.worktree_manager.is_ignored(path=path):
+                raise RuntimeError(
+                    f"Coding agent attempted to edit Git-ignored path: {path}"
+                )
             self.worktree_manager.write_allowed_file(
                 path=path,
                 worktree_path=Path(info.worktree_path),
@@ -773,6 +792,8 @@ class CodingSupervisorService:
             if not any(path.startswith(scope.rstrip("/") + "/") or path == scope.rstrip("/") for scope in owned_scope):
                 return None
             if any(path == forbidden or path.startswith(f"{forbidden.rstrip('/')}/") for forbidden in forbidden_paths):
+                return None
+            if self.worktree_manager.is_ignored(path=path):
                 return None
         required_tests = self._sanitize_required_tests(
             packet.get("required_tests", []),
@@ -838,6 +859,8 @@ class CodingSupervisorService:
                 raise RuntimeError(f"Manual coding task target is outside owned scope: {path}")
             if any(path == forbidden or path.startswith(f"{forbidden.rstrip('/')}/") for forbidden in forbidden_paths):
                 raise RuntimeError(f"Manual coding task target is forbidden: {path}")
+            if self.worktree_manager.is_ignored(path=path):
+                raise RuntimeError(f"Manual coding task target is Git-ignored: {path}")
         return {
             "summary": module.module_summary,
             "module_id": module.module_id,
