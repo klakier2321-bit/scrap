@@ -205,14 +205,21 @@ class StrategyManager:
     def merge_report_with_assessment(
         report: dict[str, Any],
         assessment: dict[str, Any] | None,
+        readiness_gate: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if assessment is None:
-            return report
-        merged = dict(report)
-        merged["assessment_summary"] = assessment.get("summary")
-        merged["assessment_recommendation"] = assessment.get("recommendation")
-        merged["assessment_risk_level"] = assessment.get("risk_level")
-        merged["assessment_generated_at"] = assessment.get("generated_at")
+            merged = dict(report)
+        else:
+            merged = dict(report)
+            merged["assessment_summary"] = assessment.get("summary")
+            merged["assessment_recommendation"] = assessment.get("recommendation")
+            merged["assessment_risk_level"] = assessment.get("risk_level")
+            merged["assessment_generated_at"] = assessment.get("generated_at")
+        if readiness_gate is not None:
+            merged["readiness_gate"] = readiness_gate
+            merged["readiness_status"] = readiness_gate.get("overall_status")
+            merged["readiness_decision"] = readiness_gate.get("overall_decision")
+            merged["readiness_summary"] = readiness_gate.get("summary")
         return merged
 
     def _load_latest_backtest_payload(self) -> tuple[Path, dict[str, Any], dict[str, Any]] | None:

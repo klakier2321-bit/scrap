@@ -31,6 +31,7 @@ coding_runtime:
       acceptance_checks:
         - "Zmiana nie modyfikuje strategii handlowej ani configow runtime."
         - "Dane dry_run sa konsumowane tylko read-only."
+        - "Kazda rekomendacja lub artefakt strategii laczy evidence z backtestu, RiskManagera i dry_run."
         - "Artefakt strategii lub raport jest czytelny dla review i dla prezesa."
         - "Wynik ocenia strategie przez pryzmat risk-adjusted profit, a nie samego profitu."
       required_tests:
@@ -39,6 +40,7 @@ coding_runtime:
         - "python -m unittest discover -s trading/tests -p test_*.py"
       definition_of_done:
         - "Warstwa strategii dowozi jeden maly, reviewowalny krok pracy na snapshotach dry_run lub raportach strategii."
+        - "Wynik przechodzi przez wspolny gate backtest + risk + dry_run, zamiast opierac sie na jednym sygnale."
         - "Diff nie wykracza poza approved scope i dane raportowe."
         - "Wynik przybliza system do skutecznej pracy na danych dry_run, bez drogi do live tradingu."
         - "Jesli task dotyczy oceny strategii, uwzglednia tez kat ryzyka lub gotowosci risk-adjusted."

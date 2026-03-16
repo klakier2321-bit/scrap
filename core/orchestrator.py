@@ -188,23 +188,55 @@ class Orchestrator:
     def get_latest_strategy_report(self, strategy_name: str | None = None) -> dict[str, Any] | None:
         return self.strategy_manager.latest_strategy_report(strategy_name=strategy_name)
 
-    def get_latest_strategy_report_with_assessment(
+    def _load_strategy_context(
         self,
         strategy_name: str | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
         report = self.strategy_manager.latest_strategy_report(strategy_name=strategy_name)
         if report is None:
-            return None
+            return None, None, None, None
+
+        latest_snapshot = self.get_latest_dry_run_snapshot(refresh_if_stale=True)
         assessment = self.strategy_manager.latest_strategy_assessment(
             strategy_name=report["strategy_name"]
         )
         if (
-            assessment is None
-            or assessment.get("source_run_id") != report.get("source_run_id")
-            or assessment.get("source_archive") != report.get("source_archive")
+            assessment is not None
+            and (
+                assessment.get("source_run_id") != report.get("source_run_id")
+                or assessment.get("source_archive") != report.get("source_archive")
+            )
         ):
+            assessment = None
+
+        readiness_gate = self.risk_manager.evaluate_strategy_readiness(
+            strategy_report=report,
+            dry_run_snapshot=latest_snapshot,
+            strategy_assessment=assessment,
+        )
+        return report, latest_snapshot, assessment, readiness_gate
+
+    def get_latest_strategy_report_with_assessment(
+        self,
+        strategy_name: str | None = None,
+    ) -> dict[str, Any] | None:
+        report, latest_snapshot, assessment, readiness_gate = self._load_strategy_context(
+            strategy_name=strategy_name
+        )
+        if report is None:
+            return None
+        if assessment is None:
             assessment = self.generate_strategy_assessment(strategy_name=report["strategy_name"])
-        return self.strategy_manager.merge_report_with_assessment(report, assessment)
+        readiness_gate = self.risk_manager.evaluate_strategy_readiness(
+            strategy_report=report,
+            dry_run_snapshot=latest_snapshot,
+            strategy_assessment=assessment,
+        )
+        return self.strategy_manager.merge_report_with_assessment(
+            report,
+            assessment,
+            readiness_gate,
+        )
 
     def list_strategy_report_history(
         self,
@@ -222,17 +254,34 @@ class Orchestrator:
                 report.get("source_run_id"),
                 report.get("source_archive"),
             )
-            merged.append(self.strategy_manager.merge_report_with_assessment(report, assessment))
+            readiness_gate = self.risk_manager.evaluate_strategy_readiness(
+                strategy_report=report,
+                dry_run_snapshot=self.get_latest_dry_run_snapshot(refresh_if_stale=True),
+                strategy_assessment=assessment,
+            )
+            merged.append(
+                self.strategy_manager.merge_report_with_assessment(
+                    report,
+                    assessment,
+                    readiness_gate,
+                )
+            )
         return merged
 
     def generate_strategy_assessment(
         self,
         strategy_name: str | None = None,
     ) -> dict[str, Any]:
-        report = self.strategy_manager.latest_strategy_report(strategy_name=strategy_name)
+        report, latest_snapshot, _assessment, readiness_gate = self._load_strategy_context(
+            strategy_name=strategy_name
+        )
         if report is None:
             raise KeyError("No strategy report is available yet.")
-        assessment = self.agent_runtime.generate_strategy_assessment(report)
+        assessment = self.agent_runtime.generate_strategy_assessment(
+            report,
+            dry_run_snapshot=latest_snapshot,
+            readiness_gate=readiness_gate,
+        )
         return self.strategy_manager.persist_strategy_assessment(report, assessment)
 
     def list_agents(self) -> list[dict[str, Any]]:
@@ -247,7 +296,7 @@ class Orchestrator:
         return self.executive_report.build_report(
             runs=self.store.list_runs(limit=200),
             autopilot_status=self.autopilot.status(),
-            strategy_report=self.get_latest_strategy_report(),
+            strategy_report=self.get_latest_strategy_report_with_assessment(),
             dry_run_health=dry_run_health,
             dry_run_snapshot=latest_snapshot,
             dry_run_smoke=self.get_latest_dry_run_smoke(),

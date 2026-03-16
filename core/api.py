@@ -183,7 +183,7 @@ async def metrics() -> PlainTextResponse:
     )
     payload, content_type = render_metrics(
         get_orchestrator().list_bots(),
-        get_orchestrator().get_latest_strategy_report(),
+        get_orchestrator().get_latest_strategy_report_with_assessment(),
         get_orchestrator().list_strategy_report_history(limit=20),
         get_orchestrator().get_dry_run_health(),
         latest_dry_run_snapshot,

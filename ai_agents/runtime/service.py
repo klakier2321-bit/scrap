@@ -348,6 +348,9 @@ class AgentRuntimeService:
     def generate_strategy_assessment(
         self,
         strategy_report: dict[str, Any],
+        *,
+        dry_run_snapshot: dict[str, Any] | None = None,
+        readiness_gate: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         selected_model_tier = self.agent_profiles["strategy_agent"].model_tier
         selected_model = self.model_profiles[selected_model_tier].model
@@ -355,12 +358,31 @@ class AgentRuntimeService:
             "selected_model_tier": selected_model_tier,
             "selected_model": selected_model,
         }
+        dry_run_context = None
+        if dry_run_snapshot:
+            dry_run_context = {
+                "generated_at": dry_run_snapshot.get("generated_at"),
+                "snapshot_status": dry_run_snapshot.get("snapshot_status"),
+                "runmode": dry_run_snapshot.get("runmode"),
+                "open_trades_count": dry_run_snapshot.get("open_trades_count"),
+                "trade_count": (dry_run_snapshot.get("profit_summary") or {}).get("trade_count"),
+                "profit_all_ratio": (dry_run_snapshot.get("profit_summary") or {}).get("profit_all_ratio"),
+                "profit_all_coin": (dry_run_snapshot.get("profit_summary") or {}).get("profit_all_coin"),
+                "top_pairs": (dry_run_snapshot.get("performance_summary") or {}).get("top_pairs", [])[:3],
+                "open_trade_pairs": [
+                    trade.get("pair")
+                    for trade in (dry_run_snapshot.get("open_trades") or [])
+                    if trade.get("pair")
+                ],
+            }
         assessment_output, usage = self._run_with_optional_mock_fallback(
             agent_name="strategy_agent",
             task_label="strategy_assessment",
             runner=lambda engine: engine.run_strategy_assessment_agent(
                 strategy_report,
                 run_context,
+                readiness_gate=readiness_gate,
+                dry_run_context=dry_run_context,
             ),
         )
         return {

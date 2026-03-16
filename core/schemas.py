@@ -146,6 +146,10 @@ class StrategyReportResponse(BaseModel):
     assessment_recommendation: str | None = None
     assessment_risk_level: str | None = None
     assessment_generated_at: datetime | str | None = None
+    readiness_status: str | None = None
+    readiness_decision: str | None = None
+    readiness_summary: str | None = None
+    readiness_gate: dict[str, Any] = Field(default_factory=dict)
     generated_at: datetime | str
 
 

@@ -332,6 +332,9 @@ class CrewAIExecutionEngine:
         self,
         strategy_report: dict[str, Any],
         run_context: dict[str, Any],
+        *,
+        readiness_gate: dict[str, Any] | None = None,
+        dry_run_context: dict[str, Any] | None = None,
     ) -> tuple[StrategyAssessmentOutput, StepUsage]:
         agent_profile = self.agent_profiles["strategy_agent"]
         model_profile = self.model_profiles[run_context["selected_model_tier"]]
@@ -346,7 +349,7 @@ class CrewAIExecutionEngine:
             max_retry_limit=agent_profile.max_retry_limit,
         )
         description = (
-            "Assess the following strategy report and return a structured recommendation.\n\n"
+            "Assess the following strategy through one common gate: backtest evidence + risk gate + dry_run evidence.\n\n"
             f"Strategy: {strategy_report['strategy_name']}\n"
             f"Timeframe: {strategy_report.get('timeframe', 'unknown')}\n"
             f"Profit ratio: {strategy_report.get('profit_pct', 0.0)}\n"
@@ -358,8 +361,11 @@ class CrewAIExecutionEngine:
             f"Stability score: {strategy_report.get('stability_score')}\n"
             f"Current evaluation status: {strategy_report.get('evaluation_status')}\n"
             f"Rejection reasons: {strategy_report.get('rejection_reasons', [])}\n"
+            f"Readiness gate: {json.dumps(readiness_gate or {}, ensure_ascii=False)}\n"
+            f"Dry run summary: {json.dumps(dry_run_context or {}, ensure_ascii=False)}\n"
             "Respect the project rules: no live trading promotion without human review, "
-            "and profit never outweighs uncontrolled drawdown.\n\n"
+            "profit never outweighs uncontrolled drawdown, and every recommendation must be justified "
+            "by the combined evidence gate instead of a single metric.\n\n"
             f"{self._build_json_output_instruction(StrategyAssessmentOutput)}"
         )
         task = Task(

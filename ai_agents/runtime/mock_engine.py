@@ -92,14 +92,18 @@ class MockExecutionEngine:
         self,
         strategy_report: dict,
         run_context: dict,
+        *,
+        readiness_gate: dict | None = None,
+        dry_run_context: dict | None = None,
     ) -> tuple[StrategyAssessmentOutput, StepUsage]:
         evaluation_status = strategy_report.get("evaluation_status", "needs_manual_review")
         stage_candidate = bool(strategy_report.get("stage_candidate"))
         drawdown_pct = float(strategy_report.get("drawdown_pct", 0.0))
-        if evaluation_status == "rejected":
+        gate_status = (readiness_gate or {}).get("overall_status")
+        if gate_status == "blocked" or evaluation_status == "rejected":
             recommendation = "reject"
             risk_level = "high"
-        elif stage_candidate:
+        elif gate_status == "ready_for_next_stage_review" or stage_candidate:
             recommendation = "promote_after_human_review"
             risk_level = "low" if drawdown_pct <= 0.03 else "medium"
         else:
@@ -119,6 +123,7 @@ class MockExecutionEngine:
                 f"Drawdown ratio: {drawdown_pct:.4f}.",
                 f"Win rate: {strategy_report.get('win_rate', 0.0):.4f}.",
                 f"Evaluation status from strategy report: {evaluation_status}.",
+                f"Combined readiness status: {gate_status or 'unknown'}.",
             ],
             stage_candidate=stage_candidate,
         )
