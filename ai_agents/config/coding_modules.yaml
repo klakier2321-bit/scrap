@@ -11,30 +11,37 @@ coding_runtime:
       owner_agent: "strategy_agent"
       enabled: true
       priority: 120
-      max_target_files: 2
+      max_target_files: 3
       title: "Strategie i backtesty"
-      module_summary: "Naucz warstwe strategii czytac read-only snapshoty dry_run, budowac assessmenty i executive summary, ale zawsze jednym malym, reviewowalnym krokiem naraz."
+      module_summary: "Naucz warstwe strategii czytac read-only snapshoty dry_run, budowac assessmenty, testy i male artefakty analizy ryzyka, ale zawsze jednym reviewowalnym krokiem naraz."
       read_only_context:
         - "docs/ARCHITECTURE.md"
         - "data/ai_control/dry_run_snapshots/"
         - "data/ai_control/strategy_reports/"
         - "core/strategy_manager.py"
+        - "core/risk_manager.py"
+        - "core/orchestrator.py"
       target_candidates:
         - "trading/DRY_RUN_RUNTIME_ASSESSMENT.md"
         - "trading/DRY_RUN_NEXT_STEPS.md"
         - "trading/generate_dry_run_assessment.py"
         - "trading/README.md"
+        - "trading/analysis/README.md"
+        - "trading/tests/test_risk_metrics.py"
       acceptance_checks:
         - "Zmiana nie modyfikuje strategii handlowej ani configow runtime."
         - "Dane dry_run sa konsumowane tylko read-only."
         - "Artefakt strategii lub raport jest czytelny dla review i dla prezesa."
+        - "Wynik ocenia strategie przez pryzmat risk-adjusted profit, a nie samego profitu."
       required_tests:
-        - "python -m compileall core"
+        - "python -m compileall core trading"
         - "python -m unittest discover -s core/tests -p test_*.py"
+        - "python -m unittest discover -s trading/tests -p test_*.py"
       definition_of_done:
         - "Warstwa strategii dowozi jeden maly, reviewowalny krok pracy na snapshotach dry_run lub raportach strategii."
         - "Diff nie wykracza poza approved scope i dane raportowe."
         - "Wynik przybliza system do skutecznej pracy na danych dry_run, bez drogi do live tradingu."
+        - "Jesli task dotyczy oceny strategii, uwzglednia tez kat ryzyka lub gotowosci risk-adjusted."
 
     - module_id: "control_layer_runtime"
       owner_agent: "control_layer_agent"

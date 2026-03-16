@@ -12,7 +12,7 @@ agents:
     require_approval_for_strong_model: false
 
   system_lead_agent:
-    daily_usd: 1.5
+    daily_usd: 3.0
     per_run_usd: 0.35
     max_iterations: 4
     max_retry_limit: 1
