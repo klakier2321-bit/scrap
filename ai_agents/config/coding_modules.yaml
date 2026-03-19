@@ -82,8 +82,10 @@ coding_runtime:
         - "data/ai_control/strategy_reports/"
       target_candidates:
         - "research/datasets/structured_futures_baseline_v1_dataset_spec.yaml"
+        - "research/datasets/structured_futures_long_continuation_v1_dataset_spec.yaml"
         - "research/features/structured_futures_baseline_v1_feature_manifest.yaml"
         - "research/features/structured_futures_short_breakdown_v1_feature_manifest.yaml"
+        - "research/features/structured_futures_long_continuation_v1_feature_manifest.yaml"
       acceptance_checks:
         - "Feature support dotyczy tylko aktywnego albo bezposrednio nastepnego kandydata."
         - "Artefakty sa wersjonowane per candidate, a nie jako ogolna teoria."
@@ -159,8 +161,11 @@ coding_runtime:
         - "data/ai_control/strategy_reports/"
       target_candidates:
         - "research/evaluation/structured_futures_baseline_v1_broad_backtest_summary.json"
+        - "research/evaluation/structured_futures_short_breakdown_v1_broad_backtest_summary.json"
+        - "research/evaluation/structured_futures_long_continuation_v1_broad_backtest_summary.json"
         - "research/promotion/structured_futures_baseline_v1_promotion_decision.md"
         - "research/promotion/structured_futures_short_breakdown_v1_promotion_decision.md"
+        - "research/promotion/structured_futures_long_continuation_v1_promotion_decision.md"
       acceptance_checks:
         - "Broad backtest bundle uzywa zawsze tych samych okien czasu."
         - "Ocena kandydatow opiera sie na risk-adjusted quality."

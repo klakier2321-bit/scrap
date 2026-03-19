@@ -22,6 +22,8 @@ from .schemas import (
     AutopilotStatusResponse,
     AgentRunRecord,
     AgentRunRequest,
+    CandidateAssessmentResponse,
+    CandidateDryRunResponse,
     ControlStatusResponse,
     BotStatus,
     BotSummary,
@@ -479,6 +481,42 @@ async def ops_generate_strategy_report(
     if merged is None:
         raise HTTPException(status_code=404, detail="No strategy report is available yet.")
     return StrategyReportResponse(**merged)
+
+
+@app.get(
+    "/ops/candidates",
+    response_model=list[CandidateAssessmentResponse],
+    include_in_schema=False,
+)
+async def ops_candidates() -> list[CandidateAssessmentResponse]:
+    return [
+        CandidateAssessmentResponse(**candidate)
+        for candidate in get_orchestrator().list_candidate_assessments()
+    ]
+
+
+@app.get(
+    "/ops/candidates/{candidate_id}/assessment",
+    response_model=CandidateAssessmentResponse,
+    include_in_schema=False,
+)
+async def ops_candidate_assessment(candidate_id: str) -> CandidateAssessmentResponse:
+    try:
+        return CandidateAssessmentResponse(**get_orchestrator().get_candidate_assessment(candidate_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get(
+    "/ops/candidates/{candidate_id}/dry-run",
+    response_model=CandidateDryRunResponse,
+    include_in_schema=False,
+)
+async def ops_candidate_dry_run(candidate_id: str) -> CandidateDryRunResponse:
+    try:
+        return CandidateDryRunResponse(**get_orchestrator().get_candidate_dry_run(candidate_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @app.get(

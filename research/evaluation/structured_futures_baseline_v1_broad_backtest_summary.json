@@ -8,17 +8,35 @@
       "name": "full_window",
       "timerange": "20251119-20260319",
       "total_trades": 23,
-      "total_profit_pct": 0.10,
-      "drawdown_pct": 0.27,
-      "long_profit_pct": 0.10,
+      "total_profit_pct": 0.0953,
+      "drawdown_pct": 0.2658,
+      "long_profit_pct": 0.1,
+      "short_profit_pct": 0.0
+    },
+    {
+      "name": "historical_window",
+      "timerange": "20251119-20251231",
+      "total_trades": 3,
+      "total_profit_pct": -0.2658,
+      "drawdown_pct": 0.2658,
+      "long_profit_pct": -0.27,
+      "short_profit_pct": 0.0
+    },
+    {
+      "name": "mid_window",
+      "timerange": "20260101-20260214",
+      "total_trades": 11,
+      "total_profit_pct": 0.1126,
+      "drawdown_pct": 0.065,
+      "long_profit_pct": 0.11,
       "short_profit_pct": 0.0
     },
     {
       "name": "recent_window",
       "timerange": "20260215-20260319",
       "total_trades": 8,
-      "total_profit_pct": 0.19,
-      "drawdown_pct": 0.11,
+      "total_profit_pct": 0.1933,
+      "drawdown_pct": 0.1134,
       "long_profit_pct": 0.19,
       "short_profit_pct": 0.0
     }
@@ -33,7 +51,6 @@
   },
   "result": "pass_for_limited_dry_run",
   "notes": [
-    "Baseline is currently treated as long-biased.",
-    "Short-side logic is explicitly parked and not counted as validated edge."
+    "Active side policy: long_biased_with_parked_short."
   ]
 }

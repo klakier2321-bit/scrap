@@ -48,6 +48,18 @@ services:
       - --config
       - /freqtrade/user_data/config.json
 
+  freqtrade_candidate:
+    image: freqtradeorg/freqtrade:stable
+    container_name: crypto_freqtrade_candidate
+    restart: "no"
+    working_dir: /freqtrade
+    volumes:
+      - ./trading/freqtrade/user_data:/freqtrade/user_data
+    command:
+      - trade
+      - --config
+      - /freqtrade/user_data/config.dryrun.futures.baseline.json
+
   litellm:
     image: docker.litellm.ai/berriai/litellm:main-latest
     container_name: crypto_litellm

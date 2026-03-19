@@ -326,6 +326,8 @@ class ExecutiveReportService:
         dry_run_health: dict[str, Any] | None,
         dry_run_snapshot: dict[str, Any] | None,
         dry_run_smoke: dict[str, Any] | None,
+        candidate_assessments: list[dict[str, Any]] | None = None,
+        candidate_dry_run: dict[str, Any] | None = None,
         control_status: dict[str, Any] | None = None,
         coding_status: dict[str, Any] | None = None,
         coding_tasks: list[dict[str, Any]] | None = None,
@@ -344,6 +346,8 @@ class ExecutiveReportService:
         dry_run_health = dict(dry_run_health or {})
         dry_run_snapshot = dict(dry_run_snapshot or {}) if dry_run_snapshot else None
         dry_run_smoke = dict(dry_run_smoke or {}) if dry_run_smoke else None
+        candidate_assessments = list(candidate_assessments or [])
+        candidate_dry_run = dict(candidate_dry_run or {}) if candidate_dry_run else None
         control_status = dict(control_status or {}) if control_status else None
         dry_run_ready = bool(dry_run_health.get("ready"))
         control_layer_has_commits = any(
@@ -530,6 +534,29 @@ class ExecutiveReportService:
                 }
             )
 
+        shipping_candidate = next(
+            (
+                candidate
+                for candidate in candidate_assessments
+                if candidate.get("lifecycle_status") == "limited_dry_run_candidate"
+            ),
+            None,
+        )
+        if shipping_candidate and shipping_candidate.get("dry_run_gate_status") != "ready":
+            blockers.append(
+                {
+                    "blocker_id": f"candidate:{shipping_candidate['candidate_id']}",
+                    "source": "Candidate factory",
+                    "area": "Strategie futures",
+                    "title": "Shipping candidate nie ma jeszcze gotowego candidate dry-run",
+                    "severity": "Wysoki",
+                    "status": shipping_candidate.get("dry_run_gate_status", "blocked"),
+                    "why_blocking": "; ".join(shipping_candidate.get("blocked_reasons") or [])
+                    or "Kandydat shippingowy nie ma jeszcze osobnego, gotowego toru dry-run.",
+                    "expected_action": "Uruchomic osobnego candidate bota i potwierdzic snapshot, smoke oraz assessment baseline.",
+                }
+            )
+
         if coding_status.get("attention_needed"):
             active_task = next(
                 (
@@ -605,6 +632,13 @@ class ExecutiveReportService:
                 "latest_snapshot": dry_run_snapshot,
                 "latest_smoke": dry_run_smoke,
             },
+            "candidate_factory": {
+                "shipping_candidate_id": (
+                    shipping_candidate.get("candidate_id") if shipping_candidate else None
+                ),
+                "candidate_assessments": candidate_assessments,
+                "candidate_dry_run": candidate_dry_run,
+            },
             "control_status": control_status,
             "assumptions": assumptions,
             "modules": modules,
@@ -648,6 +682,15 @@ class ExecutiveReportService:
                 "blockers_total": len(blockers),
                 "autopilot_attention_needed": 1 if autopilot_attention_needed else 0,
                 "dry_run_ready": 1 if dry_run_ready else 0,
+                "candidate_assessments_total": len(candidate_assessments),
+                "candidate_shipping_ready_total": sum(
+                    1
+                    for candidate in candidate_assessments
+                    if candidate.get("lifecycle_status") == "limited_dry_run_candidate"
+                ),
+                "candidate_dry_run_ready": 1
+                if (candidate_dry_run or {}).get("health", {}).get("ready")
+                else 0,
                 "control_status_available": 1 if control_status else 0,
                 "control_status_warn": 1 if (control_status or {}).get("overall_status") == "warn" else 0,
             },

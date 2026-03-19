@@ -10,6 +10,7 @@ from typing import Any
 import zipfile
 
 from opentelemetry import trace
+import yaml
 
 
 tracer = trace.get_tracer(__name__)
@@ -39,6 +40,13 @@ class StrategyManager:
         self.dry_run_snapshots_dir = dry_run_snapshots_dir or (
             self.reports_dir.parent / "dry_run_snapshots"
         )
+        default_repo_root = self.user_data_dir.parents[2]
+        workspace_root = Path("/workspace")
+        if not (default_repo_root / "research").exists() and (workspace_root / "research").exists():
+            self.repo_root = workspace_root
+        else:
+            self.repo_root = default_repo_root
+        self.research_dir = self.repo_root / "research"
 
     def list_data_files(self) -> list[str]:
         data_dir = self.user_data_dir / "data"
@@ -152,6 +160,115 @@ class StrategyManager:
         if not assessment_path.exists():
             return None
         return json.loads(assessment_path.read_text(encoding="utf-8"))
+
+    def list_candidate_manifests(self) -> list[dict[str, Any]]:
+        candidates_dir = self.research_dir / "candidates"
+        if not candidates_dir.exists():
+            return []
+        manifests: list[dict[str, Any]] = []
+        for path in sorted(candidates_dir.glob("*/strategy_manifest.yaml")):
+            payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            payload["_manifest_path"] = str(path.relative_to(self.repo_root))
+            manifests.append(payload)
+        manifests.sort(key=lambda item: str(item.get("strategy_id", "")))
+        return manifests
+
+    def get_candidate_manifest(self, candidate_id: str) -> dict[str, Any] | None:
+        for manifest in self.list_candidate_manifests():
+            if manifest.get("strategy_id") == candidate_id:
+                return manifest
+        return None
+
+    def build_candidate_assessment(
+        self,
+        candidate_id: str,
+        *,
+        dry_run_health: dict[str, Any] | None = None,
+        dry_run_snapshot: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        manifest = self.get_candidate_manifest(candidate_id)
+        if manifest is None:
+            raise KeyError(f"Unknown candidate_id: {candidate_id}")
+
+        summary = self._load_optional_json(manifest.get("broad_backtest_summary_path"))
+        risk_report = self._load_optional_json(manifest.get("risk_report_path"))
+        promotion_decision = self._load_optional_markdown_metadata(
+            manifest.get("promotion_decision_path")
+        )
+
+        lifecycle_status = str(manifest.get("status") or "unknown")
+        active_side_policy = str(
+            manifest.get("active_side_policy")
+            or manifest.get("allowed_sides")
+            or "unknown"
+        )
+        candidate_bot_id = manifest.get("candidate_bot_id")
+
+        broad_status = self._derive_broad_backtest_status(summary)
+        risk_status = self._derive_risk_gate_status(risk_report, promotion_decision)
+        dry_run_status = self._derive_dry_run_gate_status(
+            lifecycle_status=lifecycle_status,
+            candidate_bot_id=candidate_bot_id,
+            dry_run_health=dry_run_health,
+            dry_run_snapshot=dry_run_snapshot,
+            promotion_decision=promotion_decision,
+        )
+
+        blocked_reasons: list[str] = []
+        if summary is None:
+            blocked_reasons.append("Brakuje broad_backtest_summary.json dla kandydata.")
+        elif broad_status != "pass":
+            blocked_reasons.extend(str(note) for note in summary.get("notes", []))
+
+        if risk_report is None:
+            blocked_reasons.append("Brakuje risk_report.json dla kandydata.")
+        elif risk_status not in {"ready", "warn"}:
+            gate = risk_report.get("promotion_gate")
+            if gate:
+                blocked_reasons.append(f"Risk gate: {gate}.")
+
+        if candidate_bot_id and lifecycle_status == "limited_dry_run_candidate":
+            if dry_run_health is None:
+                blocked_reasons.append("Brakuje health danych dla candidate dry-run bota.")
+            elif not dry_run_health.get("ready", False):
+                blocked_reasons.append(
+                    "Candidate dry-run bot nie jest jeszcze gotowy albo nie ma swiezego snapshotu."
+                )
+
+        reason = promotion_decision.get("reason")
+        if reason and reason not in blocked_reasons and broad_status != "pass":
+            blocked_reasons.append(reason)
+
+        return {
+            "candidate_id": candidate_id,
+            "strategy_name": manifest.get("strategy_name"),
+            "market_type": manifest.get("market_type"),
+            "lifecycle_status": lifecycle_status,
+            "active_side_policy": active_side_policy,
+            "allowed_sides": manifest.get("allowed_sides"),
+            "candidate_bot_id": candidate_bot_id,
+            "broad_backtest_status": broad_status,
+            "risk_gate_status": risk_status,
+            "dry_run_gate_status": dry_run_status,
+            "overall_decision": promotion_decision.get("promotion_decision")
+            or self._derive_candidate_decision(
+                lifecycle_status=lifecycle_status,
+                broad_status=broad_status,
+                risk_status=risk_status,
+                dry_run_status=dry_run_status,
+            ),
+            "next_step": promotion_decision.get("next_step")
+            or self._default_candidate_next_step(
+                lifecycle_status=lifecycle_status,
+                broad_status=broad_status,
+                dry_run_status=dry_run_status,
+            ),
+            "blocked_reasons": blocked_reasons,
+            "manifest_path": manifest.get("_manifest_path"),
+            "broad_backtest_summary_path": manifest.get("broad_backtest_summary_path"),
+            "risk_report_path": manifest.get("risk_report_path"),
+            "promotion_decision_path": manifest.get("promotion_decision_path"),
+        }
 
     def get_assessment_for_report(
         self,
@@ -399,6 +516,113 @@ class StrategyManager:
         if not latest_report_path.exists():
             return None
         return json.loads(latest_report_path.read_text(encoding="utf-8"))
+
+    def _load_optional_json(self, relative_path: str | None) -> dict[str, Any] | None:
+        if not relative_path:
+            return None
+        path = self.repo_root / relative_path
+        if not path.exists():
+            return None
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def _load_optional_markdown_metadata(self, relative_path: str | None) -> dict[str, str]:
+        if not relative_path:
+            return {}
+        path = self.repo_root / relative_path
+        if not path.exists():
+            return {}
+        metadata: dict[str, str] = {}
+        for line in path.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped.startswith("- ") or ":" not in stripped:
+                continue
+            key, value = stripped[2:].split(":", 1)
+            metadata[key.strip()] = value.strip()
+        return metadata
+
+    @staticmethod
+    def _derive_broad_backtest_status(summary: dict[str, Any] | None) -> str:
+        if summary is None:
+            return "blocked"
+        result = str(summary.get("result") or "").strip().lower()
+        if result == "pass_for_limited_dry_run":
+            return "pass"
+        if result in {"needs_rework", "fail", "failed"}:
+            return "fail"
+        if result == "rejected":
+            return "rejected"
+        return "blocked"
+
+    @staticmethod
+    def _derive_risk_gate_status(
+        risk_report: dict[str, Any] | None,
+        promotion_decision: dict[str, str],
+    ) -> str:
+        if promotion_decision.get("risk_gate"):
+            return promotion_decision["risk_gate"]
+        if risk_report is None:
+            return "blocked"
+        gate = str(risk_report.get("promotion_gate") or "").strip().lower()
+        if gate == "ready_for_limited_dry_run":
+            return "ready"
+        status = str(risk_report.get("status") or "").strip().lower()
+        if status in {"warn", "warning"}:
+            return "warn"
+        if status in {"ok", "pass", "ready"}:
+            return "ready"
+        if status:
+            return status
+        return "blocked"
+
+    @staticmethod
+    def _derive_dry_run_gate_status(
+        *,
+        lifecycle_status: str,
+        candidate_bot_id: str | None,
+        dry_run_health: dict[str, Any] | None,
+        dry_run_snapshot: dict[str, Any] | None,
+        promotion_decision: dict[str, str],
+    ) -> str:
+        if lifecycle_status != "limited_dry_run_candidate":
+            return promotion_decision.get("dry_run_gate", "not_started")
+        if not candidate_bot_id:
+            return "blocked"
+        if dry_run_health is None or dry_run_snapshot is None:
+            return "blocked"
+        if dry_run_health.get("ready"):
+            return "ready"
+        return "warn"
+
+    @staticmethod
+    def _derive_candidate_decision(
+        *,
+        lifecycle_status: str,
+        broad_status: str,
+        risk_status: str,
+        dry_run_status: str,
+    ) -> str:
+        if lifecycle_status == "limited_dry_run_candidate" and dry_run_status == "ready":
+            return "continue_limited_dry_run"
+        if broad_status in {"blocked", "fail"}:
+            return "build_broad_backtest_bundle_first"
+        if risk_status not in {"ready", "warn"}:
+            return "improve_risk_before_promotion"
+        return "iterate_candidate"
+
+    @staticmethod
+    def _default_candidate_next_step(
+        *,
+        lifecycle_status: str,
+        broad_status: str,
+        dry_run_status: str,
+    ) -> str:
+        if lifecycle_status == "limited_dry_run_candidate" and dry_run_status != "ready":
+            return "Uruchomic i potwierdzic osobny candidate dry-run bot."
+        if broad_status == "blocked":
+            return "Zbudowac lub odswiezyc broad_backtest_summary.json."
+        if broad_status == "fail":
+            return "Przerobic logike kandydata i uruchomic kolejny broad backtest bundle."
+        return "Kontynuowac candidate loop i aktualizowac evidence bundle."
 
     def _assessments_dir(self) -> Path:
         return self.reports_dir / "assessments"

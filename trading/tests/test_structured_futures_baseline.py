@@ -87,8 +87,10 @@ class StructuredFuturesBaselineTests(unittest.TestCase):
             "feature_manifest_path",
             "risk_report_path",
             "promotion_decision_path",
+            "backtest_config",
         ):
             self.assertTrue((REPO_ROOT / manifest[key]).exists(), key)
+        self.assertEqual(manifest["candidate_bot_id"], "freqtrade_candidate")
 
     def test_candidate_factory_has_three_concrete_candidates(self) -> None:
         candidate_manifests = [
@@ -126,6 +128,7 @@ class StructuredFuturesBaselineTests(unittest.TestCase):
                 "feature_manifest_path",
                 "risk_report_path",
                 "promotion_decision_path",
+                "backtest_config",
             ):
                 self.assertTrue((REPO_ROOT / manifest[key]).exists(), key)
 

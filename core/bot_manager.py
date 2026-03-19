@@ -53,17 +53,34 @@ class BotManager:
         return self._bots[bot_id]
 
     def _read_runtime_dry_run(self, bot: dict[str, Any]) -> bool:
+        config = self._read_runtime_config(bot)
+        if not config:
+            return bool(bot.get("dry_run", True))
+        return bool(config.get("dry_run", bot.get("dry_run", True)))
+
+    def _read_runtime_config(self, bot: dict[str, Any]) -> dict[str, Any]:
         runtime_config = bot.get("runtime_config")
         if not runtime_config:
-            return bool(bot.get("dry_run", True))
+            return {}
 
         config_path = Path(runtime_config)
         if not config_path.exists():
-            return bool(bot.get("dry_run", True))
+            return {}
 
         with config_path.open("r", encoding="utf-8") as handle:
-            config = json.load(handle)
-        return bool(config.get("dry_run", bot.get("dry_run", True)))
+            return json.load(handle)
+
+    def get_runtime_connection(self, bot_id: str) -> dict[str, Any]:
+        bot = self.get_bot(bot_id)
+        runtime_config = self._read_runtime_config(bot)
+        api_server = runtime_config.get("api_server") or {}
+        return {
+            "base_url": bot.get("runtime_api_base_url", "").rstrip("/"),
+            "username": bot.get("runtime_api_username") or api_server.get("username", ""),
+            "password": bot.get("runtime_api_password") or api_server.get("password", ""),
+            "timeout_seconds": int(bot.get("runtime_api_timeout_seconds", 5)),
+            "strategy": runtime_config.get("strategy") or bot.get("strategy"),
+        }
 
     def _get_container(self, bot_id: str):
         bot = self.get_bot(bot_id)
@@ -76,11 +93,12 @@ class BotManager:
         bot = self.get_bot(bot_id)
         container = self._get_container(bot_id)
         state = container.status if container is not None else "missing"
+        runtime_connection = self.get_runtime_connection(bot_id)
         return {
             "bot_id": bot_id,
             "container_name": bot["container_name"],
             "description": bot.get("description", ""),
-            "strategy": bot.get("strategy"),
+            "strategy": runtime_connection.get("strategy") or bot.get("strategy"),
             "dry_run": self._read_runtime_dry_run(bot),
             "state": state,
             "logs_tail_default": bot.get("logs_tail_default", 200),

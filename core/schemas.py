@@ -153,6 +153,38 @@ class StrategyReportResponse(BaseModel):
     generated_at: datetime | str
 
 
+class CandidateAssessmentResponse(BaseModel):
+    """Candidate-native assessment used by the strategy factory."""
+
+    candidate_id: str
+    strategy_name: str | None = None
+    market_type: str | None = None
+    lifecycle_status: str
+    active_side_policy: str
+    allowed_sides: str | list[str] | None = None
+    candidate_bot_id: str | None = None
+    broad_backtest_status: str
+    risk_gate_status: str
+    dry_run_gate_status: str
+    overall_decision: str
+    next_step: str
+    blocked_reasons: list[str] = Field(default_factory=list)
+    manifest_path: str | None = None
+    broad_backtest_summary_path: str | None = None
+    risk_report_path: str | None = None
+    promotion_decision_path: str | None = None
+
+
+class CandidateDryRunResponse(BaseModel):
+    """Dry-run context dedicated to one shipping candidate."""
+
+    candidate_id: str
+    bot_id: str
+    health: dict[str, Any] = Field(default_factory=dict)
+    latest_snapshot: dict[str, Any] | None = None
+    latest_smoke: dict[str, Any] | None = None
+
+
 class DryRunHealthResponse(BaseModel):
     """Read-only health view of the active dry-run runtime."""
 

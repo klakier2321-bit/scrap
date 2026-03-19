@@ -264,3 +264,49 @@ executive_dashboard:
             self.assertEqual(report["summary"]["control_status_available"], 1)
             self.assertEqual(report["summary"]["control_status_warn"], 1)
             self.assertEqual(report["control_status"]["overall_status"], "warn")
+
+    def test_candidate_factory_is_included_in_executive_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            _write_exec_config(repo_root)
+            service = ExecutiveReportService(repo_root)
+
+            report = service.build_report(
+                runs=[],
+                autopilot_status={"running": True, "poll_interval_seconds": 300},
+                strategy_report=None,
+                dry_run_health={"ready": True, "runtime_mode": "dry_run"},
+                dry_run_snapshot=None,
+                dry_run_smoke=None,
+                candidate_assessments=[
+                    {
+                        "candidate_id": "structured_futures_baseline_v1",
+                        "lifecycle_status": "limited_dry_run_candidate",
+                        "active_side_policy": "long_biased_with_parked_short",
+                        "broad_backtest_status": "pass",
+                        "risk_gate_status": "ready",
+                        "dry_run_gate_status": "ready",
+                        "overall_decision": "continue_limited_dry_run",
+                        "next_step": "Monitor limited dry run.",
+                        "blocked_reasons": [],
+                    }
+                ],
+                candidate_dry_run={
+                    "candidate_id": "structured_futures_baseline_v1",
+                    "bot_id": "freqtrade_candidate",
+                    "health": {"ready": True},
+                    "latest_snapshot": {"strategy": "StructuredFuturesBaselineStrategy"},
+                    "latest_smoke": {"status": "pass"},
+                },
+                control_status=None,
+                coding_status={"running": True, "enabled": True, "attention_needed": False},
+                coding_tasks=[],
+                coding_workspaces=[],
+            )
+
+            self.assertEqual(
+                report["candidate_factory"]["shipping_candidate_id"],
+                "structured_futures_baseline_v1",
+            )
+            self.assertEqual(report["summary"]["candidate_assessments_total"], 1)
+            self.assertEqual(report["summary"]["candidate_dry_run_ready"], 1)

@@ -23,6 +23,7 @@ known_weaknesses:
   - short-side logic is effectively parked after the rebuild and needs its own future validation
 backtest_config: trading/freqtrade/user_data/config.backtest.futures.baseline.json
 dry_run_config: trading/freqtrade/user_data/config.dryrun.futures.baseline.json
+candidate_bot_id: freqtrade_candidate
 strategy_path: trading/freqtrade/user_data/strategies/structured_futures_baseline_strategy.py
 hypothesis_path: research/candidates/structured_futures_baseline_v1/hypothesis.md
 dataset_spec_path: research/datasets/structured_futures_baseline_v1_dataset_spec.yaml

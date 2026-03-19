@@ -5,4 +5,13 @@ bots:
     strategy: "SampleStrategy"
     dry_run: true
     runtime_config: "/app/trading/freqtrade/user_data/config.json"
+    runtime_api_base_url: "http://freqtrade:8080/api/v1"
+    logs_tail_default: 200
+  - bot_id: "freqtrade_candidate"
+    container_name: "crypto_freqtrade_candidate"
+    description: "Dedicated candidate dry-run bot used only for futures strategy candidates."
+    strategy: "StructuredFuturesBaselineStrategy"
+    dry_run: true
+    runtime_config: "/app/trading/freqtrade/user_data/config.dryrun.futures.baseline.json"
+    runtime_api_base_url: "http://freqtrade_candidate:8080/api/v1"
     logs_tail_default: 200

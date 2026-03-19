@@ -18,9 +18,11 @@ known_weaknesses:
   - no validated broad backtest yet
   - short squeezes can destroy a thin edge quickly
   - funding drag is modeled conservatively, not ingested as a full time series
+backtest_config: trading/freqtrade/user_data/config.backtest.futures.short_breakdown.json
 strategy_path: trading/freqtrade/user_data/strategies/structured_futures_short_breakdown_strategy.py
 hypothesis_path: research/candidates/structured_futures_short_breakdown_v1/hypothesis.md
 dataset_spec_path: research/datasets/structured_futures_short_breakdown_v1_dataset_spec.yaml
 feature_manifest_path: research/features/structured_futures_short_breakdown_v1_feature_manifest.yaml
 risk_report_path: research/risk/structured_futures_short_breakdown_v1_risk_report.json
 promotion_decision_path: research/promotion/structured_futures_short_breakdown_v1_promotion_decision.md
+broad_backtest_summary_path: research/evaluation/structured_futures_short_breakdown_v1_broad_backtest_summary.json

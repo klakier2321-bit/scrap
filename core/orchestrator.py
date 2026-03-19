@@ -125,16 +125,33 @@ class Orchestrator:
     def get_bot_logs(self, bot_id: str, tail: int | None = None) -> list[str]:
         return self.bot_manager.get_bot_logs(bot_id, tail=tail)
 
+    def _runtime_client_for_bot(self, bot_id: str) -> FreqtradeRuntimeClient:
+        runtime_connection = self.bot_manager.get_runtime_connection(bot_id)
+        return FreqtradeRuntimeClient(
+            base_url=runtime_connection["base_url"],
+            username=runtime_connection["username"],
+            password=runtime_connection["password"],
+            timeout_seconds=runtime_connection["timeout_seconds"],
+        )
+
+    def _runtime_manager_for_bot(self, bot_id: str) -> DryRunManager:
+        return DryRunManager(
+            client=self._runtime_client_for_bot(bot_id),
+            snapshots_dir=self.settings.dry_run_snapshots_dir,
+            smoke_dir=self.settings.dry_run_smoke_dir,
+            stale_after_seconds=self.settings.dry_run_snapshot_stale_seconds,
+        )
+
     def get_dry_run_health(self, bot_id: str = "freqtrade") -> dict[str, Any]:
         bot_status = self.bot_manager.get_bot_status(bot_id)
         logs = self.bot_manager.get_bot_logs(bot_id, tail=200)
-        return self.dry_run_manager.health(bot_status=bot_status, logs=logs)
+        return self._runtime_manager_for_bot(bot_id).health(bot_status=bot_status, logs=logs)
 
     def create_dry_run_snapshot(self, bot_id: str = "freqtrade") -> dict[str, Any]:
         bot_status = self.bot_manager.get_bot_status(bot_id)
         logs = self.bot_manager.get_bot_logs(bot_id, tail=200)
         try:
-            return self.dry_run_manager.create_snapshot(bot_status=bot_status, logs=logs)
+            return self._runtime_manager_for_bot(bot_id).create_snapshot(bot_status=bot_status, logs=logs)
         except FreqtradeRuntimeError as exc:
             record_dry_run_bridge_error(exc.code)
             raise
@@ -150,7 +167,7 @@ class Orchestrator:
         bot_status = self.bot_manager.get_bot_status(bot_id)
         logs = self.bot_manager.get_bot_logs(bot_id, tail=200)
         try:
-            return self.dry_run_manager.sync_snapshot_if_stale(
+            return self._runtime_manager_for_bot(bot_id).sync_snapshot_if_stale(
                 bot_status=bot_status,
                 logs=logs,
             )
@@ -176,7 +193,7 @@ class Orchestrator:
     def run_dry_run_smoke_test(self, bot_id: str = "freqtrade") -> dict[str, Any]:
         bot_status = self.bot_manager.get_bot_status(bot_id)
         logs = self.bot_manager.get_bot_logs(bot_id, tail=200)
-        result = self.dry_run_manager.run_smoke_test(bot_status=bot_status, logs=logs)
+        result = self._runtime_manager_for_bot(bot_id).run_smoke_test(bot_status=bot_status, logs=logs)
         if result.get("status") != "pass":
             record_dry_run_smoke_failure(
                 bot_id,
@@ -292,9 +309,83 @@ class Orchestrator:
     def list_runs(self, limit: int = 50) -> list[dict[str, Any]]:
         return self.store.list_runs(limit=limit)
 
+    def get_candidate_assessment(self, candidate_id: str) -> dict[str, Any]:
+        manifest = self.strategy_manager.get_candidate_manifest(candidate_id)
+        if manifest is None:
+            raise KeyError(f"Unknown candidate_id: {candidate_id}")
+        bot_id = manifest.get("candidate_bot_id")
+        dry_run_health = None
+        dry_run_snapshot = None
+        if bot_id:
+            try:
+                dry_run_health = self.get_dry_run_health(bot_id=bot_id)
+                dry_run_snapshot = self.get_latest_dry_run_snapshot(
+                    bot_id=bot_id,
+                    refresh_if_stale=True,
+                )
+            except KeyError:
+                dry_run_health = None
+                dry_run_snapshot = None
+        return self.strategy_manager.build_candidate_assessment(
+            candidate_id,
+            dry_run_health=dry_run_health,
+            dry_run_snapshot=dry_run_snapshot,
+        )
+
+    def list_candidate_assessments(self) -> list[dict[str, Any]]:
+        assessments: list[dict[str, Any]] = []
+        for manifest in self.strategy_manager.list_candidate_manifests():
+            candidate_id = manifest.get("strategy_id")
+            if not candidate_id:
+                continue
+            assessments.append(self.get_candidate_assessment(str(candidate_id)))
+        assessments.sort(
+            key=lambda item: (
+                0 if item.get("lifecycle_status") == "limited_dry_run_candidate" else 1,
+                item.get("candidate_id", ""),
+            )
+        )
+        return assessments
+
+    def get_candidate_dry_run(self, candidate_id: str) -> dict[str, Any]:
+        manifest = self.strategy_manager.get_candidate_manifest(candidate_id)
+        if manifest is None:
+            raise KeyError(f"Unknown candidate_id: {candidate_id}")
+        bot_id = manifest.get("candidate_bot_id")
+        if not bot_id:
+            raise KeyError(f"Candidate '{candidate_id}' has no dedicated dry-run bot.")
+        return {
+            "candidate_id": candidate_id,
+            "bot_id": bot_id,
+            "health": self.get_dry_run_health(bot_id=bot_id),
+            "latest_snapshot": self.get_latest_dry_run_snapshot(
+                bot_id=bot_id,
+                refresh_if_stale=True,
+            ),
+            "latest_smoke": self.get_latest_dry_run_smoke(bot_id=bot_id),
+        }
+
     def get_executive_report(self) -> dict[str, Any]:
         latest_snapshot = self.get_latest_dry_run_snapshot(refresh_if_stale=True)
         dry_run_health = self.get_dry_run_health()
+        candidate_assessments = self.list_candidate_assessments()
+        shipping_candidate = next(
+            (
+                candidate
+                for candidate in candidate_assessments
+                if candidate.get("lifecycle_status") == "limited_dry_run_candidate"
+                and candidate.get("candidate_bot_id")
+            ),
+            None,
+        )
+        try:
+            candidate_dry_run = (
+                self.get_candidate_dry_run(str(shipping_candidate["candidate_id"]))
+                if shipping_candidate
+                else None
+            )
+        except KeyError:
+            candidate_dry_run = None
         return self.executive_report.build_report(
             runs=self.store.list_runs(limit=200),
             autopilot_status=self.autopilot.status(),
@@ -302,6 +393,8 @@ class Orchestrator:
             dry_run_health=dry_run_health,
             dry_run_snapshot=latest_snapshot,
             dry_run_smoke=self.get_latest_dry_run_smoke(),
+            candidate_assessments=candidate_assessments,
+            candidate_dry_run=candidate_dry_run,
             control_status=self.get_control_status(refresh_if_missing=True),
             coding_status=self.coding_supervisor.status(),
             coding_tasks=self.store.list_coding_tasks(limit=100),
