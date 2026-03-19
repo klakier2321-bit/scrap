@@ -84,6 +84,73 @@ class ExecutiveReportServiceTests(unittest.TestCase):
             self.assertEqual(report["summary"]["runtime_active_total"], 1)
             self.assertIn("branch_only_progress", report["coding"]["delivery_semantics"])
 
+    def test_progress_pct_is_derived_from_module_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            config_dir = repo_root / "ai_agents" / "config"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "executive_roadmap.yaml").write_text(
+                """
+executive_dashboard:
+  title: "Pulpit Prezesa"
+  subtitle: "Test"
+  strategic_goal: "Test"
+  assumptions: []
+  risks: []
+  decisions: []
+  modules:
+    - id: "mod-1"
+      name: "Modul 1"
+      owner_agent: "system_lead_agent"
+      status: "W toku"
+      progress_pct: 91
+      direction: "Test"
+      current_focus: "Test"
+      next_milestone: "Test"
+      risk_level: "Niskie"
+      executive_note: "Test"
+      paths: []
+  tasks:
+    - id: "task-1"
+      module_id: "mod-1"
+      title: "Task 1"
+      status: "Zamknięte"
+      owner_agent: "system_lead_agent"
+      priority: "Wysoki"
+      needs_human: "Nie"
+      next_step: "done"
+    - id: "task-2"
+      module_id: "mod-1"
+      title: "Task 2"
+      status: "W toku"
+      owner_agent: "system_lead_agent"
+      priority: "Wysoki"
+      needs_human: "Nie"
+      next_step: "todo"
+""".strip(),
+                encoding="utf-8",
+            )
+            service = ExecutiveReportService(repo_root)
+
+            report = service.build_report(
+                runs=[],
+                autopilot_status={"running": True, "poll_interval_seconds": 300},
+                strategy_report=None,
+                dry_run_health={"ready": True, "runtime_mode": "dry_run"},
+                dry_run_snapshot=None,
+                dry_run_smoke=None,
+                control_status=None,
+                coding_status={"running": False, "enabled": True, "attention_needed": False},
+                coding_tasks=[],
+                coding_workspaces=[],
+            )
+
+            module = report["modules"][0]
+            self.assertEqual(module["declared_progress_pct"], 91.0)
+            self.assertEqual(module["live_progress_pct"], 50.0)
+            self.assertEqual(module["progress_pct"], 50.0)
+            self.assertEqual(module["progress_source"], "roadmap_tasks")
+
     def test_stable_autopilot_and_dry_run_downgrade_risks(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             repo_root = Path(tmpdir)

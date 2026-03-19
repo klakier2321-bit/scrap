@@ -391,9 +391,21 @@ class ExecutiveReportService:
         for module in modules:
             module_id = module["id"]
             module_tasks = tasks_by_module.get(module_id, [])
+            total_module_tasks = len(module_tasks)
+            closed_module_tasks = sum(
+                1 for task in module_tasks if self._is_closed_task(task.get("status"))
+            )
             open_tasks = [task for task in module_tasks if not self._is_closed_task(task.get("status"))]
             ceo_tasks = [task for task in open_tasks if task.get("needs_human") == "Tak"]
             module.update(runs_by_module.get(module_id, {}))
+            module["declared_progress_pct"] = float(module.get("progress_pct", 0.0))
+            if total_module_tasks > 0:
+                module["live_progress_pct"] = round((closed_module_tasks / total_module_tasks) * 100.0, 2)
+                module["progress_pct"] = module["live_progress_pct"]
+                module["progress_source"] = "roadmap_tasks"
+            else:
+                module["live_progress_pct"] = float(module.get("progress_pct", 0.0))
+                module["progress_source"] = "declared"
             module["open_tasks"] = len(open_tasks)
             module["tasks_waiting_ceo"] = len(ceo_tasks)
 
