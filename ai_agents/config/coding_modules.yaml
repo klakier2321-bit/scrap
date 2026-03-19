@@ -10,7 +10,7 @@ coding_runtime:
     - module_id: "strategy_orchestration"
       owner_agent: "strategy_agent"
       enabled: true
-      priority: 85
+      priority: 100
       max_target_files: 3
       title: "Orkiestracja strategii futures"
       module_summary: "Strategy lead spina lifecycle kandydatow, artefakty helperow i wspolny gate `backtest + risk + dry_run`."
@@ -41,7 +41,7 @@ coding_runtime:
     - module_id: "futures_feature_foundation"
       owner_agent: "feature_engineering_agent"
       enabled: true
-      priority: 82
+      priority: 95
       max_target_files: 3
       title: "Foundation cech i datasetow futures"
       module_summary: "Buduj foundation futures-aware dla dataset buildera i feature store, bez jeszcze rozbudowanego silnika eksperymentow."
@@ -69,7 +69,7 @@ coding_runtime:
     - module_id: "futures_risk_research"
       owner_agent: "risk_research_agent"
       enabled: true
-      priority: 81
+      priority: 94
       max_target_files: 3
       title: "Foundation risk research futures"
       module_summary: "Buduj futures-aware risk foundation dla leverage, liquidation, concentration, funding drag i exposure."
@@ -170,7 +170,7 @@ coding_runtime:
     - module_id: "control_layer_runtime"
       owner_agent: "control_layer_agent"
       enabled: true
-      priority: 90
+      priority: 45
       title: "Control layer"
       module_summary: "Buduj tylko te male, reviewable przyrosty control layer w core/, ktore bezposrednio odblokowuja dane dry_run, strategie i bezpieczna obserwowalnosc systemu."
       read_only_context:
@@ -197,8 +197,8 @@ coding_runtime:
 
     - module_id: "monitoring_and_visibility"
       owner_agent: "monitoring_agent"
-      enabled: true
-      priority: 100
+      enabled: false
+      priority: 20
       title: "Monitoring i widocznosc"
       module_summary: "Rozwijaj Grafane, Prometheusa i raportowanie dla prezesa tak, aby bylo jasno widac gotowosc dry_run, swiezosc snapshotow i droge systemu do skutecznego zarabiania."
       read_only_context:
@@ -221,8 +221,8 @@ coding_runtime:
 
     - module_id: "api_contracts"
       owner_agent: "api_agent"
-      enabled: true
-      priority: 70
+      enabled: false
+      priority: 15
       title: "API i kontrakty"
       module_summary: "Rozwijaj wewnetrzne API control layer i kontrakty bez wchodzenia w trading runtime."
       read_only_context:
@@ -244,8 +244,8 @@ coding_runtime:
 
     - module_id: "operator_gui"
       owner_agent: "gui_agent"
-      enabled: true
-      priority: 60
+      enabled: false
+      priority: 10
       title: "GUI operatorskie"
       module_summary: "Poprawiaj panel operatorski i zarzadcze widoki bez zamieniania ich w kosztowny chat."
       read_only_context:

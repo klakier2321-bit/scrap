@@ -1,105 +1,30 @@
 autopilot:
-  objective: "Rownolegle domykac architekture, control plane, monitoring, API i GUI oraz uruchomic foundation pionu strategii futures tak, aby platforma budowala edge bez chaosu i bez naruszania zasad bezpieczenstwa."
+  objective: "Oszczednie kierowac moc obliczeniowa glownie na pion strategii futures: strategy lead, feature foundation i risk foundation. Platforme utrzymywac stabilnie, ale bez kosztownego ciaglego ruchu poza blockerami runtime."
   auto_start: true
-  poll_interval_seconds: 300
+  poll_interval_seconds: 600
   max_cycles: 0
 
   tasks:
     - name: "lead_next_increment"
       agent_name: "system_lead_agent"
-      goal: "Wyznacz jeden maly, konkretny i bezpieczny krok, ktory domyka architekture, control plane, monitoring, API, GUI lub foundation pionu strategii futures bez naruszania runtime tradingowego."
-      business_reason: "Glowny agent ma stale pilnowac kolejnosci prac i rownowagi miedzy platforma a nowo aktywowanym pionem strategii futures."
+      goal: "Wyznacz jeden maly, konkretny i bezpieczny krok, ktory bezposrednio wzmacnia foundation pionu strategii futures albo usuwa runtime blocker blokujacy strategie. Nie generuj nowych szerokich torow architektury, GUI ani monitoringu bez twardej potrzeby."
+      business_reason: "Glowny agent ma teraz przede wszystkim pilnowac ekonomicznego tempa i przesuwac koszt tam, gdzie buduje edge: strategy lead, feature foundation i risk foundation."
       requested_paths:
-        - "docs/"
-        - "core/"
-        - "ai_agents/"
-        - "monitoring/"
+        - "research/"
+        - "docs/STRATEGY_LIFECYCLE.md"
+        - "docs/STRATEGY_PROMOTION_PIPELINE.md"
+        - "docs/RESEARCH_LAYER.md"
+        - "docs/FEATURE_STORE.md"
+        - "docs/RISK_MODEL_FUTURES.md"
         - "data/ai_control/dry_run_snapshots/"
         - "data/ai_control/strategy_reports/"
+        - "core/risk_manager.py"
       risk_level: "medium"
       cross_layer: true
       does_touch_contract: false
       does_touch_runtime: false
       force_strong_model: false
       auto_approve: true
-
-    - name: "lead_executive_watch"
-      agent_name: "system_lead_agent"
-      goal: "Na podstawie roadmapy executive, statusu taskow i ostatnich runow przygotuj krotka notatke zarzadcza: co zostalo domkniete w platformie oraz co ruszylo w pionie strategii futures."
-      business_reason: "Pulpit prezesa ma pokazywac rownoczesnie porzadkowanie platformy i uruchomienie strategy factory foundation."
-      requested_paths:
-        - "ai_agents/config/executive_roadmap.yaml"
-        - "core/executive_report.py"
-        - "infrastructure/grafana/"
-        - "docs/"
-        - "data/ai_control/dry_run_snapshots/"
-        - "data/ai_control/strategy_reports/"
-      risk_level: "medium"
-      cross_layer: true
-      does_touch_contract: false
-      does_touch_runtime: false
-      force_strong_model: false
-      auto_approve: true
-
-    - name: "monitoring_dry_run_watch"
-      agent_name: "monitoring_agent"
-      goal: "Sprawdz, czy dashboardy, metryki i alerty jasno pokazuja stan platformy oraz postep foundation pionu strategii futures."
-      business_reason: "Chcemy, aby prezes i operator widzieli postep porzadkowania platformy i rozwoju strategy factory, a nie tylko stan runtime."
-      requested_paths:
-        - "infrastructure/grafana/"
-        - "infrastructure/prometheus/"
-        - "core/metrics.py"
-        - "data/ai_control/dry_run_snapshots/"
-        - "data/ai_control/strategy_reports/"
-      risk_level: "low"
-      cross_layer: false
-      does_touch_contract: false
-      does_touch_runtime: false
-      force_strong_model: false
-      auto_approve: false
-
-    - name: "architecture_core_closure"
-      agent_name: "architecture_agent"
-      goal: "Domknij dwa kanoniczne dokumenty rdzenia architektury: docs/ARCHITECTURE.md i docs/PROJECT_MAP.md. Uzyj prostego jezyka biznesowego i stanowczo zapisz granice warstw: control layer steruje, Freqtrade wykonuje, research layer buduje edge, AI nie handluje bezposrednio."
-      business_reason: "Najpierw trzeba zamknac rdzen architektury i mape ownership, zeby dalsze prace nie dryfowaly miedzy warstwami."
-      requested_paths:
-        - "docs/ARCHITECTURE.md"
-        - "docs/PROJECT_MAP.md"
-      risk_level: "low"
-      cross_layer: false
-      does_touch_contract: false
-      does_touch_runtime: false
-      force_strong_model: false
-      auto_approve: false
-
-    - name: "architecture_master_plan_alignment"
-      agent_name: "architecture_agent"
-      goal: "Doprowadz do pelnej zgodnosci docs/TRADING_SYSTEM_MASTER_PLAN.md i docs/DECISIONS.md z kanoniczna architektura. Usun niedomowienia i doprecyzuj model dzialania platformy, pionu strategii futures oraz granice bezpieczenstwa."
-      business_reason: "Po zamknieciu rdzenia architektury trzeba miec jeszcze zgodny master plan i katalog decyzji, zeby prezes i zespol czytali jedna wersje prawdy."
-      requested_paths:
-        - "docs/TRADING_SYSTEM_MASTER_PLAN.md"
-        - "docs/DECISIONS.md"
-      risk_level: "low"
-      cross_layer: false
-      does_touch_contract: false
-      does_touch_runtime: false
-      force_strong_model: false
-      auto_approve: false
-
-    - name: "docs_quality_watch"
-      agent_name: "review_agent"
-      goal: "Wskaz jeden maly, praktyczny zestaw lekkich kontroli jakosci dokumentacji, ktory mozna wdrozyc bez rozbudowanego CI: sprawdzenie linkow, minimalna spojność kanonicznych docs i lista plikow wymagajacych manualnego review."
-      business_reason: "Architektura jest prawie domknieta, ale bez lekkiego quality gate dokumenty beda sie znowu rozjezdzac."
-      requested_paths:
-        - "docs/"
-        - "README.md"
-        - "ai_agents/config/executive_roadmap.yaml"
-      risk_level: "low"
-      cross_layer: false
-      does_touch_contract: false
-      does_touch_runtime: false
-      force_strong_model: false
-      auto_approve: false
 
     - name: "strategy_lead_foundation"
       agent_name: "strategy_agent"
@@ -113,7 +38,7 @@ autopilot:
         - "data/ai_control/strategy_reports/"
         - "core/risk_manager.py"
       risk_level: "medium"
-      cross_layer: true
+      cross_layer: false
       does_touch_contract: false
       does_touch_runtime: false
       force_strong_model: false
