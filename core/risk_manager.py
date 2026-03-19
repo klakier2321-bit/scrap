@@ -376,3 +376,47 @@ class RiskManager:
                 "uses_strategy_assessment": bool(strategy_assessment),
             },
         }
+
+    def build_regime_runtime_policy(
+        self,
+        *,
+        regime_report: dict[str, Any] | None,
+        selector_allowed: bool,
+    ) -> dict[str, Any]:
+        if not regime_report:
+            return {
+                "entry_allowed": False,
+                "risk_regime": "unknown",
+                "position_size_multiplier": 0.0,
+                "entry_aggressiveness": "blocked",
+                "execution_constraints": {
+                    "no_trade_zone": True,
+                    "reduced_exposure_only": True,
+                    "high_noise_environment": True,
+                    "post_shock_cooldown": False,
+                },
+                "selector_allowed": False,
+            }
+
+        constraints = dict(regime_report.get("execution_constraints") or {})
+        no_trade_zone = bool(constraints.get("no_trade_zone"))
+        entry_allowed = selector_allowed and not no_trade_zone
+        size_multiplier = float(regime_report.get("position_size_multiplier") or 0.0)
+        if not selector_allowed:
+            size_multiplier = 0.0
+        elif bool(constraints.get("reduced_exposure_only")):
+            size_multiplier = min(size_multiplier, 0.75)
+
+        return {
+            "entry_allowed": entry_allowed,
+            "risk_regime": str(regime_report.get("risk_regime") or regime_report.get("risk_level") or "unknown"),
+            "position_size_multiplier": round(max(0.0, size_multiplier), 4),
+            "entry_aggressiveness": str(regime_report.get("entry_aggressiveness") or "blocked"),
+            "execution_constraints": {
+                "no_trade_zone": bool(constraints.get("no_trade_zone")),
+                "reduced_exposure_only": bool(constraints.get("reduced_exposure_only")),
+                "high_noise_environment": bool(constraints.get("high_noise_environment")),
+                "post_shock_cooldown": bool(constraints.get("post_shock_cooldown")),
+            },
+            "selector_allowed": selector_allowed,
+        }

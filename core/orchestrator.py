@@ -19,6 +19,7 @@ from .bot_manager import BotManager
 from .autopilot import AutopilotService
 from .coding_service import CodingSupervisorService
 from .config import AppSettings
+from .derivatives_feed import DerivativesFeed
 from .dry_run_manager import DryRunManager
 from .executive_report import ExecutiveReportService
 from .freqtrade_runtime import FreqtradeRuntimeClient, FreqtradeRuntimeError
@@ -63,7 +64,13 @@ class Orchestrator:
         self.regime_detector = RegimeDetector(
             user_data_dir=settings.freqtrade_user_data_path,
             output_dir=settings.regime_reports_dir,
+            replay_dir=settings.regime_replay_dir,
             research_dir=settings.repo_checkout_path / "research",
+        )
+        self.derivatives_feed = DerivativesFeed(
+            user_data_dir=settings.freqtrade_user_data_path,
+            output_dir=settings.derivatives_reports_dir,
+            vendor_input_dir=settings.derivatives_vendor_input_dir,
         )
         self.freqtrade_runtime_client = FreqtradeRuntimeClient(
             base_url=settings.freqtrade_api_base_url,
@@ -294,13 +301,47 @@ class Orchestrator:
         return merged
 
     def get_latest_regime_report(self) -> dict[str, Any] | None:
-        return self.regime_detector.latest_report()
+        report = self.regime_detector.latest_report()
+        if report is None:
+            return None
+        replay_report = self.regime_detector.latest_replay_report()
+        if (
+            not isinstance(report.get("derivatives_state"), dict)
+            or "risk_regime" not in report
+            or (
+                replay_report is not None
+                and report.get("outcome_tracking_status") != "replay_backfilled"
+            )
+        ):
+            return self.generate_regime_report()
+        return report
 
     def list_regime_history(self, limit: int = 20) -> list[dict[str, Any]]:
         return self.regime_detector.list_reports(limit=limit)
 
     def generate_regime_report(self) -> dict[str, Any]:
-        return self.regime_detector.generate_report()
+        derivatives_report = self.get_latest_derivatives_report()
+        if derivatives_report is None:
+            derivatives_report = self.generate_derivatives_report()
+        return self.regime_detector.generate_report(derivatives_report=derivatives_report)
+
+    def get_latest_derivatives_report(self) -> dict[str, Any] | None:
+        return self.derivatives_feed.latest_report()
+
+    def list_derivatives_history(self, limit: int = 20) -> list[dict[str, Any]]:
+        return self.derivatives_feed.list_reports(limit=limit)
+
+    def generate_derivatives_report(self) -> dict[str, Any]:
+        return self.derivatives_feed.generate_report()
+
+    def get_latest_regime_replay(self) -> dict[str, Any] | None:
+        return self.regime_detector.latest_replay_report()
+
+    def list_regime_replay_history(self, limit: int = 20) -> list[dict[str, Any]]:
+        return self.regime_detector.list_replay_reports(limit=limit)
+
+    def generate_regime_replay(self) -> dict[str, Any]:
+        return self.regime_detector.generate_replay_report()
 
     def generate_strategy_assessment(
         self,
@@ -328,6 +369,9 @@ class Orchestrator:
         manifest = self.strategy_manager.get_candidate_manifest(candidate_id)
         if manifest is None:
             raise KeyError(f"Unknown candidate_id: {candidate_id}")
+        regime_report = self.get_latest_regime_report()
+        if regime_report is None:
+            regime_report = self.generate_regime_report()
         bot_id = manifest.get("candidate_bot_id")
         dry_run_health = None
         dry_run_snapshot = None
@@ -341,10 +385,17 @@ class Orchestrator:
             except KeyError:
                 dry_run_health = None
                 dry_run_snapshot = None
+        selector_allowed = candidate_id in list((regime_report or {}).get("eligible_candidate_ids") or [])
+        runtime_policy = self.risk_manager.build_regime_runtime_policy(
+            regime_report=regime_report,
+            selector_allowed=selector_allowed,
+        )
         return self.strategy_manager.build_candidate_assessment(
             candidate_id,
             dry_run_health=dry_run_health,
             dry_run_snapshot=dry_run_snapshot,
+            regime_report=regime_report,
+            runtime_policy=runtime_policy,
         )
 
     def list_candidate_assessments(self) -> list[dict[str, Any]]:
@@ -393,6 +444,13 @@ class Orchestrator:
                 regime_report = self.generate_regime_report()
             except Exception:
                 regime_report = None
+        derivatives_report = self.get_latest_derivatives_report()
+        if derivatives_report is None:
+            try:
+                derivatives_report = self.generate_derivatives_report()
+            except Exception:
+                derivatives_report = None
+        replay_report = self.get_latest_regime_replay()
         shipping_candidate = next(
             (
                 candidate
@@ -420,6 +478,8 @@ class Orchestrator:
             candidate_assessments=candidate_assessments,
             candidate_dry_run=candidate_dry_run,
             regime_report=regime_report,
+            derivatives_report=derivatives_report,
+            regime_replay_report=replay_report,
             control_status=self.get_control_status(refresh_if_missing=True),
             coding_status=self.coding_supervisor.status(),
             coding_tasks=self.store.list_coding_tasks(limit=100),

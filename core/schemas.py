@@ -169,6 +169,9 @@ class CandidateAssessmentResponse(BaseModel):
     overall_decision: str
     next_step: str
     blocked_reasons: list[str] = Field(default_factory=list)
+    selector_status: str | None = None
+    selector_rank: int | None = None
+    runtime_policy: dict[str, Any] = Field(default_factory=dict)
     manifest_path: str | None = None
     broad_backtest_summary_path: str | None = None
     risk_report_path: str | None = None
@@ -197,7 +200,7 @@ class RegimeStatusResponse(BaseModel):
     trend_strength: float
     volatility_level: str
     volume_state: str
-    derivatives_state: str
+    derivatives_state: dict[str, Any] = Field(default_factory=dict)
     feature_snapshot: dict[str, Any] = Field(default_factory=dict)
     reasons: list[str] = Field(default_factory=list)
     eligible_candidate_ids: list[str] = Field(default_factory=list)
@@ -221,6 +224,42 @@ class RegimeStatusResponse(BaseModel):
     eth_state: dict[str, Any] | None = None
     market_consensus: str | None = None
     consensus_strength: float | None = None
+    risk_regime: str | None = None
+    regime_quality: float | None = None
+    lead_symbol: str | None = None
+    lag_confirmation: str | None = None
+    outcome_tracking_status: str | None = None
+
+
+class DerivativesStatusResponse(BaseModel):
+    """Canonical derivatives feed status for regime detection."""
+
+    generated_at: datetime | str
+    source: str
+    feed_status: str
+    vendor_available: bool = False
+    universe: list[str] = Field(default_factory=list)
+    symbols: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class RegimeReplayResponse(BaseModel):
+    """Replay and calibration summary for regime detector."""
+
+    generated_at: datetime | str
+    asof_timeframe: str
+    bar_count: int
+    replay_status: str
+    warmup_bars: int
+    regime_switches_total: int
+    avg_minutes_in_regime: float
+    no_trade_zone_share: float
+    compression_to_expansion_count: int
+    bias_followthrough_15m_pct: float | None = None
+    bias_followthrough_1h_pct: float | None = None
+    market_consensus_breakdown: dict[str, Any] = Field(default_factory=dict)
+    regime_coverage: dict[str, Any] = Field(default_factory=dict)
+    event_counts: dict[str, int] = Field(default_factory=dict)
+    notes: list[str] = Field(default_factory=list)
 
 
 class DryRunHealthResponse(BaseModel):

@@ -18,9 +18,11 @@ class BotManager:
         self,
         config_path: Path | None = None,
         docker_base_url: str | None = None,
+        docker_timeout_seconds: int = 2,
     ) -> None:
         self.config_path = config_path or Path(__file__).with_name("config") / "bots.yaml"
         self.docker_base_url = docker_base_url
+        self.docker_timeout_seconds = docker_timeout_seconds
         self._client: docker.DockerClient | None = None
         self._bots = self._load_config()
 
@@ -32,9 +34,12 @@ class BotManager:
     def _get_client(self) -> docker.DockerClient:
         if self._client is None:
             if self.docker_base_url:
-                self._client = docker.DockerClient(base_url=self.docker_base_url)
+                self._client = docker.DockerClient(
+                    base_url=self.docker_base_url,
+                    timeout=self.docker_timeout_seconds,
+                )
             else:
-                self._client = docker.from_env()
+                self._client = docker.from_env(timeout=self.docker_timeout_seconds)
         return self._client
 
     def docker_available(self) -> bool:

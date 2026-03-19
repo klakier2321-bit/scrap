@@ -17,6 +17,8 @@ universe:
 thresholds:
   score_normalization_max: 6.5
   smoothing_alpha: 0.45
+  replay_warmup_bars: 48
+  replay_max_bars: 240
   enter_score_threshold: 0.75
   exit_score_threshold: 0.55
   min_bars_in_regime: 3

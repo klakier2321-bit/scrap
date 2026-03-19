@@ -107,6 +107,18 @@ class StrategyManagerMergeTests(unittest.TestCase):
                 "candidate_v1",
                 dry_run_health={"ready": True},
                 dry_run_snapshot={"strategy": "CandidateStrategy"},
+                regime_report={
+                    "primary_regime": "trend_down",
+                    "eligible_candidate_ids": ["candidate_v1"],
+                    "blocked_candidate_ids": [],
+                    "strategy_priority_order": ["candidate_v1"],
+                },
+                runtime_policy={
+                    "entry_allowed": True,
+                    "position_size_multiplier": 0.7,
+                    "entry_aggressiveness": "moderate",
+                    "execution_constraints": {"no_trade_zone": False},
+                },
             )
 
             self.assertEqual(assessment["candidate_id"], "candidate_v1")
@@ -115,6 +127,9 @@ class StrategyManagerMergeTests(unittest.TestCase):
             self.assertEqual(assessment["dry_run_gate_status"], "ready")
             self.assertEqual(assessment["overall_decision"], "promote_to_limited_dry_run")
             self.assertEqual(assessment["blocked_reasons"], [])
+            self.assertEqual(assessment["selector_status"], "allowed")
+            self.assertEqual(assessment["selector_rank"], 1)
+            self.assertTrue(assessment["runtime_policy"]["entry_allowed"])
 
     def test_build_candidate_assessment_marks_frozen_candidate_as_telemetry_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -174,9 +189,21 @@ class StrategyManagerMergeTests(unittest.TestCase):
                 "candidate_v1",
                 dry_run_health={"ready": True},
                 dry_run_snapshot={"strategy": "CandidateStrategy"},
+                regime_report={
+                    "primary_regime": "range",
+                    "eligible_candidate_ids": [],
+                    "blocked_candidate_ids": ["candidate_v1"],
+                    "strategy_priority_order": [],
+                },
+                runtime_policy={
+                    "entry_allowed": False,
+                    "position_size_multiplier": 0.0,
+                    "entry_aggressiveness": "blocked",
+                    "execution_constraints": {"no_trade_zone": True},
+                },
             )
 
             self.assertEqual(assessment["lifecycle_status"], "frozen_pending_regime_engine")
             self.assertEqual(assessment["dry_run_gate_status"], "telemetry_ready")
-            self.assertEqual(assessment["overall_decision"], "wait_for_regime_engine")
+            self.assertEqual(assessment["overall_decision"], "wait_for_regime_alignment")
             self.assertTrue(assessment["blocked_reasons"])

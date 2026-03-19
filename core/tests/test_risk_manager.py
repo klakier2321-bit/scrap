@@ -103,3 +103,38 @@ class RiskManagerStrategyReadinessTests(unittest.TestCase):
         self.assertEqual(gate["gates"]["risk"]["status"], "pass")
         self.assertEqual(gate["gates"]["dry_run"]["status"], "pass")
 
+    def test_build_regime_runtime_policy_blocks_when_selector_disallows_candidate(self) -> None:
+        policy = self.manager.build_regime_runtime_policy(
+            regime_report={
+                "risk_regime": "elevated",
+                "position_size_multiplier": 0.64,
+                "entry_aggressiveness": "moderate",
+                "execution_constraints": {
+                    "no_trade_zone": False,
+                    "reduced_exposure_only": True,
+                    "high_noise_environment": False,
+                    "post_shock_cooldown": False,
+                },
+            },
+            selector_allowed=False,
+        )
+        self.assertFalse(policy["entry_allowed"])
+        self.assertEqual(policy["position_size_multiplier"], 0.0)
+
+    def test_build_regime_runtime_policy_respects_no_trade_zone(self) -> None:
+        policy = self.manager.build_regime_runtime_policy(
+            regime_report={
+                "risk_level": "high",
+                "position_size_multiplier": 0.42,
+                "entry_aggressiveness": "low",
+                "execution_constraints": {
+                    "no_trade_zone": True,
+                    "reduced_exposure_only": True,
+                    "high_noise_environment": True,
+                    "post_shock_cooldown": False,
+                },
+            },
+            selector_allowed=True,
+        )
+        self.assertFalse(policy["entry_allowed"])
+        self.assertEqual(policy["risk_regime"], "high")

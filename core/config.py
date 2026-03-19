@@ -111,6 +111,18 @@ class AppSettings(BaseSettings):
         return self.data_dir / "regime"
 
     @property
+    def derivatives_reports_dir(self) -> Path:
+        return self.data_dir / "derivatives"
+
+    @property
+    def derivatives_vendor_input_dir(self) -> Path:
+        return self.data_dir / "derivatives_vendor"
+
+    @property
+    def regime_replay_dir(self) -> Path:
+        return self.data_dir / "regime_replay"
+
+    @property
     def autopilot_config_path(self) -> Path:
         if self.agent_autopilot_config.startswith("/app/") and not Path("/app").exists():
             return self.repo_root / self.agent_autopilot_config.removeprefix("/app/")

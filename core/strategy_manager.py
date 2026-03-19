@@ -185,6 +185,8 @@ class StrategyManager:
         *,
         dry_run_health: dict[str, Any] | None = None,
         dry_run_snapshot: dict[str, Any] | None = None,
+        regime_report: dict[str, Any] | None = None,
+        runtime_policy: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         manifest = self.get_candidate_manifest(candidate_id)
         if manifest is None:
@@ -203,6 +205,20 @@ class StrategyManager:
             or "unknown"
         )
         candidate_bot_id = manifest.get("candidate_bot_id")
+        selector_status = "unknown"
+        selector_rank = None
+        if regime_report:
+            eligible_ids = list(regime_report.get("eligible_candidate_ids") or [])
+            blocked_ids = list(regime_report.get("blocked_candidate_ids") or [])
+            if candidate_id in eligible_ids:
+                selector_status = "allowed"
+            elif candidate_id in blocked_ids:
+                selector_status = "blocked"
+            else:
+                selector_status = "not_ranked"
+            ranked = list(regime_report.get("strategy_priority_order") or [])
+            if candidate_id in ranked:
+                selector_rank = ranked.index(candidate_id) + 1
 
         broad_status = self._derive_broad_backtest_status(summary)
         risk_status = self._derive_risk_gate_status(risk_report, promotion_decision)
@@ -242,6 +258,27 @@ class StrategyManager:
         reason = promotion_decision.get("reason")
         if reason and reason not in blocked_reasons and broad_status != "pass":
             blocked_reasons.append(reason)
+        if selector_status == "blocked":
+            blocked_reasons.append(
+                f"Selector blokuje kandydata w aktualnym reżimie: {regime_report.get('primary_regime') if regime_report else 'unknown'}."
+            )
+        if runtime_policy and not runtime_policy.get("entry_allowed", False):
+            blocked_reasons.append("Runtime policy blokuje nowe wejścia dla tego kandydata.")
+
+        overall_decision = promotion_decision.get("promotion_decision") or self._derive_candidate_decision(
+            lifecycle_status=lifecycle_status,
+            broad_status=broad_status,
+            risk_status=risk_status,
+            dry_run_status=dry_run_status,
+        )
+        next_step = promotion_decision.get("next_step") or self._default_candidate_next_step(
+            lifecycle_status=lifecycle_status,
+            broad_status=broad_status,
+            dry_run_status=dry_run_status,
+        )
+        if selector_status == "blocked":
+            overall_decision = "wait_for_regime_alignment"
+            next_step = "Nie wybierac tego kandydata do nowych wejsc, dopoki selector i regime nie beda zgodne."
 
         return {
             "candidate_id": candidate_id,
@@ -254,20 +291,12 @@ class StrategyManager:
             "broad_backtest_status": broad_status,
             "risk_gate_status": risk_status,
             "dry_run_gate_status": dry_run_status,
-            "overall_decision": promotion_decision.get("promotion_decision")
-            or self._derive_candidate_decision(
-                lifecycle_status=lifecycle_status,
-                broad_status=broad_status,
-                risk_status=risk_status,
-                dry_run_status=dry_run_status,
-            ),
-            "next_step": promotion_decision.get("next_step")
-            or self._default_candidate_next_step(
-                lifecycle_status=lifecycle_status,
-                broad_status=broad_status,
-                dry_run_status=dry_run_status,
-            ),
+            "overall_decision": overall_decision,
+            "next_step": next_step,
             "blocked_reasons": blocked_reasons,
+            "selector_status": selector_status,
+            "selector_rank": selector_rank,
+            "runtime_policy": runtime_policy or {},
             "manifest_path": manifest.get("_manifest_path"),
             "broad_backtest_summary_path": manifest.get("broad_backtest_summary_path"),
             "risk_report_path": manifest.get("risk_report_path"),

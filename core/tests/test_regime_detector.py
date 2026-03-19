@@ -74,7 +74,19 @@ def _base_snapshot() -> dict[str, object]:
         "trend_strength": 0.4,
         "volatility_level": "normal",
         "volume_state": "normal",
-        "derivatives_state": "unavailable",
+        "derivatives_state": {
+            "feed_status": "unavailable",
+            "source": "funding_only",
+            "vendor_available": False,
+            "positioning_state": "unknown",
+            "squeeze_risk": "unknown",
+            "oi_price_agreement": "unknown",
+            "open_interest_change_pct": None,
+            "oi_acceleration": None,
+            "funding_extreme_flag": False,
+            "liquidation_pressure_proxy": 0.0,
+            "symbols": [],
+        },
         "symbols": [],
     }
 
@@ -86,6 +98,7 @@ class RegimeDetectorTests(unittest.TestCase):
         self.detector = RegimeDetector(
             user_data_dir=repo_root / "trading" / "freqtrade" / "user_data",
             output_dir=repo_root / "data" / "ai_control" / "regime",
+            replay_dir=repo_root / "data" / "ai_control" / "regime_replay",
             research_dir=repo_root / "research",
         )
         self.definition = _definition()
@@ -272,6 +285,43 @@ class RegimeDetectorTests(unittest.TestCase):
         self.assertGreaterEqual(result["regime_persistence"]["bars_in_regime"], 3)
         self.assertIn("Hysteresis", " ".join(result["reasons"]))
 
+    def test_hysteresis_uses_supplied_generated_at_for_replay_deltas(self) -> None:
+        raw = {
+            "primary_regime": "trend_down",
+            "confidence": 0.72,
+            "risk_level": "medium",
+            "scores": {
+                "trend_up": 0.1,
+                "trend_down": 4.4,
+                "range": 0.2,
+                "low_vol": 0.0,
+                "high_vol": 0.0,
+                "stress_panic": 0.0,
+            },
+            "reasons_by_regime": {key: [key] for key in PRIMARY_REGIMES},
+            "reasons": ["trend_down"],
+        }
+        previous_report = {
+            "generated_at": "2026-03-19T10:00:00+00:00",
+            "primary_regime": "trend_down",
+            "smoothed_scores": {
+                "trend_down": 0.8,
+            },
+            "regime_persistence": {
+                "bars_in_regime": 3,
+                "minutes_in_regime": 180,
+                "cooldown_remaining_bars": 0,
+            },
+        }
+        result = self.detector._apply_hysteresis(
+            raw_classification=raw,
+            previous_report=previous_report,
+            definition=self.definition,
+            current_generated_at="2026-03-19T11:00:00+00:00",
+        )
+        self.assertEqual(result["regime_persistence"]["bars_in_regime"], 15)
+        self.assertEqual(result["regime_persistence"]["minutes_in_regime"], 240)
+
     def test_builds_execution_constraints_and_position_size(self) -> None:
         constraints = self.detector._derive_execution_constraints(
             primary_regime="range",
@@ -409,3 +459,74 @@ class RegimeDetectorTests(unittest.TestCase):
             market_phase="pullback",
         )
         self.assertEqual(ranked[0], "structured_futures_short_breakdown_v1")
+
+    def test_derives_risk_regime_and_quality(self) -> None:
+        risk_regime = self.detector._derive_risk_regime(
+            primary_regime="trend_down",
+            risk_level="medium",
+            execution_constraints={
+                "no_trade_zone": False,
+                "reduced_exposure_only": True,
+                "high_noise_environment": False,
+                "post_shock_cooldown": False,
+            },
+            active_event_flags={
+                "panic_flush": False,
+                "short_squeeze": False,
+                "long_squeeze": False,
+                "capitulation": False,
+                "deleveraging": False,
+            },
+            consensus_strength=0.7,
+        )
+        quality = self.detector._derive_regime_quality(
+            alignment_score=0.82,
+            execution_constraints={
+                "no_trade_zone": False,
+                "reduced_exposure_only": True,
+                "high_noise_environment": False,
+                "post_shock_cooldown": False,
+            },
+            market_phase="compression",
+            active_event_flags={
+                "panic_flush": False,
+                "short_squeeze": False,
+                "long_squeeze": False,
+                "capitulation": False,
+                "deleveraging": False,
+            },
+        )
+        self.assertEqual(risk_regime, "elevated")
+        self.assertGreater(quality, 0.0)
+        self.assertLess(quality, 0.82)
+
+    def test_replay_summary_tracks_switches_and_no_trade_share(self) -> None:
+        summary = self.detector._summarize_replay_reports(
+            reports=[
+                {
+                    "primary_regime": "trend_up",
+                    "bias": "long",
+                    "market_phase": "compression",
+                    "market_consensus": "strong_bullish",
+                    "execution_constraints": {"no_trade_zone": False},
+                    "regime_persistence": {"minutes_in_regime": 15},
+                    "active_event_flags": {"panic_flush": False, "short_squeeze": False, "long_squeeze": False, "capitulation": False, "deleveraging": False},
+                    "feature_snapshot": {"recent_move_pct": 0.2},
+                },
+                {
+                    "primary_regime": "trend_down",
+                    "bias": "short",
+                    "market_phase": "expansion",
+                    "market_consensus": "weak_bearish",
+                    "execution_constraints": {"no_trade_zone": True},
+                    "regime_persistence": {"minutes_in_regime": 20},
+                    "active_event_flags": {"panic_flush": True, "short_squeeze": False, "long_squeeze": False, "capitulation": False, "deleveraging": False},
+                    "feature_snapshot": {"recent_move_pct": -0.3},
+                },
+            ],
+            bar_minutes=5,
+            definition=self.definition,
+        )
+        self.assertEqual(summary["regime_switches_total"], 1)
+        self.assertEqual(summary["compression_to_expansion_count"], 1)
+        self.assertEqual(summary["no_trade_zone_share"], 0.5)

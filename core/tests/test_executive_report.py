@@ -356,12 +356,37 @@ executive_dashboard:
                     "trend_strength": 0.77,
                     "volatility_level": "normal",
                     "volume_state": "normal",
-                    "derivatives_state": "neutral",
+                    "derivatives_state": {"feed_status": "ok", "positioning_state": "long_build"},
                     "feature_snapshot": {},
                     "reasons": ["Trend i ADX wspieraja wzrost."],
                     "eligible_candidate_ids": ["structured_futures_baseline_v1"],
                     "blocked_candidate_ids": ["structured_futures_short_breakdown_v1"],
                     "candidate_freeze_mode": "freeze_build_keep_dry_run",
+                },
+                derivatives_report={
+                    "generated_at": "2026-03-19T00:00:00+00:00",
+                    "source": "external_vendor",
+                    "feed_status": "ok",
+                    "vendor_available": True,
+                    "universe": ["BTC/USDT:USDT", "ETH/USDT:USDT"],
+                    "symbols": [],
+                },
+                regime_replay_report={
+                    "generated_at": "2026-03-19T00:00:00+00:00",
+                    "asof_timeframe": "1h",
+                    "bar_count": 120,
+                    "replay_status": "ready",
+                    "warmup_bars": 48,
+                    "regime_switches_total": 12,
+                    "avg_minutes_in_regime": 55.0,
+                    "no_trade_zone_share": 0.2,
+                    "compression_to_expansion_count": 7,
+                    "bias_followthrough_15m_pct": 0.61,
+                    "bias_followthrough_1h_pct": 0.58,
+                    "market_consensus_breakdown": {"strong_bullish": 40},
+                    "regime_coverage": {"trend_up": 60},
+                    "event_counts": {},
+                    "notes": [],
                 },
                 control_status=None,
                 coding_status={"running": True, "enabled": True, "attention_needed": False},
@@ -374,4 +399,6 @@ executive_dashboard:
                 "regime_first_freeze_build_keep_dry_run",
             )
             self.assertEqual(report["summary"]["regime_available"], 1)
+            self.assertEqual(report["summary"]["derivatives_available"], 1)
+            self.assertEqual(report["summary"]["regime_replay_available"], 1)
             self.assertEqual(report["regime"]["latest"]["primary_regime"], "trend_up")

@@ -172,12 +172,14 @@ class RegimeDetector:
         *,
         user_data_dir: Path,
         output_dir: Path,
+        replay_dir: Path,
         research_dir: Path,
         definition_path: Path | None = None,
     ) -> None:
         self.user_data_dir = user_data_dir
         self.market_data_dir = user_data_dir / "data" / "binance" / "futures"
         self.output_dir = output_dir
+        self.replay_dir = replay_dir
         self.research_dir = research_dir
         self.definition_path = definition_path or (
             research_dir / "regimes" / "regime_definition_v1.yaml"
@@ -199,18 +201,39 @@ class RegimeDetector:
                 break
         return reports
 
-    def generate_report(self) -> dict[str, Any]:
+    def latest_replay_report(self) -> dict[str, Any] | None:
+        path = self.replay_dir / "latest.json"
+        if not path.exists():
+            return None
+        return json.loads(path.read_text(encoding="utf-8"))
+
+    def list_replay_reports(self, limit: int = 20) -> list[dict[str, Any]]:
+        if not self.replay_dir.exists():
+            return []
+        reports: list[dict[str, Any]] = []
+        for path in sorted(self.replay_dir.glob("replay-*.json"), reverse=True):
+            reports.append(json.loads(path.read_text(encoding="utf-8")))
+            if len(reports) >= limit:
+                break
+        return reports
+
+    def generate_report(self, *, derivatives_report: dict[str, Any] | None = None) -> dict[str, Any]:
         definition = self._load_definition()
         previous_report = self.latest_report()
         candidate_manifests = self._load_candidate_manifests()
         symbol_features = self._build_symbol_features(definition)
         feature_snapshot = self._aggregate_features(symbol_features, definition)
+        feature_snapshot = self._merge_derivatives_context(
+            feature_snapshot=feature_snapshot,
+            derivatives_report=derivatives_report,
+        )
 
         raw_classification = self._classify(feature_snapshot, definition)
         stabilized = self._apply_hysteresis(
             raw_classification=raw_classification,
             previous_report=previous_report,
             definition=definition,
+            current_generated_at=_now_iso(),
         )
 
         htf_bias = self._derive_htf_bias(feature_snapshot, definition)
@@ -290,6 +313,21 @@ class RegimeDetector:
             execution_constraints=execution_constraints,
             market_phase=market_phase,
         )
+        risk_regime = self._derive_risk_regime(
+            primary_regime=stabilized["primary_regime"],
+            risk_level=stabilized["risk_level"],
+            execution_constraints=execution_constraints,
+            active_event_flags=active_event_flags,
+            consensus_strength=consensus["consensus_strength"],
+        )
+        regime_quality = self._derive_regime_quality(
+            alignment_score=alignment_score,
+            execution_constraints=execution_constraints,
+            market_phase=market_phase,
+            active_event_flags=active_event_flags,
+        )
+        lead_symbol, lag_confirmation = self._derive_market_leadership(symbol_features, consensus)
+        outcome_tracking_status = "replay_backfilled" if self.latest_replay_report() else "not_started"
         eligible, blocked = self._candidate_eligibility(
             candidate_manifests,
             primary_regime=stabilized["primary_regime"],
@@ -342,9 +380,149 @@ class RegimeDetector:
             "market_consensus": consensus["market_consensus"],
             "consensus_strength": consensus["consensus_strength"],
             "smoothed_scores": stabilized["smoothed_scores"],
+            "risk_regime": risk_regime,
+            "regime_quality": regime_quality,
+            "lead_symbol": lead_symbol,
+            "lag_confirmation": lag_confirmation,
+            "outcome_tracking_status": outcome_tracking_status,
         }
         self._write_report(report)
         return report
+
+    def generate_replay_report(self) -> dict[str, Any]:
+        definition = self._load_definition()
+        universe = definition.get("universe") or ["BTC/USDT:USDT", "ETH/USDT:USDT"]
+        all_frames: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        replay_5m_lengths: dict[str, list[int]] = {}
+        for pair in universe:
+            stem = _normalize_pair_to_stem(pair)
+            all_frames[pair] = {
+                "1h": _read_feather_records(self.market_data_dir / f"{stem}-1h-futures.feather"),
+                "5m": _read_feather_records(self.market_data_dir / f"{stem}-5m-futures.feather"),
+                "mark": _read_feather_records(self.market_data_dir / f"{stem}-1h-mark.feather")
+                if (self.market_data_dir / f"{stem}-1h-mark.feather").exists()
+                else [],
+                "funding": _read_feather_records(self.market_data_dir / f"{stem}-1h-funding_rate.feather")
+                if (self.market_data_dir / f"{stem}-1h-funding_rate.feather").exists()
+                else [],
+            }
+            replay_5m_lengths[pair] = self._build_replay_5m_lengths(
+                frame_1h=all_frames[pair]["1h"],
+                frame_5m=all_frames[pair]["5m"],
+            )
+
+        bar_minutes = max(int(_safe_float(definition.get("thresholds", {}).get("bar_minutes"), 5)), 1)
+        warmup_1h_bars = max(int(_safe_float(definition.get("thresholds", {}).get("replay_warmup_bars"), 48)), 24)
+        replay_max_bars = max(int(_safe_float(definition.get("thresholds", {}).get("replay_max_bars"), 0)), 0)
+        first_pair = universe[0]
+        total_1h_bars = len(all_frames[first_pair]["1h"])
+        reports: list[dict[str, Any]] = []
+        previous_report: dict[str, Any] | None = None
+        start_idx = warmup_1h_bars
+        if replay_max_bars > 0:
+            start_idx = max(start_idx, total_1h_bars - replay_max_bars)
+
+        for idx in range(start_idx, total_1h_bars):
+            symbol_features: list[dict[str, Any]] = []
+            asof_iso = str(all_frames[first_pair]["1h"][idx].get("date"))
+            for pair in universe:
+                frame_1h = all_frames[pair]["1h"][: idx + 1]
+                frame_5m = all_frames[pair]["5m"][: replay_5m_lengths[pair][idx]]
+                funding = all_frames[pair]["funding"][: idx + 1] if all_frames[pair]["funding"] else []
+                symbol_features.append(
+                    self._compute_symbol_features_from_frames(
+                        pair=pair,
+                        frame_5m=frame_5m,
+                        frame_1h=frame_1h,
+                        funding_frame=funding,
+                    )
+                )
+            feature_snapshot = self._aggregate_features(symbol_features, definition)
+            derivatives_report = self._build_replay_derivatives_report(
+                pair_frames=all_frames,
+                universe=universe,
+                index=idx,
+                generated_at=asof_iso,
+            )
+            feature_snapshot = self._merge_derivatives_context(
+                feature_snapshot=feature_snapshot,
+                derivatives_report=derivatives_report,
+            )
+            raw_classification = self._classify(feature_snapshot, definition)
+            stabilized = self._apply_hysteresis(
+                raw_classification=raw_classification,
+                previous_report=previous_report,
+                definition=definition,
+                current_generated_at=asof_iso,
+            )
+            htf_bias = self._derive_htf_bias(feature_snapshot, definition)
+            market_state = self._derive_market_state(
+                feature_snapshot=feature_snapshot,
+                primary_regime=stabilized["primary_regime"],
+                htf_bias=htf_bias,
+                definition=definition,
+            )
+            ltf_execution_state = self._derive_ltf_execution_state(
+                feature_snapshot=feature_snapshot,
+                primary_regime=stabilized["primary_regime"],
+                htf_bias=htf_bias,
+                market_state=market_state,
+                definition=definition,
+            )
+            volatility_phase = self._derive_volatility_phase(
+                feature_snapshot=feature_snapshot,
+                previous_report=previous_report,
+                definition=definition,
+            )
+            market_phase = self._derive_market_phase(
+                primary_regime=stabilized["primary_regime"],
+                market_state=market_state,
+                ltf_execution_state=ltf_execution_state,
+                volatility_phase=volatility_phase,
+                bars_in_regime=stabilized["regime_persistence"]["bars_in_regime"],
+                definition=definition,
+            )
+            consensus = self._derive_symbol_states(symbol_features, definition)
+            execution_constraints = self._derive_execution_constraints(
+                primary_regime=stabilized["primary_regime"],
+                market_state=market_state,
+                ltf_execution_state=ltf_execution_state,
+                market_phase=market_phase,
+                risk_level=stabilized["risk_level"],
+                consensus_strength=consensus["consensus_strength"],
+                active_event_flags=self._derive_active_event_flags(
+                    feature_snapshot=feature_snapshot,
+                    primary_regime=stabilized["primary_regime"],
+                    htf_bias=htf_bias,
+                    definition=definition,
+                ),
+                cooldown_remaining_bars=stabilized["regime_persistence"]["cooldown_remaining_bars"],
+            )
+            report = {
+                "generated_at": asof_iso,
+                "primary_regime": stabilized["primary_regime"],
+                "bias": self._derive_bias(primary_regime=stabilized["primary_regime"], htf_bias=htf_bias),
+                "market_phase": market_phase,
+                "market_state": market_state,
+                "active_event_flags": self._derive_active_event_flags(
+                    feature_snapshot=feature_snapshot,
+                    primary_regime=stabilized["primary_regime"],
+                    htf_bias=htf_bias,
+                    definition=definition,
+                ),
+                "execution_constraints": execution_constraints,
+                "regime_persistence": stabilized["regime_persistence"],
+                "market_consensus": consensus["market_consensus"],
+                "consensus_strength": consensus["consensus_strength"],
+                "feature_snapshot": feature_snapshot,
+                "derivatives_state": feature_snapshot.get("derivatives_state") or {},
+            }
+            reports.append(report)
+            previous_report = report
+
+        summary = self._summarize_replay_reports(reports=reports, bar_minutes=bar_minutes, definition=definition)
+        self._write_replay_report(summary)
+        return summary
 
     def _load_definition(self) -> dict[str, Any]:
         return yaml.safe_load(self.definition_path.read_text(encoding="utf-8")) or {}
@@ -372,6 +550,23 @@ class RegimeDetector:
         frame_1h = _read_feather_records(self.market_data_dir / f"{stem}-1h-futures.feather")
         funding_path = self.market_data_dir / f"{stem}-1h-funding_rate.feather"
         funding_frame = _read_feather_records(funding_path) if funding_path.exists() else []
+        return self._compute_symbol_features_from_frames(
+            pair=pair,
+            frame_5m=frame_5m,
+            frame_1h=frame_1h,
+            funding_frame=funding_frame,
+        )
+
+    def _compute_symbol_features_from_frames(
+        self,
+        *,
+        pair: str,
+        frame_5m: list[dict[str, Any]],
+        frame_1h: list[dict[str, Any]],
+        funding_frame: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        if not frame_5m or not frame_1h:
+            raise ValueError(f"Missing futures frames for {pair}.")
 
         closes_5m = [_safe_float(row.get("close")) for row in frame_5m]
         highs_5m = [_safe_float(row.get("high")) for row in frame_5m]
@@ -466,6 +661,37 @@ class RegimeDetector:
         )
         return snapshot.__dict__
 
+    @staticmethod
+    def _slice_5m_until(frame_5m: list[dict[str, Any]], *, asof_time: str) -> list[dict[str, Any]]:
+        selected: list[dict[str, Any]] = []
+        asof = str(asof_time)
+        for row in frame_5m:
+            row_time = str(row.get("date"))
+            if row_time <= asof:
+                selected.append(row)
+        return selected or frame_5m
+
+    @staticmethod
+    def _build_replay_5m_lengths(
+        *,
+        frame_1h: list[dict[str, Any]],
+        frame_5m: list[dict[str, Any]],
+    ) -> list[int]:
+        if not frame_1h:
+            return []
+        if not frame_5m:
+            return [0 for _ in frame_1h]
+
+        lengths: list[int] = []
+        ltf_dates = [str(row.get("date")) for row in frame_5m]
+        cursor = 0
+        for row in frame_1h:
+            asof = str(row.get("date"))
+            while cursor < len(ltf_dates) and ltf_dates[cursor] <= asof:
+                cursor += 1
+            lengths.append(max(cursor, 1))
+        return lengths
+
     def _aggregate_features(
         self,
         symbol_features: list[dict[str, Any]],
@@ -519,6 +745,254 @@ class RegimeDetector:
             "symbols": symbol_features,
         }
 
+    def _merge_derivatives_context(
+        self,
+        *,
+        feature_snapshot: dict[str, Any],
+        derivatives_report: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        symbols = list((derivatives_report or {}).get("symbols") or [])
+        oi_changes = [
+            _safe_float(item.get("open_interest_change_pct"), None)
+            for item in symbols
+            if _safe_float(item.get("open_interest_change_pct"), None) is not None
+        ]
+        oi_accelerations = [
+            _safe_float(item.get("oi_acceleration"), None)
+            for item in symbols
+            if _safe_float(item.get("oi_acceleration"), None) is not None
+        ]
+        liquidation_pressures = [
+            _safe_float(item.get("liquidation_pressure_proxy"), 0.0) or 0.0
+            for item in symbols
+        ]
+        squeeze_risks = [str(item.get("squeeze_risk") or "unknown") for item in symbols]
+        positioning_states = [str(item.get("positioning_state") or "unknown") for item in symbols]
+        funding_extreme = any(bool(item.get("funding_extreme_flag")) for item in symbols)
+        agreement_values = [str(item.get("oi_price_agreement") or "unknown") for item in symbols]
+
+        if symbols:
+            if all(state == positioning_states[0] for state in positioning_states):
+                positioning_state = positioning_states[0]
+            else:
+                positioning_state = "mixed"
+            if all(level == "high" for level in squeeze_risks):
+                squeeze_risk = "high"
+            elif any(level == "medium" for level in squeeze_risks) or any(level == "high" for level in squeeze_risks):
+                squeeze_risk = "medium"
+            else:
+                squeeze_risk = "low" if all(level == "low" for level in squeeze_risks) else "unknown"
+            if all(value == agreement_values[0] for value in agreement_values):
+                oi_price_agreement = agreement_values[0]
+            else:
+                oi_price_agreement = "mixed"
+        else:
+            positioning_state = "unknown"
+            squeeze_risk = "unknown"
+            oi_price_agreement = "unknown"
+
+        return {
+            **feature_snapshot,
+            "oi_change_mean_pct": round(sum(oi_changes) / len(oi_changes), 4) if oi_changes else None,
+            "oi_acceleration_mean": round(sum(oi_accelerations) / len(oi_accelerations), 4) if oi_accelerations else None,
+            "liquidation_pressure_mean": round(sum(liquidation_pressures) / len(liquidation_pressures), 4)
+            if liquidation_pressures
+            else 0.0,
+            "funding_extreme_flag": funding_extreme,
+            "derivatives_state": {
+                "feed_status": (derivatives_report or {}).get("feed_status", "missing"),
+                "source": (derivatives_report or {}).get("source", "unavailable"),
+                "vendor_available": bool((derivatives_report or {}).get("vendor_available")),
+                "positioning_state": positioning_state,
+                "squeeze_risk": squeeze_risk,
+                "oi_price_agreement": oi_price_agreement,
+                "open_interest_change_pct": round(sum(oi_changes) / len(oi_changes), 4) if oi_changes else None,
+                "oi_acceleration": round(sum(oi_accelerations) / len(oi_accelerations), 4) if oi_accelerations else None,
+                "funding_extreme_flag": funding_extreme,
+                "liquidation_pressure_proxy": round(sum(liquidation_pressures) / len(liquidation_pressures), 4)
+                if liquidation_pressures
+                else 0.0,
+                "symbols": symbols,
+            },
+        }
+
+    def _build_replay_derivatives_report(
+        self,
+        *,
+        pair_frames: dict[str, dict[str, list[dict[str, Any]]]],
+        universe: list[str],
+        index: int,
+        generated_at: str,
+    ) -> dict[str, Any]:
+        symbols: list[dict[str, Any]] = []
+        for pair in universe:
+            frames = pair_frames[pair]
+            futures_1h = frames["1h"][: index + 1]
+            mark_1h = frames.get("mark", [])[: index + 1]
+            funding_1h = frames.get("funding", [])[: index + 1]
+            if len(futures_1h) < 2:
+                continue
+
+            latest = futures_1h[-1]
+            previous = futures_1h[-2]
+            latest_close = _safe_float(latest.get("close"), 0.0)
+            previous_close = _safe_float(previous.get("close"), latest_close)
+            price_change_pct = _pct_change(latest_close, previous_close) if previous_close else 0.0
+
+            latest_volume = _safe_float(latest.get("volume"), 0.0)
+            volume_window = [
+                _safe_float(row.get("volume"), 0.0)
+                for row in futures_1h[-24:]
+            ]
+            volume_spike = latest_volume / max(median(volume_window), 1e-9) if volume_window else 1.0
+
+            latest_mark = _safe_float((mark_1h[-1] if mark_1h else {}).get("close"), latest_close)
+            mark_premium_pct = _pct_change(latest_mark, latest_close) if latest_close else 0.0
+
+            funding_bps = None
+            if funding_1h:
+                latest_funding = funding_1h[-1]
+                for field_name in ("fundingRate", "funding_rate", "value", "close", "open"):
+                    if field_name in latest_funding:
+                        raw_value = _safe_float(latest_funding.get(field_name), 0.0)
+                        funding_bps = raw_value * 10000.0 if raw_value is not None else None
+                        break
+
+            # Proxy OI follows conviction and stress intensity until real vendor OI history is available.
+            oi_change_pct = round(
+                price_change_pct * 0.55 + max(0.0, volume_spike - 1.0) * 6.0 + mark_premium_pct * 1.8,
+                4,
+            )
+            if abs(price_change_pct) < 0.15 and volume_spike < 1.05:
+                oi_change_pct = round(oi_change_pct * 0.25, 4)
+
+            previous_oi_change_pct = 0.0
+            if len(futures_1h) >= 3:
+                prev_latest = futures_1h[-2]
+                prev_previous = futures_1h[-3]
+                prev_latest_close = _safe_float(prev_latest.get("close"), 0.0)
+                prev_previous_close = _safe_float(prev_previous.get("close"), prev_latest_close)
+                prev_price_change = _pct_change(prev_latest_close, prev_previous_close) if prev_previous_close else 0.0
+                prev_volume_window = [
+                    _safe_float(row.get("volume"), 0.0)
+                    for row in futures_1h[-25:-1]
+                ]
+                prev_volume_spike = (
+                    _safe_float(prev_latest.get("volume"), 0.0) / max(median(prev_volume_window), 1e-9)
+                    if prev_volume_window
+                    else 1.0
+                )
+                prev_mark = _safe_float((mark_1h[-2] if len(mark_1h) >= 2 else {}).get("close"), prev_latest_close)
+                prev_mark_premium = _pct_change(prev_mark, prev_latest_close) if prev_latest_close else 0.0
+                previous_oi_change_pct = round(
+                    prev_price_change * 0.55 + max(0.0, prev_volume_spike - 1.0) * 6.0 + prev_mark_premium * 1.8,
+                    4,
+                )
+
+            oi_acceleration = round(oi_change_pct - previous_oi_change_pct, 4)
+            open_interest = round(
+                max(0.0, latest_close * max(latest_volume, 0.0) * 0.015 * (1.0 + max(oi_change_pct, -95.0) / 100.0)),
+                4,
+            )
+            liquidation_pressure_proxy = round(
+                min(
+                    1.0,
+                    abs(price_change_pct) * 0.14
+                    + max(0.0, volume_spike - 1.0) * 0.35
+                    + abs(mark_premium_pct) * 0.3
+                    + max(0.0, abs(oi_acceleration) - 0.5) * 0.06,
+                ),
+                4,
+            )
+            symbols.append(
+                {
+                    "pair": pair,
+                    "open_interest": open_interest,
+                    "open_interest_change_pct": oi_change_pct,
+                    "oi_acceleration": oi_acceleration,
+                    "price_change_pct": round(price_change_pct, 4),
+                    "oi_price_agreement": self._derive_replay_oi_price_agreement(
+                        price_change_pct=price_change_pct,
+                        oi_change_pct=oi_change_pct,
+                    ),
+                    "funding_bps": round(funding_bps, 4) if funding_bps is not None else None,
+                    "funding_extreme_flag": bool(abs(funding_bps or 0.0) >= 8.0),
+                    "liquidation_pressure_proxy": liquidation_pressure_proxy,
+                    "positioning_state": self._derive_replay_positioning_state(
+                        price_change_pct=price_change_pct,
+                        oi_change_pct=oi_change_pct,
+                    ),
+                    "squeeze_risk": self._derive_replay_squeeze_risk(
+                        price_change_pct=price_change_pct,
+                        oi_change_pct=oi_change_pct,
+                        funding_bps=funding_bps,
+                        liquidation_pressure_proxy=liquidation_pressure_proxy,
+                    ),
+                }
+            )
+
+        return {
+            "generated_at": generated_at,
+            "source": "replay_proxy",
+            "feed_status": "replay_proxy",
+            "vendor_available": False,
+            "universe": [item["pair"] for item in symbols],
+            "symbols": symbols,
+        }
+
+    @staticmethod
+    def _derive_replay_oi_price_agreement(*, price_change_pct: float, oi_change_pct: float | None) -> str:
+        if oi_change_pct is None:
+            return "unknown"
+        if price_change_pct > 0 and oi_change_pct > 0:
+            return "trend_supported_up"
+        if price_change_pct < 0 and oi_change_pct > 0:
+            return "trend_supported_down"
+        if price_change_pct > 0 and oi_change_pct < 0:
+            return "short_covering"
+        if price_change_pct < 0 and oi_change_pct < 0:
+            return "long_unwind"
+        return "mixed"
+
+    def _derive_replay_positioning_state(self, *, price_change_pct: float, oi_change_pct: float | None) -> str:
+        agreement = self._derive_replay_oi_price_agreement(
+            price_change_pct=price_change_pct,
+            oi_change_pct=oi_change_pct,
+        )
+        mapping = {
+            "trend_supported_up": "long_build",
+            "trend_supported_down": "short_build",
+            "short_covering": "short_covering",
+            "long_unwind": "long_unwind",
+        }
+        return mapping.get(agreement, "mixed")
+
+    @staticmethod
+    def _derive_replay_squeeze_risk(
+        *,
+        price_change_pct: float,
+        oi_change_pct: float | None,
+        funding_bps: float | None,
+        liquidation_pressure_proxy: float,
+    ) -> str:
+        if oi_change_pct is None:
+            return "unknown"
+        if (
+            price_change_pct > 0.8
+            and oi_change_pct < -0.6
+            and (abs(funding_bps or 0.0) >= 4.0 or liquidation_pressure_proxy >= 0.45)
+        ):
+            return "high"
+        if (
+            price_change_pct < -0.8
+            and oi_change_pct < -0.6
+            and liquidation_pressure_proxy >= 0.45
+        ):
+            return "high"
+        if abs(price_change_pct) >= 0.5 or liquidation_pressure_proxy >= 0.3:
+            return "medium"
+        return "low"
+
     def _decorate_feature_snapshot(
         self,
         metrics: dict[str, Any],
@@ -551,14 +1025,36 @@ class RegimeDetector:
         else:
             volume_state = "normal"
 
-        if funding_abs_bps is None:
-            derivatives_state = "unavailable"
-        elif _safe_float(funding_abs_bps) >= _safe_float(thresholds.get("funding_extreme_bps"), 8.0):
-            derivatives_state = "stretched"
-        elif _safe_float(funding_abs_bps) >= _safe_float(thresholds.get("funding_elevated_bps"), 4.0):
-            derivatives_state = "elevated"
-        else:
-            derivatives_state = "neutral"
+        derivatives_state = metrics.get("derivatives_state")
+        if not isinstance(derivatives_state, dict):
+            if funding_abs_bps is None:
+                derivatives_state = {
+                    "feed_status": "unavailable",
+                    "source": "funding_only",
+                    "vendor_available": False,
+                    "positioning_state": "unknown",
+                    "squeeze_risk": "unknown",
+                    "oi_price_agreement": "unknown",
+                    "open_interest_change_pct": None,
+                    "oi_acceleration": None,
+                    "funding_extreme_flag": False,
+                    "liquidation_pressure_proxy": 0.0,
+                    "symbols": [],
+                }
+            else:
+                derivatives_state = {
+                    "feed_status": "funding_only",
+                    "source": "funding_only",
+                    "vendor_available": False,
+                    "positioning_state": "mixed",
+                    "squeeze_risk": "unknown",
+                    "oi_price_agreement": "unknown",
+                    "open_interest_change_pct": None,
+                    "oi_acceleration": None,
+                    "funding_extreme_flag": _safe_float(funding_abs_bps) >= _safe_float(thresholds.get("funding_extreme_bps"), 8.0),
+                    "liquidation_pressure_proxy": 0.0,
+                    "symbols": [],
+                }
 
         return {
             **metrics,
@@ -677,6 +1173,7 @@ class RegimeDetector:
         raw_classification: dict[str, Any],
         previous_report: dict[str, Any] | None,
         definition: dict[str, Any],
+        current_generated_at: str | None = None,
     ) -> dict[str, Any]:
         thresholds = definition.get("thresholds", {})
         previous_regime = (previous_report or {}).get("primary_regime")
@@ -710,9 +1207,9 @@ class RegimeDetector:
         delta_bars = 1
         if previous_report:
             previous_generated_at = self._parse_iso(previous_report.get("generated_at"))
-            current_generated_at = self._parse_iso(_now_iso())
-            if previous_generated_at and current_generated_at:
-                delta_minutes = max((current_generated_at - previous_generated_at).total_seconds() / 60.0, 0.0)
+            current_generated_at_dt = self._parse_iso(current_generated_at or _now_iso())
+            if previous_generated_at and current_generated_at_dt:
+                delta_minutes = max((current_generated_at_dt - previous_generated_at).total_seconds() / 60.0, 0.0)
                 delta_bars = max(int(round(delta_minutes / bar_minutes)), 1)
 
         previous_persistence = (previous_report or {}).get("regime_persistence") or {}
@@ -924,6 +1421,10 @@ class RegimeDetector:
         volatility_ratio = _safe_float(feature_snapshot.get("volatility_ratio"))
         volume_spike = _safe_float(feature_snapshot.get("volume_spike"))
         funding_mean_bps = _safe_float(feature_snapshot.get("funding_mean_bps"), 0.0)
+        derivatives_state = feature_snapshot.get("derivatives_state") or {}
+        oi_change_pct = _safe_float(derivatives_state.get("open_interest_change_pct"), None)
+        liquidation_pressure = _safe_float(derivatives_state.get("liquidation_pressure_proxy"), 0.0) or 0.0
+        squeeze_risk = str(derivatives_state.get("squeeze_risk") or "unknown")
 
         stress_move = _safe_float(thresholds.get("stress_move_abs_pct_min"), 1.6)
         squeeze_move = _safe_float(thresholds.get("squeeze_move_abs_pct_min"), 1.2)
@@ -934,13 +1435,31 @@ class RegimeDetector:
         )
 
         panic_flush = primary_regime == "stress_panic" and recent_move_pct <= -stress_move
-        short_squeeze = event_confirmed and recent_move_pct >= squeeze_move and htf_bias == "short"
-        long_squeeze = event_confirmed and recent_move_pct <= -squeeze_move and htf_bias == "long"
-        capitulation = panic_flush and funding_mean_bps <= -_safe_float(thresholds.get("funding_elevated_bps"), 4.0)
+        short_squeeze = (
+            event_confirmed
+            and recent_move_pct >= squeeze_move
+            and squeeze_risk in {"medium", "high"}
+            and oi_change_pct is not None
+            and oi_change_pct < 0
+        )
+        long_squeeze = (
+            event_confirmed
+            and recent_move_pct <= -squeeze_move
+            and squeeze_risk in {"medium", "high"}
+            and oi_change_pct is not None
+            and oi_change_pct < 0
+        )
+        capitulation = (
+            panic_flush
+            and liquidation_pressure >= 0.6
+            and (oi_change_pct is None or oi_change_pct < 0)
+            and funding_mean_bps <= -_safe_float(thresholds.get("funding_elevated_bps"), 4.0)
+        )
         deleveraging = (
-            primary_regime in {"stress_panic", "high_vol"}
-            and event_confirmed
-            and abs(funding_mean_bps) >= _safe_float(thresholds.get("funding_elevated_bps"), 4.0)
+            event_confirmed
+            and oi_change_pct is not None
+            and oi_change_pct <= -1.0
+            and liquidation_pressure >= 0.5
         )
         return {
             "panic_flush": panic_flush,
@@ -1079,7 +1598,8 @@ class RegimeDetector:
             "down_slope_confirmed": _safe_float(feature_snapshot.get("slope_pct")) <= -_safe_float(thresholds.get("slope_min_pct"), 0.08),
             "volatility_expanding": volatility_phase in {"expanding", "extreme"},
             "volume_spike": _safe_float(feature_snapshot.get("volume_spike")) >= _safe_float(thresholds.get("volume_spike_high"), 1.25),
-            "funding_extreme": _safe_float(feature_snapshot.get("funding_abs_bps")) >= _safe_float(thresholds.get("funding_extreme_bps"), 8.0),
+            "funding_extreme": bool((feature_snapshot.get("derivatives_state") or {}).get("funding_extreme_flag"))
+            or _safe_float(feature_snapshot.get("funding_abs_bps")) >= _safe_float(thresholds.get("funding_extreme_bps"), 8.0),
             "htf_ltf_aligned": htf_bias in {"long", "short"} and ltf_execution_state == "momentum_resuming",
             "phase_pullback": market_phase == "pullback",
             "phase_expansion": market_phase == "expansion",
@@ -1153,6 +1673,73 @@ class RegimeDetector:
         if alignment_score >= 0.62:
             return "moderate"
         return "low"
+
+    def _derive_risk_regime(
+        self,
+        *,
+        primary_regime: str,
+        risk_level: str,
+        execution_constraints: dict[str, bool],
+        active_event_flags: dict[str, bool],
+        consensus_strength: float,
+    ) -> str:
+        if active_event_flags.get("panic_flush") or active_event_flags.get("deleveraging"):
+            return "high"
+        if execution_constraints["no_trade_zone"]:
+            return "high"
+        if execution_constraints["post_shock_cooldown"] or execution_constraints["high_noise_environment"]:
+            return "elevated"
+        if risk_level == "high":
+            return "high"
+        if risk_level == "medium" or primary_regime in {"trend_down", "range"} or consensus_strength < 0.5:
+            return "elevated"
+        return "normal"
+
+    def _derive_regime_quality(
+        self,
+        *,
+        alignment_score: float,
+        execution_constraints: dict[str, bool],
+        market_phase: str,
+        active_event_flags: dict[str, bool],
+    ) -> float:
+        quality = alignment_score
+        if execution_constraints["no_trade_zone"]:
+            quality *= 0.25
+        elif execution_constraints["reduced_exposure_only"]:
+            quality *= 0.8
+        if execution_constraints["high_noise_environment"]:
+            quality *= 0.7
+        if execution_constraints["post_shock_cooldown"]:
+            quality *= 0.65
+        if market_phase == "compression":
+            quality *= 0.85
+        if any(active_event_flags.values()):
+            quality *= 0.75
+        return round(max(0.0, min(1.0, quality)), 4)
+
+    def _derive_market_leadership(
+        self,
+        symbol_features: list[dict[str, Any]],
+        consensus: dict[str, Any],
+    ) -> tuple[str | None, str]:
+        if not symbol_features:
+            return None, "unknown"
+        by_pair = {item["pair"]: item for item in symbol_features}
+        btc = by_pair.get("BTC/USDT:USDT")
+        eth = by_pair.get("ETH/USDT:USDT")
+        if not btc or not eth:
+            return None, "unknown"
+        btc_score = abs(_safe_float(btc.get("trend_spread_pct"))) + abs(_safe_float(btc.get("slope_pct"))) + _safe_float(btc.get("adx")) / 100.0
+        eth_score = abs(_safe_float(eth.get("trend_spread_pct"))) + abs(_safe_float(eth.get("slope_pct"))) + _safe_float(eth.get("adx")) / 100.0
+        lead_symbol = "BTC" if btc_score >= eth_score else "ETH"
+        if consensus.get("market_consensus", "").startswith("strong_"):
+            lag_confirmation = "strong"
+        elif consensus.get("market_consensus", "").startswith("weak_"):
+            lag_confirmation = "weak"
+        else:
+            lag_confirmation = "divergent"
+        return lead_symbol, lag_confirmation
 
     def _candidate_eligibility(
         self,
@@ -1242,6 +1829,101 @@ class RegimeDetector:
         scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
         return [candidate_id for _, candidate_id in scored]
 
+    def _summarize_replay_reports(
+        self,
+        *,
+        reports: list[dict[str, Any]],
+        bar_minutes: int,
+        definition: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not reports:
+            return {
+                "generated_at": _now_iso(),
+                "asof_timeframe": definition.get("asof_timeframe", "1h"),
+                "bar_count": 0,
+                "replay_status": "empty",
+                "warmup_bars": max(int(_safe_float(definition.get("thresholds", {}).get("replay_warmup_bars"), 48)), 24),
+                "regime_switches_total": 0,
+                "avg_minutes_in_regime": 0.0,
+                "no_trade_zone_share": 0.0,
+                "compression_to_expansion_count": 0,
+                "bias_followthrough_15m_pct": None,
+                "bias_followthrough_1h_pct": None,
+                "market_consensus_breakdown": {},
+                "regime_coverage": {},
+                "event_counts": {},
+                "notes": ["Replay nie wygenerowal jeszcze zadnych barow."],
+            }
+
+        regime_switches = 0
+        compression_to_expansion_count = 0
+        no_trade_count = 0
+        regime_counts: dict[str, int] = {}
+        consensus_counts: dict[str, int] = {}
+        event_counts = {
+            "panic_flush": 0,
+            "short_squeeze": 0,
+            "long_squeeze": 0,
+            "capitulation": 0,
+            "deleveraging": 0,
+        }
+        follow_15m_hits = 0
+        follow_15m_total = 0
+        follow_1h_hits = 0
+        follow_1h_total = 0
+
+        previous = None
+        for report in reports:
+            regime = str(report.get("primary_regime") or "unknown")
+            regime_counts[regime] = regime_counts.get(regime, 0) + 1
+            consensus = str(report.get("market_consensus") or "unknown")
+            consensus_counts[consensus] = consensus_counts.get(consensus, 0) + 1
+            if report.get("execution_constraints", {}).get("no_trade_zone"):
+                no_trade_count += 1
+            if previous and previous.get("primary_regime") != regime:
+                regime_switches += 1
+            if previous and previous.get("market_phase") == "compression" and report.get("market_phase") == "expansion":
+                compression_to_expansion_count += 1
+            for flag_name in event_counts:
+                if bool((report.get("feature_snapshot", {}) or {}).get("active_event_flags", {}).get(flag_name)):
+                    event_counts[flag_name] += 1
+                elif bool((report.get("active_event_flags") or {}).get(flag_name)):
+                    event_counts[flag_name] += 1
+
+            bias = str(report.get("bias") or "neutral")
+            current_move = _safe_float(report.get("feature_snapshot", {}).get("recent_move_pct"), 0.0) or 0.0
+            if bias in {"long", "short"}:
+                follow_15m_total += 1
+                follow_1h_total += 1
+                if (bias == "long" and current_move >= 0) or (bias == "short" and current_move <= 0):
+                    follow_15m_hits += 1
+                    follow_1h_hits += 1
+            previous = report
+
+        avg_minutes_in_regime = sum(
+            _safe_float(report.get("regime_persistence", {}).get("minutes_in_regime"), bar_minutes) or bar_minutes
+            for report in reports
+        ) / len(reports)
+        return {
+            "generated_at": _now_iso(),
+            "asof_timeframe": definition.get("asof_timeframe", "1h"),
+            "bar_count": len(reports),
+            "replay_status": "ready",
+            "warmup_bars": max(int(_safe_float(definition.get("thresholds", {}).get("replay_warmup_bars"), 48)), 24),
+            "regime_switches_total": regime_switches,
+            "avg_minutes_in_regime": round(avg_minutes_in_regime, 2),
+            "no_trade_zone_share": round(no_trade_count / len(reports), 4),
+            "compression_to_expansion_count": compression_to_expansion_count,
+            "bias_followthrough_15m_pct": round(follow_15m_hits / follow_15m_total, 4) if follow_15m_total else None,
+            "bias_followthrough_1h_pct": round(follow_1h_hits / follow_1h_total, 4) if follow_1h_total else None,
+            "market_consensus_breakdown": consensus_counts,
+            "regime_coverage": regime_counts,
+            "event_counts": event_counts,
+            "notes": [
+                "Replay summary sluzy do kalibracji progow i stabilnosci przejsc, nie do bezposredniego tradingu.",
+            ],
+        }
+
     def _parse_iso(self, value: Any) -> datetime | None:
         if not value:
             return None
@@ -1255,6 +1937,14 @@ class RegimeDetector:
         stamp = report["generated_at"].replace(":", "-")
         history_path = self.output_dir / f"regime-{stamp}.json"
         latest_path = self.output_dir / "latest.json"
+        self._atomic_write_json(history_path, report)
+        self._atomic_write_json(latest_path, report)
+
+    def _write_replay_report(self, report: dict[str, Any]) -> None:
+        self.replay_dir.mkdir(parents=True, exist_ok=True)
+        stamp = str(report["generated_at"]).replace(":", "-")
+        history_path = self.replay_dir / f"replay-{stamp}.json"
+        latest_path = self.replay_dir / "latest.json"
         self._atomic_write_json(history_path, report)
         self._atomic_write_json(latest_path, report)
 

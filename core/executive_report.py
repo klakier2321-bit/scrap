@@ -329,6 +329,8 @@ class ExecutiveReportService:
         candidate_assessments: list[dict[str, Any]] | None = None,
         candidate_dry_run: dict[str, Any] | None = None,
         regime_report: dict[str, Any] | None = None,
+        derivatives_report: dict[str, Any] | None = None,
+        regime_replay_report: dict[str, Any] | None = None,
         control_status: dict[str, Any] | None = None,
         coding_status: dict[str, Any] | None = None,
         coding_tasks: list[dict[str, Any]] | None = None,
@@ -350,6 +352,8 @@ class ExecutiveReportService:
         candidate_assessments = list(candidate_assessments or [])
         candidate_dry_run = dict(candidate_dry_run or {}) if candidate_dry_run else None
         regime_report = dict(regime_report or {}) if regime_report else None
+        derivatives_report = dict(derivatives_report or {}) if derivatives_report else None
+        regime_replay_report = dict(regime_replay_report or {}) if regime_replay_report else None
         control_status = dict(control_status or {}) if control_status else None
         dry_run_ready = bool(dry_run_health.get("ready"))
         control_layer_has_commits = any(
@@ -545,6 +549,30 @@ class ExecutiveReportService:
             ),
             None,
         )
+        selector_candidate = next(
+            (
+                candidate
+                for candidate in sorted(
+                    candidate_assessments,
+                    key=lambda item: (
+                        item.get("selector_rank") if item.get("selector_rank") is not None else 999,
+                        item.get("candidate_id", ""),
+                    ),
+                )
+                if candidate.get("selector_status") == "allowed"
+                and (candidate.get("runtime_policy") or {}).get("entry_allowed") is True
+            ),
+            None,
+        )
+        selector_decision = {
+            "selected_candidate_id": selector_candidate.get("candidate_id") if selector_candidate else None,
+            "selected_candidate_rank": selector_candidate.get("selector_rank") if selector_candidate else None,
+            "selected_strategy_name": selector_candidate.get("strategy_name") if selector_candidate else None,
+            "risk_regime": (regime_report or {}).get("risk_regime"),
+            "execution_constraints": (regime_report or {}).get("execution_constraints") or {},
+            "strategy_priority_order": (regime_report or {}).get("strategy_priority_order") or [],
+            "entry_allowed": bool((selector_candidate or {}).get("runtime_policy", {}).get("entry_allowed")),
+        }
         if shipping_candidate and shipping_candidate.get("dry_run_gate_status") not in {"ready", "telemetry_ready"}:
             blockers.append(
                 {
@@ -652,12 +680,15 @@ class ExecutiveReportService:
                 "shipping_candidate_id": (
                     shipping_candidate.get("candidate_id") if shipping_candidate else None
                 ),
+                "selector": selector_decision,
                 "candidate_assessments": candidate_assessments,
                 "candidate_dry_run": candidate_dry_run,
                 "factory_mode": "regime_first_freeze_build_keep_dry_run",
             },
             "regime": {
                 "latest": regime_report,
+                "derivatives": derivatives_report,
+                "replay": regime_replay_report,
             },
             "control_status": control_status,
             "assumptions": assumptions,
@@ -712,7 +743,10 @@ class ExecutiveReportService:
                 "candidate_dry_run_ready": 1
                 if (candidate_dry_run or {}).get("health", {}).get("ready")
                 else 0,
+                "selector_candidate_available": 1 if selector_candidate else 0,
                 "regime_available": 1 if regime_report else 0,
+                "derivatives_available": 1 if derivatives_report else 0,
+                "regime_replay_available": 1 if regime_replay_report else 0,
                 "control_status_available": 1 if control_status else 0,
                 "control_status_warn": 1 if (control_status or {}).get("overall_status") == "warn" else 0,
             },

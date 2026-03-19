@@ -25,7 +25,9 @@ from .schemas import (
     CandidateAssessmentResponse,
     CandidateDryRunResponse,
     ControlStatusResponse,
+    DerivativesStatusResponse,
     RegimeStatusResponse,
+    RegimeReplayResponse,
     BotStatus,
     BotSummary,
     CodingReviewDecisionRequest,
@@ -225,6 +227,31 @@ async def ops_control_status_latest(refresh: bool = Query(default=False)) -> Con
 )
 async def ops_control_status_generate() -> ControlStatusResponse:
     return ControlStatusResponse(**get_orchestrator().generate_control_status())
+
+
+@app.get(
+    "/ops/derivatives/latest",
+    response_model=DerivativesStatusResponse,
+    include_in_schema=False,
+)
+async def ops_derivatives_latest(refresh: bool = Query(default=False)) -> DerivativesStatusResponse:
+    report = (
+        get_orchestrator().generate_derivatives_report()
+        if refresh
+        else get_orchestrator().get_latest_derivatives_report()
+    )
+    if report is None:
+        raise HTTPException(status_code=404, detail="No derivatives report is available yet.")
+    return DerivativesStatusResponse(**report)
+
+
+@app.post(
+    "/ops/derivatives/generate",
+    response_model=DerivativesStatusResponse,
+    include_in_schema=False,
+)
+async def ops_derivatives_generate() -> DerivativesStatusResponse:
+    return DerivativesStatusResponse(**get_orchestrator().generate_derivatives_report())
 
 
 @app.get(
@@ -552,6 +579,31 @@ async def ops_regime_history(
     limit: int = Query(default=20, ge=1, le=100),
 ) -> JSONResponse:
     return JSONResponse({"reports": get_orchestrator().list_regime_history(limit=limit)})
+
+
+@app.get(
+    "/ops/regime/replay/latest",
+    response_model=RegimeReplayResponse,
+    include_in_schema=False,
+)
+async def ops_regime_replay_latest(refresh: bool = Query(default=False)) -> RegimeReplayResponse:
+    report = (
+        get_orchestrator().generate_regime_replay()
+        if refresh
+        else get_orchestrator().get_latest_regime_replay()
+    )
+    if report is None:
+        raise HTTPException(status_code=404, detail="No regime replay report is available yet.")
+    return RegimeReplayResponse(**report)
+
+
+@app.post(
+    "/ops/regime/replay/generate",
+    response_model=RegimeReplayResponse,
+    include_in_schema=False,
+)
+async def ops_regime_replay_generate() -> RegimeReplayResponse:
+    return RegimeReplayResponse(**get_orchestrator().generate_regime_replay())
 
 
 @app.get(

@@ -16,6 +16,22 @@ Aktualny tryb systemu:
 - kandydaty strategii są zamrożone do czasu gotowego regime engine
 - candidate dry-run zostaje jako pasywny telemetry lane
 
+## V2.1 kierunek
+
+Po `v1.5` priorytet przeszedł na:
+
+- pełną warstwę `derivatives`
+- replay i kalibrację progów
+- twarde spięcie z selector + risk layer w control plane
+
+Strategie nadal nie są właścicielem logiki reżimu. Najpierw control layer ma
+umieć powiedzieć:
+
+- czy kandydat w ogóle może otwierać nowe wejścia
+- jaki ma być `position_size_multiplier`
+- jaka ma być agresywność wejścia
+- czy rynek jest handlowalny czy tylko poprawnie sklasyfikowany
+
 ## V1.5 reżimów
 
 - `trend_up`
@@ -35,22 +51,24 @@ Detektor pozostaje regułowy, ale ma już dodatkowe warstwy:
 - `active_event_flags`
 - `execution_constraints`
 
-## Dane wejściowe v1.5
+## Dane wejściowe v2.1
 
 - struktura ceny i kierunek
 - ATR / rolling volatility
 - ADX / trend spread / slope
 - volume spike i relatywny wolumen
 - funding i mark price, jeśli dostępne
+- kanoniczny feed `derivatives`, jeśli jest dostępny
 - time/session bucket w formie pochodnej przez strukturę ruchu
 
-Na tym etapie nie ma jeszcze lokalnego feedu:
+Kanoniczny feed derivatives ma osobny artefakt:
 
-- open interest
-- OI change
-- liquidation data
+- `data/ai_control/derivatives/latest.json`
+- `data/ai_control/derivatives/derivatives-<timestamp>.json`
 
-To jest zaplanowane jako kolejna faza.
+Jeśli zewnętrzny vendor nie jest jeszcze dostępny, system schodzi do
+`degraded_proxy` i oznacza, że event flags są tylko ostrzeżeniem, nie twardą
+podstawą wejścia.
 
 ## Artefakt runtime
 
@@ -61,6 +79,11 @@ Kanoniczny raport reżimu:
 Historia:
 
 - `data/ai_control/regime/regime-<timestamp>.json`
+
+Replay i kalibracja:
+
+- `data/ai_control/regime_replay/latest.json`
+- `data/ai_control/regime_replay/replay-<timestamp>.json`
 
 ## Co raport zwraca
 
@@ -94,6 +117,23 @@ Nowe pola V1.5:
 - `eth_state`
 - `market_consensus`
 - `consensus_strength`
+- `risk_regime`
+- `regime_quality`
+- `lead_symbol`
+- `lag_confirmation`
+- `outcome_tracking_status`
+
+`derivatives_state` jest teraz obiektem, a nie prostym stringiem. Ma opisywać:
+
+- status feedu
+- dostępność vendora
+- `positioning_state`
+- `squeeze_risk`
+- `oi_price_agreement`
+- `open_interest_change_pct`
+- `oi_acceleration`
+- `funding_extreme_flag`
+- `liquidation_pressure_proxy`
 
 ## Stabilizacja
 
@@ -115,5 +155,7 @@ Reżimy są używane do:
 - blokowania strategii
 - de-riskingu
 - sterowania sizingiem i agresywnością wejścia
+- budowania runtime policy w control layer
 - porównywania wyników kandydatów między środowiskami rynku
 - wskazywania, które kandydaty byłyby dziś dopuszczone albo zablokowane
+- replay i kalibracji progów historycznych
