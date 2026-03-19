@@ -1,0 +1,39 @@
+{
+  "strategy_id": "structured_futures_baseline_v1",
+  "strategy_name": "StructuredFuturesBaselineStrategy",
+  "market_type": "futures",
+  "evaluation_scope": "broad_backtest_bundle",
+  "broad_windows": [
+    {
+      "name": "full_window",
+      "timerange": "20251119-20260319",
+      "total_trades": 23,
+      "total_profit_pct": 0.10,
+      "drawdown_pct": 0.27,
+      "long_profit_pct": 0.10,
+      "short_profit_pct": 0.0
+    },
+    {
+      "name": "recent_window",
+      "timerange": "20260215-20260319",
+      "total_trades": 8,
+      "total_profit_pct": 0.19,
+      "drawdown_pct": 0.11,
+      "long_profit_pct": 0.19,
+      "short_profit_pct": 0.0
+    }
+  ],
+  "gate_thresholds": {
+    "limited_dry_run_candidate": {
+      "full_window_total_profit_pct_min": 0.0,
+      "full_window_drawdown_pct_max": 1.0,
+      "recent_window_total_profit_pct_min": 0.0,
+      "active_side_must_not_be_harmful": true
+    }
+  },
+  "result": "pass_for_limited_dry_run",
+  "notes": [
+    "Baseline is currently treated as long-biased.",
+    "Short-side logic is explicitly parked and not counted as validated edge."
+  ]
+}

@@ -7,113 +7,118 @@ coding_runtime:
   max_target_files: 6
 
   modules:
-    - module_id: "strategy_orchestration"
+    - module_id: "candidate_baseline_runtime"
       owner_agent: "strategy_agent"
       enabled: true
       priority: 100
       max_target_files: 3
-      title: "Orkiestracja strategii futures"
-      module_summary: "Strategy lead spina lifecycle kandydatow, artefakty helperow i wspolny gate `backtest + risk + dry_run`."
+      title: "Baseline runtime candidate"
+      module_summary: "Strategy lead utrzymuje biezacy baseline candidate: manifest, promotion decision i shipping do ograniczonego dry_run."
       read_only_context:
         - "docs/ARCHITECTURE.md"
-        - "docs/TRADING_SYSTEM_MASTER_PLAN.md"
         - "docs/FUTURES_TRADING_MODEL.md"
+        - "docs/STRATEGY_LIFECYCLE.md"
+        - "docs/STRATEGY_PROMOTION_PIPELINE.md"
         - "data/ai_control/dry_run_snapshots/"
         - "data/ai_control/strategy_reports/"
         - "core/strategy_manager.py"
         - "core/risk_manager.py"
       target_candidates:
+        - "trading/freqtrade/user_data/strategies/structured_futures_baseline_strategy.py"
         - "research/candidates/structured_futures_baseline_v1/hypothesis.md"
         - "research/candidates/structured_futures_baseline_v1/strategy_manifest.yaml"
         - "research/promotion/structured_futures_baseline_v1_promotion_decision.md"
       acceptance_checks:
-        - "Zmiana nie modyfikuje runtime tradingowego ani sekretow."
-        - "Lifecycle strategii i ownership helperow sa jednoznaczne."
-        - "Kazdy kandydat przechodzi przez wspolny gate backtest + risk + dry_run."
+        - "Zmiana dotyczy tylko aktywnego baseline candidate, nie szerokiego foundation sweepu."
+        - "Baseline moze byc promowany tylko jako long-biased limited dry_run candidate, jesli short jest jawnie zaparkowany."
+        - "Kazda decyzja strategy leada wskazuje lifecycle, missing evidence i jeden next step."
       required_tests:
-        - "python -m compileall core ai_agents/runtime"
+        - "python -m compileall trading"
+        - "python -m unittest trading.tests.test_structured_futures_baseline"
       definition_of_done:
-        - "Strategy lead ma jawny model lifecycle, handoffow i promotion gate."
-        - "Diff jest maly, reviewowalny i nie wykracza poza scope strategii foundation."
+        - "Baseline candidate ma aktualny manifest, broad backtest evidence i promotion decision."
+        - "Diff jest maly, reviewowalny i nie wykracza poza scope jednego kandydata."
 
-    - module_id: "futures_feature_foundation"
+    - module_id: "candidate_short_research"
+      owner_agent: "alpha_research_agent"
+      enabled: true
+      priority: 98
+      max_target_files: 3
+      title: "Short candidate research"
+      module_summary: "Buduj osobny kandydat short-only albo short-first, bez mieszania go z baseline'em."
+      read_only_context:
+        - "docs/FUTURES_TRADING_MODEL.md"
+        - "docs/STRATEGY_LIFECYCLE.md"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
+        - "trading/freqtrade/user_data/strategies/structured_futures_baseline_strategy.py"
+      target_candidates:
+        - "trading/freqtrade/user_data/strategies/structured_futures_short_breakdown_strategy.py"
+        - "research/candidates/structured_futures_short_breakdown_v1/hypothesis.md"
+        - "research/candidates/structured_futures_short_breakdown_v1/strategy_manifest.yaml"
+      acceptance_checks:
+        - "Short candidate jest osobnym obiektem researchu i nie nadpisuje baseline'u."
+        - "Hipoteza jest falsyfikowalna i futures-aware."
+        - "Task nie miesza logiki strategii z risk reportem ani promotion decision."
+      required_tests:
+        - "python -m compileall trading"
+        - "python -m unittest trading.tests.test_structured_futures_baseline"
+      definition_of_done:
+        - "Istnieje osobny short candidate z hipoteza, manifestem i kompilujaca sie strategia."
+        - "Candidate pozostaje w stanie `research_experiment`, dopoki nie ma broad backtest evidence."
+
+    - module_id: "candidate_feature_support"
       owner_agent: "feature_engineering_agent"
       enabled: true
-      priority: 95
+      priority: 96
       max_target_files: 3
-      title: "Foundation cech i datasetow futures"
-      module_summary: "Buduj foundation futures-aware dla dataset buildera i feature store, bez jeszcze rozbudowanego silnika eksperymentow."
+      title: "Candidate feature support"
+      module_summary: "Dostarczaj tylko dataset spec i feature manifest potrzebny dla konkretnego kandydata, bez szerokiego feature-store sweepu."
       read_only_context:
-        - "docs/ARCHITECTURE.md"
         - "docs/FUTURES_TRADING_MODEL.md"
-        - "core/risk_manager.py"
+        - "docs/FEATURE_STORE.md"
+        - "trading/freqtrade/user_data/strategies/structured_futures_baseline_strategy.py"
         - "data/ai_control/dry_run_snapshots/"
         - "data/ai_control/strategy_reports/"
       target_candidates:
         - "research/datasets/structured_futures_baseline_v1_dataset_spec.yaml"
         - "research/features/structured_futures_baseline_v1_feature_manifest.yaml"
-        - "docs/FEATURE_STORE.md"
+        - "research/features/structured_futures_short_breakdown_v1_feature_manifest.yaml"
       acceptance_checks:
-        - "Zmiana traktuje futures jako futures, nie spot."
-        - "Foundation uwzglednia funding, leverage, slippage i regime context."
-        - "Nie ma zmian w live tradingu ani runtime configach."
+        - "Feature support dotyczy tylko aktywnego albo bezposrednio nastepnego kandydata."
+        - "Artefakty sa wersjonowane per candidate, a nie jako ogolna teoria."
+        - "Brak zmian w runtime tradingowym i brak szerokiego docs sweepu."
       required_tests:
-        - "python -m compileall core ai_agents/runtime"
+        - "python -m unittest trading.tests.test_structured_futures_baseline"
       definition_of_done:
-        - "Istnieje jawny foundation datasetow i feature store v1."
-        - "Artefakty sa wersjonowalne i czytelne dla strategy lead."
+        - "Kazdy aktywny candidate ma jawny dataset spec lub feature manifest."
+        - "Strategy lead dostaje versioned inputs bez interpretowania luznych pomyslow."
 
-    - module_id: "futures_risk_research"
+    - module_id: "candidate_risk_gate"
       owner_agent: "risk_research_agent"
       enabled: true
-      priority: 94
+      priority: 95
       max_target_files: 3
-      title: "Foundation risk research futures"
-      module_summary: "Buduj futures-aware risk foundation dla leverage, liquidation, concentration, funding drag i exposure."
+      title: "Candidate risk gate"
+      module_summary: "Dostarczaj lub aktualizuj tylko risk gate dla konkretnego kandydata, zamiast szerokiego risk foundation sweepu."
       read_only_context:
-        - "docs/ARCHITECTURE.md"
         - "docs/FUTURES_TRADING_MODEL.md"
+        - "docs/STRATEGY_PROMOTION_PIPELINE.md"
         - "core/risk_manager.py"
-        - "data/ai_control/dry_run_snapshots/"
         - "data/ai_control/strategy_reports/"
       target_candidates:
         - "research/risk/structured_futures_baseline_v1_risk_report.json"
-        - "docs/RISK_MODEL_FUTURES.md"
-        - "docs/SYSTEM_OPERATING_MODEL.md"
+        - "research/risk/structured_futures_short_breakdown_v1_risk_report.json"
+        - "research/risk/structured_futures_long_continuation_v1_risk_report.json"
       acceptance_checks:
-        - "Ryzyko jest opisane dla futures, nie dla spot."
+        - "Risk gate jest per candidate i odnosi sie do konkretnego broad backtest bundle."
         - "Brak omijania RiskManagera i brak zmian w runtime tradingowym."
-        - "Kazda polityka ryzyka ma sens biznesowy i mierzalne konsekwencje."
+        - "Jesli strona strategii jest zaparkowana, risk report mowi to wprost."
       required_tests:
-        - "python -m compileall core ai_agents/runtime"
+        - "python -m unittest trading.tests.test_structured_futures_baseline"
       definition_of_done:
-        - "Istnieje foundation risk modelu futures na poziomie strategii, portfela i systemu."
-        - "Risk research nadaje sie jako input do gate'u promotion."
-
-    - module_id: "alpha_research"
-      owner_agent: "alpha_research_agent"
-      enabled: false
-      priority: 40
-      max_target_files: 3
-      title: "Alpha research"
-      module_summary: "Generuj i filtruj male, testowalne hipotezy futures dopiero po foundation danych i ryzyka."
-      read_only_context:
-        - "docs/FUTURES_TRADING_MODEL.md"
-        - "docs/RESEARCH_LAYER.md"
-        - "docs/RISK_MODEL_FUTURES.md"
-        - "data/ai_control/dry_run_snapshots/"
-        - "data/ai_control/strategy_reports/"
-      target_candidates:
-        - "research/alpha/README.md"
-        - "research/candidates/hypothesis_template.md"
-        - "research/candidates/strategy_manifest_template.yaml"
-      acceptance_checks:
-        - "Hipotezy sa falsyfikowalne i male."
-        - "Nie ma promowania strategii z pomyslu bez evidence."
-      required_tests:
-        - "python -m compileall ai_agents/runtime"
-      definition_of_done:
-        - "Istnieje jasny wzorzec hipotezy i manifestu strategii futures."
+        - "Kazdy aktywny candidate ma mierzalny risk gate."
+        - "Risk report nadaje sie bezposrednio jako input do promotion decision."
 
     - module_id: "regime_detection"
       owner_agent: "regime_model_agent"
@@ -139,30 +144,32 @@ coding_runtime:
       definition_of_done:
         - "Istnieje jawny kontrakt reżimow do uzycia przez strategy lead i risk."
 
-    - module_id: "experiment_evaluation"
+    - module_id: "candidate_evaluation"
       owner_agent: "experiment_evaluation_agent"
-      enabled: false
-      priority: 38
+      enabled: true
+      priority: 94
       max_target_files: 3
-      title: "Experiment evaluation"
-      module_summary: "Porownuj kandydatow i buduj promotion evidence dopiero gdy istnieja juz foundation i hipotezy."
+      title: "Candidate evaluation"
+      module_summary: "Uruchamiaj broad backtest bundle dla aktywnego kandydata i przygotowuj promotion evidence tym samym gate'em dla wszystkich kandydatow."
       read_only_context:
-        - "docs/FEATURE_STORE.md"
-        - "docs/RISK_MODEL_FUTURES.md"
         - "docs/STRATEGY_LIFECYCLE.md"
+        - "docs/STRATEGY_PROMOTION_PIPELINE.md"
+        - "trading/freqtrade/user_data/backtest_results/"
         - "data/ai_control/dry_run_snapshots/"
         - "data/ai_control/strategy_reports/"
       target_candidates:
-        - "docs/EXPERIMENT_TRACKING.md"
-        - "research/experiments/README.md"
-        - "research/evaluation/README.md"
+        - "research/evaluation/structured_futures_baseline_v1_broad_backtest_summary.json"
+        - "research/promotion/structured_futures_baseline_v1_promotion_decision.md"
+        - "research/promotion/structured_futures_short_breakdown_v1_promotion_decision.md"
       acceptance_checks:
+        - "Broad backtest bundle uzywa zawsze tych samych okien czasu."
         - "Ocena kandydatow opiera sie na risk-adjusted quality."
         - "Brak promotion bez evidence bundle."
       required_tests:
-        - "python -m compileall ai_agents/runtime"
+        - "python -m unittest trading.tests.test_structured_futures_baseline"
       definition_of_done:
-        - "Istnieje kontrakt eksperymentow, porownania kandydatow i promotion evidence."
+        - "Aktywny candidate ma broad backtest summary i promotion decision."
+        - "Ocena porownawcza jest porownywalna miedzy kandydatami."
 
     - module_id: "control_layer_runtime"
       owner_agent: "control_layer_agent"

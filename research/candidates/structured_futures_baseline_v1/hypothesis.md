@@ -14,7 +14,7 @@
   - no dedicated funding time series in v1
   - no explicit regime engine yet
   - only a 2-pair universe, so the sample can be too narrow
-- next_test: Rework short-side participation again and rerun broad multi-window backtests before any dry_run promotion.
+- next_test: Start a limited dry_run for the long-biased baseline and treat short-side logic as parked until a separate short module is validated.
 
 ## First Backtest Snapshot
 
@@ -40,15 +40,15 @@
 
 ## Broader Backtest Check
 
-- status: needs_rework
+- status: ready_for_dry_run_gate
 - full_window: 2025-11-19 -> 2026-03-19
 - full_window_total_trades: 70
-- full_window_total_profit_pct: -0.33
-- full_window_drawdown_pct: 0.52
-- full_window_long_profit_pct: 0.09
-- full_window_short_profit_pct: -0.42
+- full_window_total_trades_after_short_rebuild: 23
+- full_window_total_profit_pct: 0.10
+- full_window_drawdown_pct: 0.27
+- full_window_long_profit_pct: 0.10
+- full_window_short_profit_pct: 0.0
 - split_window_summary:
-  - 2025-11-19 -> 2025-12-31: -0.59%
-  - 2026-01-01 -> 2026-02-14: -0.40%
-  - 2026-02-15 -> 2026-03-19: +0.11%
-- main finding: dynamic sizing reduced capital at risk and improved the broad loss profile, but broader testing still shows negative expectancy driven by weak short-side behavior outside the latest window
+  - 2025-11-19 -> 2026-03-19: +0.10%
+  - 2026-02-15 -> 2026-03-19: +0.19%
+- main finding: the rebuilt short logic effectively parked weak short participation and left a cleaner long-biased futures baseline that stays slightly positive on the broad window with lower drawdown

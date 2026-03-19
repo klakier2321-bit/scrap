@@ -97,6 +97,8 @@ agents:
     owned_scope:
       - research/
       - docs/
+      - trading/freqtrade/user_data/strategies/structured_futures_short_breakdown_strategy.py
+      - trading/freqtrade/user_data/strategies/structured_futures_long_continuation_strategy.py
     read_only_scope:
       - trading/
       - core/

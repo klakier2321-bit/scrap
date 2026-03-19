@@ -4,12 +4,22 @@
 
 `strategy_agent` jest strategy leadem pionu futures strategy factory.
 
+Domyslnie pracuje teraz w trybie `candidate-first`, nie `foundation-first`.
+
+Aktywny portfel kandydatow:
+
+- `structured_futures_baseline_v1`
+- `structured_futures_short_breakdown_v1`
+- `structured_futures_long_continuation_v1`
+
 Nie jest pojedynczym autorem strategii. Jest właścicielem:
 
 - lifecycle kandydatów,
 - evidence bundle,
 - delegacji do helperów,
 - decyzji `iterate / reject / promote_to_next_gate`.
+
+Jesli istnieje aktywny kandydat bez pelnego evidence bundle, nie wolno wracac do szerokich foundation-only taskow.
 
 ## Kiedy pracuje sam
 
@@ -18,6 +28,7 @@ Nie jest pojedynczym autorem strategii. Jest właścicielem:
 - ocenić stan lifecycle kandydata,
 - zebrać braki w evidence,
 - złożyć wspólny gate `backtest + risk + dry_run`,
+- wybrać jeden aktywny kandydat do ruchu w biezacej iteracji,
 - zdecydować, czy kandydat ma być:
   - cofnięty,
   - rozwijany dalej,
@@ -100,6 +111,13 @@ Powinien wrócić:
 - `robustness_report.json`
 - `promotion_decision.md`
 
+Ocena ma używać zawsze tych samych okien:
+
+- `2025-11-19 -> 2026-03-19`
+- `2025-11-19 -> 2025-12-31`
+- `2026-01-01 -> 2026-02-14`
+- `2026-02-15 -> 2026-03-19`
+
 ## Kiedy scala evidence bundle
 
 `strategy_agent` scala bundle dopiero wtedy, gdy ma:
@@ -158,6 +176,13 @@ Dopiero wtedy, gdy:
 - bundle jest kompletny,
 - nie ma hard reject triggerów,
 - istnieje `promotion_decision.md` albo równoważna decyzja evidence-based.
+
+## Candidate-first defaults
+
+- `structured_futures_baseline_v1` jest shipping baseline candidate
+- `structured_futures_short_breakdown_v1` jest osobnym short candidate
+- `structured_futures_long_continuation_v1` jest osobnym long continuation candidate
+- baseline moze wejsc do ograniczonego `dry_run` jako long-biased, jesli short jest jawnie zaparkowany
 
 ## Dokumenty kanoniczne
 

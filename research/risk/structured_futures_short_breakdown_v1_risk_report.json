@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "strategy_id": "structured_futures_short_breakdown_v1",
+  "status": "research_only",
+  "market_type": "futures",
+  "margin_mode": "isolated",
+  "leverage_cap": 2.0,
+  "max_open_trades": 1,
+  "max_risk_per_trade_pct": 0.6,
+  "max_portfolio_exposure_pct": 35.0,
+  "max_pair_exposure_pct": 20.0,
+  "promotion_gate": "blocked_until_broad_backtest_exists",
+  "notes": [
+    "Short candidate is intentionally isolated from the baseline.",
+    "Broad backtest evidence must exist before any dry_run decision."
+  ]
+}

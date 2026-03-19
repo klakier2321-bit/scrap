@@ -12,6 +12,8 @@ trading/freqtrade/user_data/*
 !trading/freqtrade/user_data/strategies/
 trading/freqtrade/user_data/strategies/*
 !trading/freqtrade/user_data/strategies/structured_futures_baseline_strategy.py
+!trading/freqtrade/user_data/strategies/structured_futures_short_breakdown_strategy.py
+!trading/freqtrade/user_data/strategies/structured_futures_long_continuation_strategy.py
 !trading/freqtrade/user_data/config.backtest.futures.baseline.json
 !trading/freqtrade/user_data/config.dryrun.futures.baseline.json
 trading/freqtrade/user_data/config.json

@@ -1,0 +1,16 @@
+version: 1
+strategy_id: structured_futures_short_breakdown_v1
+feature_set:
+  - ema_fast
+  - ema_slow
+  - ema_trend
+  - rsi
+  - adx
+  - macd
+  - macdsignal
+  - trend_spread
+  - swing_low_6
+  - breakdown_short
+  - volume_mean_20
+notes:
+  - feature set is intentionally small and breakout-oriented

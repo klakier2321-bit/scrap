@@ -9,6 +9,8 @@ Checklistę stosuj zawsze przed:
 - odrzuceniem lub parkowaniem strategii,
 - delegacją zadania do helpera.
 
+Jesli istnieje aktywny kandydat bez pelnego evidence bundle, nie wracaj do szerokiego foundation-only worku.
+
 ## A. Futures Reality Check
 
 - Czy strategia jest oceniana jako `futures`, a nie `spot`?
@@ -55,6 +57,7 @@ Sprawdź:
 - w jakim stanie lifecycle jest kandydat,
 - czy ma komplet artefaktów dla tego stanu,
 - czy wolno go przenieść dalej,
+- czy jest to shipping candidate czy tylko research candidate,
 - czy powinien być:
   - `rejected`
   - `parked`
@@ -92,6 +95,7 @@ Natychmiast odrzucaj lub cofaj pomysł, jeśli widać:
 - traktowanie futures jak spot,
 - próbę obejścia `RiskManager`,
 - próbę promocji bez pełnego evidence bundle.
+- foundation-only task, mimo ze aktywny kandydat nie ma jeszcze broad backtest summary albo promotion decision.
 
 ## G. Required Output Contract
 

@@ -9,6 +9,7 @@
 - `validated_candidate`
 - `risk_approved_candidate`
 - `dry_run_candidate`
+- `limited_dry_run_candidate`
 - `reviewed_candidate`
 - `promoted_candidate`
 - `future_live_candidate`
@@ -26,4 +27,3 @@
 
 Tylko `strategy_agent` może przenosić strategię między głównymi stanami lifecycle.
 Helperzy dostarczają evidence, nie decyzję końcową.
-

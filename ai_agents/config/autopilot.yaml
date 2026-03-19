@@ -1,42 +1,23 @@
 autopilot:
-  objective: "Oszczednie kierowac moc obliczeniowa glownie na pion strategii futures: strategy lead, feature foundation i risk foundation. Platforme utrzymywac stabilnie, ale bez kosztownego ciaglego ruchu poza blockerami runtime."
+  objective: "Produkować realne kandydaty strategii futures szybciej przez candidate-first loop: hypothesis -> strategy -> broad backtests -> risk gate -> promotion decision -> limited dry_run. Nie spalac mocy na szeroki foundation/docs, jesli aktywny kandydat nie ma jeszcze kompletnego evidence bundle."
   auto_start: true
   poll_interval_seconds: 600
   max_cycles: 0
 
   tasks:
-    - name: "lead_next_increment"
-      agent_name: "system_lead_agent"
-      goal: "Wyznacz jeden maly, konkretny i bezpieczny krok, ktory bezposrednio wzmacnia foundation pionu strategii futures albo usuwa runtime blocker blokujacy strategie. Nie generuj nowych szerokich torow architektury, GUI ani monitoringu bez twardej potrzeby."
-      business_reason: "Glowny agent ma teraz przede wszystkim pilnowac ekonomicznego tempa i przesuwac koszt tam, gdzie buduje edge: strategy lead, feature foundation i risk foundation."
-      requested_paths:
-        - "research/"
-        - "docs/STRATEGY_LIFECYCLE.md"
-        - "docs/STRATEGY_PROMOTION_PIPELINE.md"
-        - "docs/RESEARCH_LAYER.md"
-        - "docs/FEATURE_STORE.md"
-        - "docs/RISK_MODEL_FUTURES.md"
-        - "data/ai_control/dry_run_snapshots/"
-        - "data/ai_control/strategy_reports/"
-        - "core/risk_manager.py"
-      risk_level: "medium"
-      cross_layer: true
-      does_touch_contract: false
-      does_touch_runtime: false
-      force_strong_model: false
-      auto_approve: true
-
-    - name: "strategy_lead_foundation"
+    - name: "candidate_runtime_watch"
       agent_name: "strategy_agent"
-      goal: "Jako strategy lead wyznacz jeden maly, konkretny i bezpieczny krok dla futures strategy factory: lifecycle, handoff helperow albo promotion gate."
-      business_reason: "Pion strategii futures ma ruszyc od razu, ale przez male, reviewowalne foundation tasks zamiast chaosu."
+      goal: "Przesun aktywny kandydat strategii o jeden stan lifecycle: zbierz brakujace evidence, zadecyduj `reject / iterate / move_to_backtest / move_to_limited_dry_run` i nie generuj foundation-only taskow, jesli kandydat nie ma pelnego evidence bundle."
+      business_reason: "Strategy lead ma zarzadzac konkretnym portfolio kandydatow, a nie wracac do szerokich taskow dokumentacyjnych."
       requested_paths:
-        - "docs/"
-        - "research/"
-        - "trading/"
+        - "research/candidates/structured_futures_baseline_v1/"
+        - "research/candidates/structured_futures_short_breakdown_v1/"
+        - "research/candidates/structured_futures_long_continuation_v1/"
+        - "research/evaluation/"
+        - "research/promotion/"
+        - "trading/freqtrade/user_data/strategies/structured_futures_baseline_strategy.py"
         - "data/ai_control/dry_run_snapshots/"
         - "data/ai_control/strategy_reports/"
-        - "core/risk_manager.py"
       risk_level: "medium"
       cross_layer: false
       does_touch_contract: false
@@ -45,16 +26,49 @@ autopilot:
       auto_approve: false
       allow_parallel: true
 
-    - name: "feature_foundation_watch"
-      agent_name: "feature_engineering_agent"
-      goal: "Doprecyzuj foundation futures-aware dataset buildera i feature store v1 tak, aby strategy factory miala versioned inputs zamiast luznych pomyslow."
-      business_reason: "Strategy factory potrzebuje danych i cech jako foundation, inaczej hipotezy beda chaotyczne i nieporownywalne."
+    - name: "candidate_short_build"
+      agent_name: "alpha_research_agent"
+      goal: "Zbuduj osobny short candidate futures jako research experiment: osobna hipoteza, osobny manifest i osobna strategia short-only lub short-first. Nie mieszaj tego z baseline'em."
+      business_reason: "Short ma byc rozwijany jako osobny kandydat zamiast dalej zanieczyszczac baseline long-biased."
       requested_paths:
-        - "docs/FUTURES_TRADING_MODEL.md"
-        - "docs/RESEARCH_LAYER.md"
-        - "docs/FEATURE_STORE.md"
-        - "research/"
-        - "data/ai_control/dry_run_snapshots/"
+        - "research/candidates/structured_futures_short_breakdown_v1/"
+        - "trading/freqtrade/user_data/strategies/structured_futures_short_breakdown_strategy.py"
+        - "trading/freqtrade/user_data/strategies/structured_futures_baseline_strategy.py"
+        - "data/ai_control/strategy_reports/"
+      risk_level: "medium"
+      cross_layer: false
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false
+      allow_parallel: true
+
+    - name: "candidate_feature_support"
+      agent_name: "feature_engineering_agent"
+      goal: "Dostarcz tylko dataset spec i feature manifest potrzebny dla aktywnego albo bezposrednio nastepnego kandydata. Nie wracaj do ogolnego feature-store sweepu."
+      business_reason: "Kandydaci potrzebuja versioned inputs per candidate, inaczej strategy lead sklada evidence z luznych notatek."
+      requested_paths:
+        - "research/datasets/"
+        - "research/features/"
+        - "research/candidates/"
+        - "trading/freqtrade/user_data/strategies/"
+      risk_level: "low"
+      cross_layer: false
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false
+      allow_parallel: true
+
+    - name: "candidate_risk_support"
+      agent_name: "risk_research_agent"
+      goal: "Zaktualizuj tylko risk gate aktywnego lub nastepnego kandydata: leverage, exposure, side imbalance i decyzja czy dana strona ma byc aktywna czy zaparkowana."
+      business_reason: "Risk gate ma filtrowac kandydatow szybko i per candidate, zamiast tworzyc szerokie foundation docs bez ruchu na strategiach."
+      requested_paths:
+        - "research/risk/"
+        - "research/candidates/"
+        - "docs/RISK_MODEL_FUTURES.md"
+        - "core/risk_manager.py"
         - "data/ai_control/strategy_reports/"
       risk_level: "low"
       cross_layer: false
@@ -64,17 +78,16 @@ autopilot:
       auto_approve: false
       allow_parallel: true
 
-    - name: "risk_research_foundation"
-      agent_name: "risk_research_agent"
-      goal: "Doprecyzuj foundation futures risk architecture dla leverage, liquidation, funding drag, concentration i exposure tak, aby strategy factory byla risk-first."
-      business_reason: "Przewaga nie ma sensu bez futures-aware risk architecture, wiec risk research musi ruszyc od razu razem z foundation strategii."
+    - name: "candidate_eval_watch"
+      agent_name: "experiment_evaluation_agent"
+      goal: "Ocen aktywny kandydat przez broad backtest bundle z ustalonymi 4 oknami, porownaj go z poprzednim stanem i zwroc jeden werdykt evidence-based."
+      business_reason: "Realne zarabiajace strategie powstana tylko wtedy, gdy kandydaci beda szybko i brutalnie odsiewani tym samym zestawem okien i progow."
       requested_paths:
-        - "docs/FUTURES_TRADING_MODEL.md"
-        - "docs/RISK_MODEL_FUTURES.md"
-        - "docs/SYSTEM_OPERATING_MODEL.md"
-        - "research/"
-        - "core/risk_manager.py"
-        - "data/ai_control/dry_run_snapshots/"
+        - "research/evaluation/"
+        - "research/promotion/"
+        - "research/candidates/"
+        - "research/risk/"
+        - "trading/freqtrade/user_data/backtest_results/"
       risk_level: "low"
       cross_layer: false
       does_touch_contract: false

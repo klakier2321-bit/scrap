@@ -1,0 +1,15 @@
+version: 1
+strategy_id: structured_futures_long_continuation_v1
+feature_set:
+  - ema_fast
+  - ema_slow
+  - ema_trend
+  - rsi
+  - adx
+  - macd
+  - macdsignal
+  - trend_spread
+  - swing_high_6
+  - volume_mean_20
+notes:
+  - feature set is intentionally small and trend-continuation oriented

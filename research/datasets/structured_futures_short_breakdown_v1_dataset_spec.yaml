@@ -1,0 +1,19 @@
+version: 1
+strategy_id: structured_futures_short_breakdown_v1
+market_type: futures
+universe:
+  - BTC/USDT:USDT
+  - ETH/USDT:USDT
+timeframes:
+  primary: 5m
+  informative:
+    - 1h
+required_inputs:
+  - OHLCV
+  - mark_price
+  - funding_rate
+  - volume
+  - adx
+  - macd
+notes:
+  - candidate focuses on downside breakdowns, not generic mean reversion

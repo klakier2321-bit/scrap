@@ -325,6 +325,7 @@ idea
 -> validated_candidate
 -> risk_approved_candidate
 -> dry_run_candidate
+-> limited_dry_run_candidate
 -> reviewed_candidate
 -> promoted_candidate
 -> future_live_candidate

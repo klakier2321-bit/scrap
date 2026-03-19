@@ -19,11 +19,29 @@ STRATEGY_PATH = (
     / "strategies"
     / "structured_futures_baseline_strategy.py"
 )
+SHORT_STRATEGY_PATH = (
+    REPO_ROOT
+    / "trading"
+    / "freqtrade"
+    / "user_data"
+    / "strategies"
+    / "structured_futures_short_breakdown_strategy.py"
+)
+LONG_STRATEGY_PATH = (
+    REPO_ROOT
+    / "trading"
+    / "freqtrade"
+    / "user_data"
+    / "strategies"
+    / "structured_futures_long_continuation_strategy.py"
+)
 
 
 class StructuredFuturesBaselineTests(unittest.TestCase):
     def test_strategy_file_compiles(self) -> None:
         py_compile.compile(str(STRATEGY_PATH), doraise=True)
+        py_compile.compile(str(SHORT_STRATEGY_PATH), doraise=True)
+        py_compile.compile(str(LONG_STRATEGY_PATH), doraise=True)
 
     def test_backtest_config_is_futures_specific(self) -> None:
         config_path = (
@@ -53,7 +71,16 @@ class StructuredFuturesBaselineTests(unittest.TestCase):
         manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
         self.assertEqual(manifest["market_type"], "futures")
         self.assertEqual(manifest["allowed_sides"], "both")
-        self.assertIn(manifest["status"], {"hypothesis", "needs_rework", "dry_run_candidate"})
+        self.assertIn(
+            manifest["status"],
+            {
+                "hypothesis",
+                "needs_rework",
+                "dry_run_candidate",
+                "limited_dry_run_candidate",
+                "research_experiment",
+            },
+        )
         for key in (
             "hypothesis_path",
             "dataset_spec_path",
@@ -62,6 +89,45 @@ class StructuredFuturesBaselineTests(unittest.TestCase):
             "promotion_decision_path",
         ):
             self.assertTrue((REPO_ROOT / manifest[key]).exists(), key)
+
+    def test_candidate_factory_has_three_concrete_candidates(self) -> None:
+        candidate_manifests = [
+            REPO_ROOT
+            / "research"
+            / "candidates"
+            / "structured_futures_baseline_v1"
+            / "strategy_manifest.yaml",
+            REPO_ROOT
+            / "research"
+            / "candidates"
+            / "structured_futures_short_breakdown_v1"
+            / "strategy_manifest.yaml",
+            REPO_ROOT
+            / "research"
+            / "candidates"
+            / "structured_futures_long_continuation_v1"
+            / "strategy_manifest.yaml",
+        ]
+        for manifest_path in candidate_manifests:
+            manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["market_type"], "futures")
+            self.assertIn(
+                manifest["status"],
+                {
+                    "research_experiment",
+                    "dry_run_candidate",
+                    "limited_dry_run_candidate",
+                    "needs_rework",
+                },
+            )
+            for key in (
+                "hypothesis_path",
+                "dataset_spec_path",
+                "feature_manifest_path",
+                "risk_report_path",
+                "promotion_decision_path",
+            ):
+                self.assertTrue((REPO_ROOT / manifest[key]).exists(), key)
 
     def test_risk_report_has_first_candidate_limits(self) -> None:
         risk_report_path = (
