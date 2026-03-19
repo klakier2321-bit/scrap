@@ -23,7 +23,7 @@ class AppSettings(BaseSettings):
     docker_socket_path: str = "unix:///var/run/docker.sock"
     freqtrade_user_data_dir: str = "/app/trading/freqtrade/user_data"
     agent_run_timeout_seconds: int = 180
-    agent_max_parallel_runs: int = 1
+    agent_max_parallel_runs: int = 3
     agent_global_daily_budget_usd: float = 5.0
     agent_global_per_run_budget_usd: float = 0.5
     agent_allow_mock_fallback: bool = True

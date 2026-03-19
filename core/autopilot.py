@@ -24,6 +24,7 @@ class AutopilotTask:
     name: str
     payload: dict[str, Any]
     auto_approve: bool = False
+    allow_parallel: bool = False
 
 
 class AutopilotService:
@@ -84,6 +85,7 @@ class AutopilotService:
                     name=item["name"],
                     payload=payload,
                     auto_approve=bool(item.get("auto_approve", False)),
+                    allow_parallel=bool(item.get("allow_parallel", False)),
                 )
             )
 
@@ -157,8 +159,7 @@ class AutopilotService:
         }
 
     def _sync_active_run_state(self) -> None:
-        runs = self.orchestrator.list_runs(limit=50)
-        active = [run for run in runs if run.get("status") in ACTIVE_RUN_STATUSES]
+        active = self._active_runs()
         if not active:
             self._current_run_id = None
             if self._current_task_name and not (self._thread and self._thread.is_alive()):
@@ -173,14 +174,40 @@ class AutopilotService:
         if task_name:
             self._current_task_name = str(task_name)
 
-    def _has_active_runs(self) -> bool:
+    def _active_runs(self) -> list[dict[str, Any]]:
         runs = self.orchestrator.list_runs(limit=50)
-        active = [run for run in runs if run.get("status") in ACTIVE_RUN_STATUSES]
-        if active:
-            self._current_run_id = active[0]["run_id"]
-            return True
-        self._current_run_id = None
-        return False
+        return [run for run in runs if run.get("status") in ACTIVE_RUN_STATUSES]
+
+    def _active_autopilot_task_names(self, runs: list[dict[str, Any]]) -> set[str]:
+        names: set[str] = set()
+        for run in runs:
+            payload = run.get("payload_json") or {}
+            metadata = payload.get("metadata") or {}
+            task_name = metadata.get("autopilot_task")
+            if task_name:
+                names.add(str(task_name))
+        return names
+
+    def _select_next_task(
+        self,
+        tasks: list[AutopilotTask],
+        *,
+        active_task_names: set[str],
+        active_count: int,
+        max_parallel_runs: int,
+    ) -> tuple[int, AutopilotTask] | None:
+        if not tasks or active_count >= max_parallel_runs:
+            return None
+
+        for offset in range(len(tasks)):
+            index = (self._cycle_index + offset) % len(tasks)
+            task = tasks[index]
+            if task.name in active_task_names:
+                continue
+            if active_count > 0 and not task.allow_parallel:
+                continue
+            return index, task
+        return None
 
     def _sleep_until_next_cycle(self, seconds: int) -> None:
         deadline = time.time() + max(seconds, 1)
@@ -211,11 +238,25 @@ class AutopilotService:
                 self._sleep_until_next_cycle(config.get("poll_interval_seconds", 60))
                 continue
 
-            if self._has_active_runs():
+            active_runs = self._active_runs()
+            active_count = len(active_runs)
+            if active_runs:
+                self._current_run_id = active_runs[0]["run_id"]
+            else:
+                self._current_run_id = None
+
+            max_parallel_runs = max(1, int(self.orchestrator.settings.agent_max_parallel_runs))
+            selection = self._select_next_task(
+                tasks,
+                active_task_names=self._active_autopilot_task_names(active_runs),
+                active_count=active_count,
+                max_parallel_runs=max_parallel_runs,
+            )
+            if selection is None:
                 self._sleep_until_next_cycle(5)
                 continue
 
-            task = tasks[self._cycle_index % len(tasks)]
+            next_index, task = selection
             payload = dict(task.payload)
             payload["metadata"] = dict(payload.get("metadata", {}))
             payload["metadata"]["autopilot_cycle"] = self._cycle_count + 1
@@ -257,11 +298,15 @@ class AutopilotService:
                 )
 
             self._cycle_count += 1
-            self._cycle_index = (self._cycle_index + 1) % len(tasks)
+            self._cycle_index = (next_index + 1) % len(tasks)
             self._sync_active_run_state()
             if self._current_run_id is None:
                 self._current_task_name = None
-            self._sleep_until_next_cycle(config.get("poll_interval_seconds", 60))
+            remaining_capacity = max_parallel_runs - len(self._active_runs())
+            if remaining_capacity > 0:
+                self._sleep_until_next_cycle(1)
+            else:
+                self._sleep_until_next_cycle(config.get("poll_interval_seconds", 60))
             self._sync_active_run_state()
             if self._current_run_id is None:
                 self._current_task_name = None

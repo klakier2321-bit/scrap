@@ -118,6 +118,7 @@ autopilot:
       does_touch_runtime: false
       force_strong_model: false
       auto_approve: false
+      allow_parallel: true
 
     - name: "feature_foundation_watch"
       agent_name: "feature_engineering_agent"
@@ -136,6 +137,7 @@ autopilot:
       does_touch_runtime: false
       force_strong_model: false
       auto_approve: false
+      allow_parallel: true
 
     - name: "risk_research_foundation"
       agent_name: "risk_research_agent"
@@ -154,3 +156,4 @@ autopilot:
       does_touch_runtime: false
       force_strong_model: false
       auto_approve: false
+      allow_parallel: true
