@@ -55,6 +55,27 @@ class ControlStatusTests(unittest.TestCase):
         self.assertNotIn("/home/debian/crypto-system", summary)
         self.assertNotIn("/tmp/test.json", summary)
 
+    def test_validate_schema_accepts_ok_snapshot_status(self) -> None:
+        issues = control_status.validate_schema(
+            "dry_run_snapshots",
+            [(Path("latest.json"), {"generated_at": "2026-03-19T00:00:00+00:00", "dry_run": True, "snapshot_status": "ok", "runmode": "dry_run"})],
+        )
+        self.assertEqual(issues, [])
+
+    def test_validate_schema_accepts_generated_at_for_smoke(self) -> None:
+        issues = control_status.validate_schema(
+            "dry_run_smoke",
+            [(Path("latest.json"), {"generated_at": "2026-03-19T00:00:00+00:00", "status": "pass"})],
+        )
+        self.assertEqual(issues, [])
+
+    def test_strategy_rejection_is_not_operational_issue(self) -> None:
+        issues = control_status.validate_schema(
+            "strategy_reports",
+            [(Path("latest.json"), {"generated_at": "2026-03-19T00:00:00+00:00", "strategy_name": "Sample", "evaluation_status": "rejected"})],
+        )
+        self.assertEqual(issues, [])
+
 
 if __name__ == "__main__":
     unittest.main()

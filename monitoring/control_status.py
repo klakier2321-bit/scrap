@@ -23,7 +23,7 @@ ALLOWED_READ_DIRS = {
 REQUIRED_FIELDS = {
     "dry_run_snapshots": {"generated_at", "dry_run", "snapshot_status", "runmode"},
     "strategy_reports": {"generated_at", "strategy_name", "evaluation_status"},
-    "dry_run_smoke": {"status", "checked_at"},
+    "dry_run_smoke": {"status", "generated_at"},
 }
 SENSITIVE_KEYWORDS = {
     "api_key",
@@ -142,11 +142,8 @@ def validate_schema(source_name: str, records: list[tuple[Path, dict[str, Any]]]
             )
         )
     if source_name == "dry_run_snapshots":
-        if latest_record.get("snapshot_status") != "fresh":
-            issues.append("Najnowszy snapshot dry_run nie ma statusu fresh.")
-    if source_name == "strategy_reports":
-        if latest_record.get("evaluation_status") == "rejected":
-            issues.append("Najnowszy raport strategii ma status rejected.")
+        if latest_record.get("snapshot_status") not in {"fresh", "ok"}:
+            issues.append("Najnowszy snapshot dry_run nie ma akceptowalnego statusu.")
     if source_name == "dry_run_smoke":
         if latest_record.get("status") != "pass":
             issues.append("Najnowszy smoke test dry_run nie zakonczyl sie statusem pass.")

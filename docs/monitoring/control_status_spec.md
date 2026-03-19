@@ -4,6 +4,9 @@
 
 `control_status` daje bezpieczny, zwięzły obraz gotowości platformy bez ujawniania surowych payloadów runtime.
 
+Jest to raport operacyjny.
+Ocena jakości strategii pozostaje w executive report i strategy readiness gate, więc sam status `rejected` raportu strategii nie jest tu traktowany jako awaria warstwy operatorskiej.
+
 ## Dozwolone wejścia
 
 Moduł czyta wyłącznie JSON z:
@@ -56,7 +59,7 @@ Wymagane pola:
 
 Wymagane pola:
 
-- `checked_at`
+- `generated_at`
 - `status`
 
 ## Znane ograniczenia
