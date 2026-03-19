@@ -37,14 +37,17 @@ def _definition() -> dict[str, object]:
             "low_volatility_ratio_max": 0.85,
             "compression_volatility_ratio_max": 0.90,
             "compression_std_ratio_max": 0.95,
+            "compression_recent_move_abs_pct_max": 0.45,
+            "compression_volume_spike_max": 1.55,
+            "compression_range_spread_max_pct": 0.18,
             "high_volatility_ratio_min": 1.2,
             "expansion_volatility_ratio_min": 1.15,
             "cooling_volatility_ratio_max": 1.05,
             "extreme_volatility_ratio_min": 1.8,
             "stress_volatility_ratio_min": 1.8,
             "high_std_ratio_min": 1.15,
-            "low_candle_spread_max": 0.0025,
-            "low_volume_spike_max": 0.9,
+            "low_candle_spread_max": 0.003,
+            "low_volume_spike_max": 1.0,
             "volume_spike_high": 1.25,
             "stress_volume_spike_min": 1.8,
             "stress_move_abs_pct_min": 1.6,
@@ -78,6 +81,13 @@ def _base_snapshot() -> dict[str, object]:
             "feed_status": "unavailable",
             "source": "funding_only",
             "vendor_available": False,
+            "vendor_name": None,
+            "fetch_errors": [],
+            "fetched_at": None,
+            "source_timestamp": None,
+            "age_seconds": None,
+            "is_stale": False,
+            "event_reliability": "low",
             "positioning_state": "unknown",
             "squeeze_risk": "unknown",
             "oi_price_agreement": "unknown",
@@ -85,6 +95,8 @@ def _base_snapshot() -> dict[str, object]:
             "oi_acceleration": None,
             "funding_extreme_flag": False,
             "liquidation_pressure_proxy": 0.0,
+            "liquidation_source_type": "proxy_from_local_market_data",
+            "liquidation_event_confidence": "low",
             "symbols": [],
         },
         "symbols": [],
@@ -159,6 +171,22 @@ class RegimeDetectorTests(unittest.TestCase):
             "volatility_ratio": 0.72,
             "candle_spread_ratio": 0.0017,
             "volume_spike": 0.74,
+        }
+        result = self.detector._classify(snapshot, self.definition)
+        self.assertEqual(result["primary_regime"], "low_vol")
+
+    def test_compression_can_outweigh_stale_trend_signal(self) -> None:
+        snapshot = {
+            **_base_snapshot(),
+            "trend_spread_pct": -0.22,
+            "slope_pct": -0.12,
+            "adx": 25.0,
+            "volatility_ratio": 0.82,
+            "std_ratio": 0.84,
+            "candle_spread_ratio": 0.0021,
+            "volume_spike": 1.2,
+            "recent_move_pct": -0.12,
+            "recent_move_abs_pct": 0.12,
         }
         result = self.detector._classify(snapshot, self.definition)
         self.assertEqual(result["primary_regime"], "low_vol")
@@ -495,10 +523,40 @@ class RegimeDetectorTests(unittest.TestCase):
                 "capitulation": False,
                 "deleveraging": False,
             },
+            derivatives_state={
+                "event_reliability": "medium",
+                "is_stale": False,
+            },
         )
         self.assertEqual(risk_regime, "elevated")
         self.assertGreater(quality, 0.0)
         self.assertLess(quality, 0.82)
+
+    def test_low_reliability_keeps_derivatives_events_soft_only(self) -> None:
+        actionable = self.detector._derive_actionable_event_flags(
+            {
+                "panic_flush": True,
+                "short_squeeze": True,
+                "long_squeeze": True,
+                "capitulation": True,
+                "deleveraging": True,
+            },
+            {"event_reliability": "low"},
+        )
+        self.assertTrue(actionable["panic_flush"])
+        self.assertFalse(actionable["short_squeeze"])
+        self.assertFalse(actionable["capitulation"])
+
+    def test_derivatives_multiplier_penalizes_stale_proxy_feed(self) -> None:
+        multiplier = self.detector._derive_derivatives_confidence_multiplier(
+            {
+                "source": "external_vendor_proxy_fallback",
+                "feed_status": "degraded_proxy",
+                "event_reliability": "low",
+                "is_stale": True,
+            }
+        )
+        self.assertLess(multiplier, 0.8)
 
     def test_replay_summary_tracks_switches_and_no_trade_share(self) -> None:
         summary = self.detector._summarize_replay_reports(

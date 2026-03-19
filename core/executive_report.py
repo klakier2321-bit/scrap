@@ -689,6 +689,13 @@ class ExecutiveReportService:
                 "latest": regime_report,
                 "derivatives": derivatives_report,
                 "replay": regime_replay_report,
+                "derivatives_runtime_quality": {
+                    "source": (derivatives_report or {}).get("source"),
+                    "feed_status": (derivatives_report or {}).get("feed_status"),
+                    "event_reliability": (derivatives_report or {}).get("event_reliability"),
+                    "is_stale": bool((derivatives_report or {}).get("is_stale")),
+                    "liquidation_event_confidence": (derivatives_report or {}).get("liquidation_event_confidence"),
+                },
             },
             "control_status": control_status,
             "assumptions": assumptions,
@@ -747,6 +754,29 @@ class ExecutiveReportService:
                 "regime_available": 1 if regime_report else 0,
                 "derivatives_available": 1 if derivatives_report else 0,
                 "regime_replay_available": 1 if regime_replay_report else 0,
+                "derivatives_stale": 1 if (derivatives_report or {}).get("is_stale") else 0,
+                "derivatives_binance_share": round(
+                    float((regime_replay_report or {}).get("derivatives_source_breakdown", {}).get("binance_futures_public_api", 0))
+                    / max(float((regime_replay_report or {}).get("bar_count", 0) or 0), 1.0),
+                    4,
+                )
+                if regime_replay_report
+                else 0.0,
+                "derivatives_snapshot_share": round(
+                    float((regime_replay_report or {}).get("derivatives_source_breakdown", {}).get("external_vendor", 0))
+                    / max(float((regime_replay_report or {}).get("bar_count", 0) or 0), 1.0),
+                    4,
+                )
+                if regime_replay_report
+                else 0.0,
+                "derivatives_proxy_share": round(
+                    float((regime_replay_report or {}).get("derivatives_source_breakdown", {}).get("replay_proxy", 0)
+                    + (regime_replay_report or {}).get("derivatives_source_breakdown", {}).get("external_vendor_proxy_fallback", 0))
+                    / max(float((regime_replay_report or {}).get("bar_count", 0) or 0), 1.0),
+                    4,
+                )
+                if regime_replay_report
+                else 0.0,
                 "control_status_available": 1 if control_status else 0,
                 "control_status_warn": 1 if (control_status or {}).get("overall_status") == "warn" else 0,
             },

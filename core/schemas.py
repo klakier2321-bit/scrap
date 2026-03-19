@@ -214,6 +214,8 @@ class RegimeStatusResponse(BaseModel):
     market_phase: str | None = None
     volatility_phase: str | None = None
     active_event_flags: dict[str, bool] = Field(default_factory=dict)
+    actionable_event_flags: dict[str, bool] = Field(default_factory=dict)
+    active_event_flags_reliability: str | None = None
     signals: dict[str, bool] = Field(default_factory=dict)
     regime_persistence: dict[str, Any] = Field(default_factory=dict)
     position_size_multiplier: float | None = None
@@ -235,9 +237,18 @@ class DerivativesStatusResponse(BaseModel):
     """Canonical derivatives feed status for regime detection."""
 
     generated_at: datetime | str
+    fetched_at: datetime | str | None = None
+    source_timestamp: datetime | str | None = None
+    age_seconds: float | None = None
+    is_stale: bool = False
     source: str
     feed_status: str
     vendor_available: bool = False
+    vendor_name: str | None = None
+    fetch_errors: list[str] = Field(default_factory=list)
+    event_reliability: str | None = None
+    liquidation_source_type: str | None = None
+    liquidation_event_confidence: str | None = None
     universe: list[str] = Field(default_factory=list)
     symbols: list[dict[str, Any]] = Field(default_factory=list)
 
@@ -259,6 +270,9 @@ class RegimeReplayResponse(BaseModel):
     market_consensus_breakdown: dict[str, Any] = Field(default_factory=dict)
     regime_coverage: dict[str, Any] = Field(default_factory=dict)
     event_counts: dict[str, int] = Field(default_factory=dict)
+    derivatives_source_breakdown: dict[str, int] = Field(default_factory=dict)
+    derivatives_event_reliability_breakdown: dict[str, int] = Field(default_factory=dict)
+    derivatives_stale_share: float = 0.0
     notes: list[str] = Field(default_factory=list)
 
 

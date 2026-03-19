@@ -362,12 +362,23 @@ executive_dashboard:
                     "eligible_candidate_ids": ["structured_futures_baseline_v1"],
                     "blocked_candidate_ids": ["structured_futures_short_breakdown_v1"],
                     "candidate_freeze_mode": "freeze_build_keep_dry_run",
+                    "actionable_event_flags": {},
+                    "active_event_flags_reliability": "medium",
                 },
                 derivatives_report={
                     "generated_at": "2026-03-19T00:00:00+00:00",
-                    "source": "external_vendor",
+                    "fetched_at": "2026-03-19T00:00:01+00:00",
+                    "source_timestamp": "2026-03-19T00:00:00+00:00",
+                    "age_seconds": 1.0,
+                    "is_stale": False,
+                    "source": "binance_futures_public_api",
                     "feed_status": "ok",
                     "vendor_available": True,
+                    "vendor_name": "binance",
+                    "fetch_errors": [],
+                    "event_reliability": "medium",
+                    "liquidation_source_type": "proxy_from_binance_public_api",
+                    "liquidation_event_confidence": "medium",
                     "universe": ["BTC/USDT:USDT", "ETH/USDT:USDT"],
                     "symbols": [],
                 },
@@ -386,6 +397,9 @@ executive_dashboard:
                     "market_consensus_breakdown": {"strong_bullish": 40},
                     "regime_coverage": {"trend_up": 60},
                     "event_counts": {},
+                    "derivatives_source_breakdown": {"binance_futures_public_api": 60},
+                    "derivatives_event_reliability_breakdown": {"medium": 60},
+                    "derivatives_stale_share": 0.0,
                     "notes": [],
                 },
                 control_status=None,
@@ -402,3 +416,5 @@ executive_dashboard:
             self.assertEqual(report["summary"]["derivatives_available"], 1)
             self.assertEqual(report["summary"]["regime_replay_available"], 1)
             self.assertEqual(report["regime"]["latest"]["primary_regime"], "trend_up")
+            self.assertEqual(report["regime"]["derivatives_runtime_quality"]["source"], "binance_futures_public_api")
+            self.assertEqual(report["summary"]["derivatives_proxy_share"], 0.0)

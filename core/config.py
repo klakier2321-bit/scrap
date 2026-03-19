@@ -50,6 +50,12 @@ class AppSettings(BaseSettings):
     freqtrade_api_password: str = ""
     freqtrade_api_timeout_seconds: int = 5
     dry_run_snapshot_stale_seconds: int = 180
+    derivatives_binance_enabled: bool = True
+    derivatives_binance_base_url: str = "https://fapi.binance.com"
+    derivatives_binance_timeout_seconds: int = 8
+    derivatives_binance_history_limit: int = 3
+    derivatives_binance_period: str = "5m"
+    derivatives_stale_seconds: int = 900
 
     model_config = SettingsConfigDict(
         env_file=".env.ai.control.local",

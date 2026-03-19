@@ -269,13 +269,24 @@ class RegimeDetector:
             htf_bias=htf_bias,
             definition=definition,
         )
+        actionable_event_flags = self._derive_actionable_event_flags(
+            active_event_flags=active_event_flags,
+            derivatives_state=feature_snapshot.get("derivatives_state") or {},
+        )
+        derivatives_confidence_multiplier = self._derive_derivatives_confidence_multiplier(
+            feature_snapshot.get("derivatives_state") or {}
+        )
+        adjusted_confidence = round(
+            max(0.2, min(0.99, stabilized["confidence"] * derivatives_confidence_multiplier)),
+            4,
+        )
         consensus = self._derive_symbol_states(symbol_features, definition)
         bias = self._derive_bias(
             primary_regime=stabilized["primary_regime"],
             htf_bias=htf_bias,
         )
         alignment_score = self._derive_alignment_score(
-            confidence=stabilized["confidence"],
+            confidence=adjusted_confidence,
             htf_bias=htf_bias,
             market_state=market_state,
             ltf_execution_state=ltf_execution_state,
@@ -299,7 +310,7 @@ class RegimeDetector:
             market_phase=market_phase,
             risk_level=stabilized["risk_level"],
             consensus_strength=consensus["consensus_strength"],
-            active_event_flags=active_event_flags,
+            active_event_flags=actionable_event_flags,
             cooldown_remaining_bars=stabilized["regime_persistence"]["cooldown_remaining_bars"],
         )
         position_size_multiplier = self._derive_position_size_multiplier(
@@ -317,14 +328,15 @@ class RegimeDetector:
             primary_regime=stabilized["primary_regime"],
             risk_level=stabilized["risk_level"],
             execution_constraints=execution_constraints,
-            active_event_flags=active_event_flags,
+            active_event_flags=actionable_event_flags,
             consensus_strength=consensus["consensus_strength"],
         )
         regime_quality = self._derive_regime_quality(
             alignment_score=alignment_score,
             execution_constraints=execution_constraints,
             market_phase=market_phase,
-            active_event_flags=active_event_flags,
+            active_event_flags=actionable_event_flags,
+            derivatives_state=feature_snapshot.get("derivatives_state") or {},
         )
         lead_symbol, lag_confirmation = self._derive_market_leadership(symbol_features, consensus)
         outcome_tracking_status = "replay_backfilled" if self.latest_replay_report() else "not_started"
@@ -350,7 +362,7 @@ class RegimeDetector:
             "asof_timeframe": definition.get("asof_timeframe", "1h"),
             "universe": [item.get("pair") for item in symbol_features],
             "primary_regime": stabilized["primary_regime"],
-            "confidence": round(stabilized["confidence"], 4),
+            "confidence": adjusted_confidence,
             "risk_level": stabilized["risk_level"],
             "trend_strength": feature_snapshot["trend_strength"],
             "volatility_level": feature_snapshot["volatility_level"],
@@ -369,6 +381,8 @@ class RegimeDetector:
             "market_phase": market_phase,
             "volatility_phase": volatility_phase,
             "active_event_flags": active_event_flags,
+            "actionable_event_flags": actionable_event_flags,
+            "active_event_flags_reliability": (feature_snapshot.get("derivatives_state") or {}).get("event_reliability"),
             "signals": signals,
             "regime_persistence": stabilized["regime_persistence"],
             "position_size_multiplier": position_size_multiplier,
@@ -490,13 +504,26 @@ class RegimeDetector:
                 market_phase=market_phase,
                 risk_level=stabilized["risk_level"],
                 consensus_strength=consensus["consensus_strength"],
-                active_event_flags=self._derive_active_event_flags(
-                    feature_snapshot=feature_snapshot,
-                    primary_regime=stabilized["primary_regime"],
-                    htf_bias=htf_bias,
-                    definition=definition,
+                active_event_flags=self._derive_actionable_event_flags(
+                    self._derive_active_event_flags(
+                        feature_snapshot=feature_snapshot,
+                        primary_regime=stabilized["primary_regime"],
+                        htf_bias=htf_bias,
+                        definition=definition,
+                    ),
+                    feature_snapshot.get("derivatives_state") or {},
                 ),
                 cooldown_remaining_bars=stabilized["regime_persistence"]["cooldown_remaining_bars"],
+            )
+            active_event_flags = self._derive_active_event_flags(
+                feature_snapshot=feature_snapshot,
+                primary_regime=stabilized["primary_regime"],
+                htf_bias=htf_bias,
+                definition=definition,
+            )
+            actionable_event_flags = self._derive_actionable_event_flags(
+                active_event_flags,
+                feature_snapshot.get("derivatives_state") or {},
             )
             report = {
                 "generated_at": asof_iso,
@@ -504,12 +531,9 @@ class RegimeDetector:
                 "bias": self._derive_bias(primary_regime=stabilized["primary_regime"], htf_bias=htf_bias),
                 "market_phase": market_phase,
                 "market_state": market_state,
-                "active_event_flags": self._derive_active_event_flags(
-                    feature_snapshot=feature_snapshot,
-                    primary_regime=stabilized["primary_regime"],
-                    htf_bias=htf_bias,
-                    definition=definition,
-                ),
+                "active_event_flags": active_event_flags,
+                "actionable_event_flags": actionable_event_flags,
+                "active_event_flags_reliability": (feature_snapshot.get("derivatives_state") or {}).get("event_reliability"),
                 "execution_constraints": execution_constraints,
                 "regime_persistence": stabilized["regime_persistence"],
                 "market_consensus": consensus["market_consensus"],
@@ -770,6 +794,8 @@ class RegimeDetector:
         positioning_states = [str(item.get("positioning_state") or "unknown") for item in symbols]
         funding_extreme = any(bool(item.get("funding_extreme_flag")) for item in symbols)
         agreement_values = [str(item.get("oi_price_agreement") or "unknown") for item in symbols]
+        liquidation_confidences = [str(item.get("liquidation_event_confidence") or "low") for item in symbols]
+        liquidation_source_types = [str(item.get("liquidation_source_type") or "proxy_from_local_market_data") for item in symbols]
 
         if symbols:
             if all(state == positioning_states[0] for state in positioning_states):
@@ -791,6 +817,36 @@ class RegimeDetector:
             squeeze_risk = "unknown"
             oi_price_agreement = "unknown"
 
+        feed_status = (derivatives_report or {}).get("feed_status", "missing")
+        source = (derivatives_report or {}).get("source", "unavailable")
+        is_stale = bool((derivatives_report or {}).get("is_stale"))
+        event_reliability = str(
+            (derivatives_report or {}).get("event_reliability")
+            or self._derive_derivatives_event_reliability(
+                source=source,
+                feed_status=feed_status,
+                is_stale=is_stale,
+            )
+        )
+        if liquidation_confidences:
+            liquidation_event_confidence = (
+                "medium" if "medium" in liquidation_confidences else liquidation_confidences[0]
+            )
+        else:
+            liquidation_event_confidence = str(
+                (derivatives_report or {}).get("liquidation_event_confidence") or "low"
+            )
+        if liquidation_source_types:
+            liquidation_source_type = (
+                liquidation_source_types[0]
+                if all(value == liquidation_source_types[0] for value in liquidation_source_types)
+                else "mixed"
+            )
+        else:
+            liquidation_source_type = str(
+                (derivatives_report or {}).get("liquidation_source_type") or "proxy_from_local_market_data"
+            )
+
         return {
             **feature_snapshot,
             "oi_change_mean_pct": round(sum(oi_changes) / len(oi_changes), 4) if oi_changes else None,
@@ -800,9 +856,16 @@ class RegimeDetector:
             else 0.0,
             "funding_extreme_flag": funding_extreme,
             "derivatives_state": {
-                "feed_status": (derivatives_report or {}).get("feed_status", "missing"),
-                "source": (derivatives_report or {}).get("source", "unavailable"),
+                "feed_status": feed_status,
+                "source": source,
                 "vendor_available": bool((derivatives_report or {}).get("vendor_available")),
+                "vendor_name": (derivatives_report or {}).get("vendor_name"),
+                "fetch_errors": (derivatives_report or {}).get("fetch_errors") or [],
+                "fetched_at": (derivatives_report or {}).get("fetched_at"),
+                "source_timestamp": (derivatives_report or {}).get("source_timestamp"),
+                "age_seconds": (derivatives_report or {}).get("age_seconds"),
+                "is_stale": is_stale,
+                "event_reliability": event_reliability,
                 "positioning_state": positioning_state,
                 "squeeze_risk": squeeze_risk,
                 "oi_price_agreement": oi_price_agreement,
@@ -812,6 +875,8 @@ class RegimeDetector:
                 "liquidation_pressure_proxy": round(sum(liquidation_pressures) / len(liquidation_pressures), 4)
                 if liquidation_pressures
                 else 0.0,
+                "liquidation_source_type": liquidation_source_type,
+                "liquidation_event_confidence": liquidation_event_confidence,
                 "symbols": symbols,
             },
         }
@@ -933,9 +998,18 @@ class RegimeDetector:
 
         return {
             "generated_at": generated_at,
+            "fetched_at": generated_at,
+            "source_timestamp": generated_at,
+            "age_seconds": 0.0,
+            "is_stale": False,
             "source": "replay_proxy",
             "feed_status": "replay_proxy",
             "vendor_available": False,
+            "vendor_name": "replay_proxy",
+            "fetch_errors": [],
+            "event_reliability": "low",
+            "liquidation_source_type": "proxy_from_replay_market_data",
+            "liquidation_event_confidence": "low",
             "universe": [item["pair"] for item in symbols],
             "symbols": symbols,
         }
@@ -1032,6 +1106,13 @@ class RegimeDetector:
                     "feed_status": "unavailable",
                     "source": "funding_only",
                     "vendor_available": False,
+                    "vendor_name": None,
+                    "fetch_errors": [],
+                    "fetched_at": None,
+                    "source_timestamp": None,
+                    "age_seconds": None,
+                    "is_stale": False,
+                    "event_reliability": "low",
                     "positioning_state": "unknown",
                     "squeeze_risk": "unknown",
                     "oi_price_agreement": "unknown",
@@ -1039,6 +1120,8 @@ class RegimeDetector:
                     "oi_acceleration": None,
                     "funding_extreme_flag": False,
                     "liquidation_pressure_proxy": 0.0,
+                    "liquidation_source_type": "proxy_from_local_market_data",
+                    "liquidation_event_confidence": "low",
                     "symbols": [],
                 }
             else:
@@ -1046,6 +1129,13 @@ class RegimeDetector:
                     "feed_status": "funding_only",
                     "source": "funding_only",
                     "vendor_available": False,
+                    "vendor_name": None,
+                    "fetch_errors": [],
+                    "fetched_at": None,
+                    "source_timestamp": None,
+                    "age_seconds": None,
+                    "is_stale": False,
+                    "event_reliability": "low",
                     "positioning_state": "mixed",
                     "squeeze_risk": "unknown",
                     "oi_price_agreement": "unknown",
@@ -1053,6 +1143,8 @@ class RegimeDetector:
                     "oi_acceleration": None,
                     "funding_extreme_flag": _safe_float(funding_abs_bps) >= _safe_float(thresholds.get("funding_extreme_bps"), 8.0),
                     "liquidation_pressure_proxy": 0.0,
+                    "liquidation_source_type": "proxy_from_local_market_data",
+                    "liquidation_event_confidence": "low",
                     "symbols": [],
                 }
 
@@ -1114,6 +1206,32 @@ class RegimeDetector:
         if volume_spike <= _safe_float(thresholds.get("low_volume_spike_max"), 0.9):
             scores["low_vol"] += 1.0
             reasons["low_vol"].append("Wolumen jest cienki wobec mediany.")
+
+        compression_volatility_ratio_max = _safe_float(thresholds.get("compression_volatility_ratio_max"), 0.9)
+        compression_std_ratio_max = _safe_float(thresholds.get("compression_std_ratio_max"), 0.95)
+        compression_recent_move_abs_pct_max = _safe_float(
+            thresholds.get("compression_recent_move_abs_pct_max"),
+            0.45,
+        )
+        compression_volume_spike_max = _safe_float(
+            thresholds.get("compression_volume_spike_max"),
+            1.55,
+        )
+        if (
+            volatility_ratio <= compression_volatility_ratio_max
+            and std_ratio <= compression_std_ratio_max
+            and recent_move_abs_pct <= compression_recent_move_abs_pct_max
+            and volume_spike <= compression_volume_spike_max
+        ):
+            scores["low_vol"] += 1.75
+            reasons["low_vol"].append("Kompresja zmienności tłumi handlowalność mimo istniejącego kierunku.")
+            if abs(spread) <= _safe_float(thresholds.get("compression_range_spread_max_pct"), 0.18):
+                scores["range"] += 1.0
+                reasons["range"].append("Kompresja i ograniczony spread sugerują bardziej przejście lub range niż czysty trend.")
+            scores["trend_up"] -= 0.85
+            scores["trend_down"] -= 0.85
+            reasons["trend_up"].append("Kompresja obniża jakość trendu wzrostowego jako aktywnego reżimu.")
+            reasons["trend_down"].append("Kompresja obniża jakość trendu spadkowego jako aktywnego reżimu.")
 
         if volatility_ratio >= _safe_float(thresholds.get("high_volatility_ratio_min"), 1.2):
             scores["high_vol"] += 2.0
@@ -1406,6 +1524,55 @@ class RegimeDetector:
         if primary_regime in {"trend_up", "trend_down"} and bars_in_regime >= mature_regime_bars:
             return "mature_trend"
         return "transition"
+
+    @staticmethod
+    def _derive_derivatives_event_reliability(
+        *,
+        source: str,
+        feed_status: str,
+        is_stale: bool,
+    ) -> str:
+        if source == "binance_futures_public_api":
+            reliability = "medium"
+        elif source == "external_vendor":
+            reliability = "medium"
+        else:
+            reliability = "low"
+        if feed_status == "partial":
+            reliability = "low"
+        if is_stale and reliability == "medium":
+            reliability = "low"
+        return reliability
+
+    @staticmethod
+    def _derive_derivatives_confidence_multiplier(derivatives_state: dict[str, Any]) -> float:
+        reliability = str(derivatives_state.get("event_reliability") or "low")
+        is_stale = bool(derivatives_state.get("is_stale"))
+        feed_status = str(derivatives_state.get("feed_status") or "missing")
+        multiplier = {"medium": 0.94, "low": 0.84}.get(reliability, 0.88)
+        if reliability == "medium" and feed_status == "ok":
+            multiplier = 0.97
+        if feed_status in {"missing", "degraded_proxy"}:
+            multiplier = min(multiplier, 0.84)
+        if is_stale:
+            multiplier *= 0.9
+        return max(0.65, min(1.0, multiplier))
+
+    @staticmethod
+    def _derive_actionable_event_flags(
+        active_event_flags: dict[str, bool],
+        derivatives_state: dict[str, Any],
+    ) -> dict[str, bool]:
+        reliability = str(derivatives_state.get("event_reliability") or "low")
+        if reliability != "low":
+            return dict(active_event_flags)
+        return {
+            "panic_flush": bool(active_event_flags.get("panic_flush")),
+            "short_squeeze": False,
+            "long_squeeze": False,
+            "capitulation": False,
+            "deleveraging": False,
+        }
 
     def _derive_active_event_flags(
         self,
@@ -1702,6 +1869,7 @@ class RegimeDetector:
         execution_constraints: dict[str, bool],
         market_phase: str,
         active_event_flags: dict[str, bool],
+        derivatives_state: dict[str, Any],
     ) -> float:
         quality = alignment_score
         if execution_constraints["no_trade_zone"]:
@@ -1716,6 +1884,13 @@ class RegimeDetector:
             quality *= 0.85
         if any(active_event_flags.values()):
             quality *= 0.75
+        event_reliability = str(derivatives_state.get("event_reliability") or "low")
+        if event_reliability == "medium":
+            quality *= 0.95
+        elif event_reliability == "low":
+            quality *= 0.82
+        if bool(derivatives_state.get("is_stale")):
+            quality *= 0.85
         return round(max(0.0, min(1.0, quality)), 4)
 
     def _derive_market_leadership(
@@ -1852,6 +2027,9 @@ class RegimeDetector:
                 "market_consensus_breakdown": {},
                 "regime_coverage": {},
                 "event_counts": {},
+                "derivatives_source_breakdown": {},
+                "derivatives_event_reliability_breakdown": {},
+                "derivatives_stale_share": 0.0,
                 "notes": ["Replay nie wygenerowal jeszcze zadnych barow."],
             }
 
@@ -1867,6 +2045,9 @@ class RegimeDetector:
             "capitulation": 0,
             "deleveraging": 0,
         }
+        derivatives_source_counts: dict[str, int] = {}
+        derivatives_event_reliability_counts: dict[str, int] = {}
+        stale_reports = 0
         follow_15m_hits = 0
         follow_15m_total = 0
         follow_1h_hits = 0
@@ -1880,12 +2061,23 @@ class RegimeDetector:
             consensus_counts[consensus] = consensus_counts.get(consensus, 0) + 1
             if report.get("execution_constraints", {}).get("no_trade_zone"):
                 no_trade_count += 1
+            derivatives_state = report.get("derivatives_state") or {}
+            derivatives_source = str(derivatives_state.get("source") or "unknown")
+            derivatives_source_counts[derivatives_source] = derivatives_source_counts.get(derivatives_source, 0) + 1
+            event_reliability = str(derivatives_state.get("event_reliability") or "unknown")
+            derivatives_event_reliability_counts[event_reliability] = (
+                derivatives_event_reliability_counts.get(event_reliability, 0) + 1
+            )
+            if bool(derivatives_state.get("is_stale")):
+                stale_reports += 1
             if previous and previous.get("primary_regime") != regime:
                 regime_switches += 1
             if previous and previous.get("market_phase") == "compression" and report.get("market_phase") == "expansion":
                 compression_to_expansion_count += 1
             for flag_name in event_counts:
-                if bool((report.get("feature_snapshot", {}) or {}).get("active_event_flags", {}).get(flag_name)):
+                if bool((report.get("actionable_event_flags") or {}).get(flag_name)):
+                    event_counts[flag_name] += 1
+                elif bool((report.get("feature_snapshot", {}) or {}).get("actionable_event_flags", {}).get(flag_name)):
                     event_counts[flag_name] += 1
                 elif bool((report.get("active_event_flags") or {}).get(flag_name)):
                     event_counts[flag_name] += 1
@@ -1919,6 +2111,9 @@ class RegimeDetector:
             "market_consensus_breakdown": consensus_counts,
             "regime_coverage": regime_counts,
             "event_counts": event_counts,
+            "derivatives_source_breakdown": derivatives_source_counts,
+            "derivatives_event_reliability_breakdown": derivatives_event_reliability_counts,
+            "derivatives_stale_share": round(stale_reports / len(reports), 4),
             "notes": [
                 "Replay summary sluzy do kalibracji progow i stabilnosci przejsc, nie do bezposredniego tradingu.",
             ],

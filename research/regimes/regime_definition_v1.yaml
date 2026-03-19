@@ -36,17 +36,20 @@ thresholds:
   pullback_distance_min_pct: 0.05
   late_move_abs_pct: 0.9
   noise_adx_max: 16.0
-  low_volatility_ratio_max: 0.85
-  compression_volatility_ratio_max: 0.90
+  low_volatility_ratio_max: 0.90
+  compression_volatility_ratio_max: 0.93
   compression_std_ratio_max: 0.95
+  compression_recent_move_abs_pct_max: 0.45
+  compression_volume_spike_max: 1.55
+  compression_range_spread_max_pct: 0.18
   high_volatility_ratio_min: 1.2
   expansion_volatility_ratio_min: 1.15
   cooling_volatility_ratio_max: 1.05
   extreme_volatility_ratio_min: 1.8
   stress_volatility_ratio_min: 1.8
   high_std_ratio_min: 1.15
-  low_candle_spread_max: 0.0025
-  low_volume_spike_max: 0.9
+  low_candle_spread_max: 0.003
+  low_volume_spike_max: 1.0
   volume_spike_high: 1.25
   stress_volume_spike_min: 1.8
   stress_move_abs_pct_min: 1.6

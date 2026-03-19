@@ -66,8 +66,20 @@ Kanoniczny feed derivatives ma osobny artefakt:
 - `data/ai_control/derivatives/latest.json`
 - `data/ai_control/derivatives/derivatives-<timestamp>.json`
 
-Jeśli zewnętrzny vendor nie jest jeszcze dostępny, system schodzi do
-`degraded_proxy` i oznacza, że event flags są tylko ostrzeżeniem, nie twardą
+Domyślny vendor v2.1 to publiczny feed **Binance USD-M Futures**:
+
+- `openInterest`
+- `openInterestHist`
+- `fundingRate`
+- `takerlongshortRatio`
+- `globalLongShortAccountRatio`
+
+Jeśli Binance nie odpowiada albo zwraca niepełny zestaw danych, system próbuje:
+
+- lokalnego pliku `data/ai_control/derivatives_vendor/latest.json`
+- a dopiero na końcu schodzi do `degraded_proxy`
+
+W trybie `degraded_proxy` event flags są tylko ostrzeżeniem, nie twardą
 podstawą wejścia.
 
 ## Artefakt runtime
@@ -127,6 +139,13 @@ Nowe pola V1.5:
 
 - status feedu
 - dostępność vendora
+- świeżość danych:
+  - `fetched_at`
+  - `source_timestamp`
+  - `age_seconds`
+  - `is_stale`
+- jakość eventów:
+  - `event_reliability`
 - `positioning_state`
 - `squeeze_risk`
 - `oi_price_agreement`
@@ -134,6 +153,23 @@ Nowe pola V1.5:
 - `oi_acceleration`
 - `funding_extreme_flag`
 - `liquidation_pressure_proxy`
+- `liquidation_source_type`
+- `liquidation_event_confidence`
+
+W v2.1 trzeba czytać te pola ostrożnie:
+
+- `binance_futures_public_api` daje sensowną warstwę OI i funding, ale likwidacje dalej są proxy
+- `external_vendor` może być średniej jakości snapshotem
+- `degraded_proxy` jest tylko miękkim ostrzeżeniem
+
+Dlatego detector rozróżnia:
+
+- `active_event_flags`
+- `actionable_event_flags`
+- `active_event_flags_reliability`
+
+czyli event może zostać wykryty, ale nie musi być jeszcze na tyle wiarygodny,
+żeby control layer użył go jako twardego sygnału ryzyka.
 
 ## Stabilizacja
 

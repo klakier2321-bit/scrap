@@ -71,6 +71,12 @@ class Orchestrator:
             user_data_dir=settings.freqtrade_user_data_path,
             output_dir=settings.derivatives_reports_dir,
             vendor_input_dir=settings.derivatives_vendor_input_dir,
+            binance_enabled=settings.derivatives_binance_enabled,
+            binance_base_url=settings.derivatives_binance_base_url,
+            binance_timeout_seconds=settings.derivatives_binance_timeout_seconds,
+            binance_history_limit=settings.derivatives_binance_history_limit,
+            binance_period=settings.derivatives_binance_period,
+            stale_after_seconds=settings.derivatives_stale_seconds,
         )
         self.freqtrade_runtime_client = FreqtradeRuntimeClient(
             base_url=settings.freqtrade_api_base_url,
