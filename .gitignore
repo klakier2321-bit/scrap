@@ -15,4 +15,6 @@ data/agent_worktrees/
 data/backups/
 monitoring/logs/*
 !monitoring/logs/.gitkeep
+monitoring/reports/*
+!monitoring/reports/README.md
 .DS_Store
