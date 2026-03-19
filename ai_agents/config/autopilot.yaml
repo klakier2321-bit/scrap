@@ -58,16 +58,43 @@ autopilot:
       force_strong_model: false
       auto_approve: false
 
-    - name: "architecture_business_refinement"
+    - name: "architecture_core_closure"
       agent_name: "architecture_agent"
-      goal: "Doprecyzuj docelowa architekture platformy i nowego pionu strategii futures jezykiem biznesowym, tak aby control layer sterowal, Freqtrade wykonywal, a research layer budowal edge."
-      business_reason: "Chcemy unikac dryfu architektury i wejsc w kolejny etap ze spojna platforma oraz jasno opisanym pionem futures strategy factory."
+      goal: "Domknij dwa kanoniczne dokumenty rdzenia architektury: docs/ARCHITECTURE.md i docs/PROJECT_MAP.md. Uzyj prostego jezyka biznesowego i stanowczo zapisz granice warstw: control layer steruje, Freqtrade wykonuje, research layer buduje edge, AI nie handluje bezposrednio."
+      business_reason: "Najpierw trzeba zamknac rdzen architektury i mape ownership, zeby dalsze prace nie dryfowaly miedzy warstwami."
       requested_paths:
         - "docs/ARCHITECTURE.md"
         - "docs/PROJECT_MAP.md"
+      risk_level: "low"
+      cross_layer: false
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false
+
+    - name: "architecture_master_plan_alignment"
+      agent_name: "architecture_agent"
+      goal: "Doprowadz do pelnej zgodnosci docs/TRADING_SYSTEM_MASTER_PLAN.md i docs/DECISIONS.md z kanoniczna architektura. Usun niedomowienia i doprecyzuj model dzialania platformy, pionu strategii futures oraz granice bezpieczenstwa."
+      business_reason: "Po zamknieciu rdzenia architektury trzeba miec jeszcze zgodny master plan i katalog decyzji, zeby prezes i zespol czytali jedna wersje prawdy."
+      requested_paths:
         - "docs/TRADING_SYSTEM_MASTER_PLAN.md"
         - "docs/DECISIONS.md"
-      risk_level: "medium"
+      risk_level: "low"
+      cross_layer: false
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false
+
+    - name: "docs_quality_watch"
+      agent_name: "review_agent"
+      goal: "Wskaz jeden maly, praktyczny zestaw lekkich kontroli jakosci dokumentacji, ktory mozna wdrozyc bez rozbudowanego CI: sprawdzenie linkow, minimalna spojność kanonicznych docs i lista plikow wymagajacych manualnego review."
+      business_reason: "Architektura jest prawie domknieta, ale bez lekkiego quality gate dokumenty beda sie znowu rozjezdzac."
+      requested_paths:
+        - "docs/"
+        - "README.md"
+        - "ai_agents/config/executive_roadmap.yaml"
+      risk_level: "low"
       cross_layer: false
       does_touch_contract: false
       does_touch_runtime: false

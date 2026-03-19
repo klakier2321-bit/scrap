@@ -31,6 +31,10 @@ Start od dokumentów kanonicznych w `docs/`:
 - `docs/ARCHITECTURE.md`
 - `docs/PROJECT_MAP.md`
 - `docs/DECISIONS.md`
+- `docs/TRADING_SYSTEM_MASTER_PLAN.md`
+- `docs/FUTURES_TRADING_MODEL.md`
+- `docs/AI_AGENT_ROLES.md`
+- `docs/DOCUMENTATION_QUALITY_GATE.md`
 - `docs/openapi.yaml`
 - `docs/AI_CHANGE_RULES.md`
 

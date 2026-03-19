@@ -5,8 +5,11 @@
 1. `docs/ARCHITECTURE.md`
 2. `docs/PROJECT_MAP.md`
 3. `docs/DECISIONS.md`
-4. `docs/openapi.yaml`
-5. dopiero potem starsze dokumenty z root
+4. `docs/TRADING_SYSTEM_MASTER_PLAN.md`
+5. `docs/FUTURES_TRADING_MODEL.md`
+6. `docs/AI_AGENT_ROLES.md`
+7. `docs/openapi.yaml`
+8. dopiero potem starsze dokumenty z root
 
 ## Reading rule
 
@@ -58,6 +61,26 @@ Agent nie powinien przechodzić bezpośrednio do zapisu plików bez wcześniejsz
 ## Contract first rule
 
 Jeśli zmiana dotyka kontraktu lub architektury, najpierw aktualizujesz `docs/`, a dopiero potem implementację.
+
+## Canonical docs quality gate
+
+Zmiany w dokumentach kanonicznych powinny przejsc przez lekki quality gate opisany w:
+
+- `docs/DOCUMENTATION_QUALITY_GATE.md`
+
+Minimalna zasada:
+
+- `docs/ARCHITECTURE.md`
+- `docs/PROJECT_MAP.md`
+- `docs/DECISIONS.md`
+- `docs/TRADING_SYSTEM_MASTER_PLAN.md`
+
+musza pozostawac zgodne co do:
+
+- roli control layer,
+- roli Freqtrade,
+- granic AI,
+- modelu pionu strategii futures.
 
 ## Minimalny template zmiany
 

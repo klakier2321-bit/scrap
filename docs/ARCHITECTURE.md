@@ -2,53 +2,115 @@
 
 ## Cel systemu
 
-`crypto-system` jest szkieletem platformy do budowy bota tradingowego crypto.
-Silnikiem wykonawczym jest Freqtrade, a system ma być rozwijany warstwowo, z późniejszym wsparciem agentów AI.
+`crypto-system` nie jest projektem "bota z jednym sygnalem", tylko platforma do budowy kontrolowanego systemu tradingowego crypto.
+
+Architektura ma realizowac jeden nadrzedny model:
+
+- `control layer` steruje,
+- `Freqtrade` wykonuje,
+- `research layer` buduje edge,
+- `AI` wspiera rozwoj i raportowanie, ale nie handluje bezposrednio.
+
+To rozdzielenie ma chronic projekt przed chaosem architektonicznym i przed zbyt szybkim przejsciem z eksperymentu do ryzykownego runtime.
 
 ## Główne warstwy repo
 
-- `trading/` - runtime tradingowy i zasoby Freqtrade
-- `core/` - planowana warstwa sterująca systemem
-- `ai_agents/` - fundament pod przyszłe workflow agentów AI
-- `monitoring/` - miejsce pod obserwowalność i dashboardy
-- `scripts/` - proste operacyjne skrypty projektu
-- `infrastructure/` - katalogi pomocnicze dla usług Dockera
+- `trading/` - execution engine, strategie, backtesty i `dry_run`
+- `core/` - control layer, czyli warstwa sterujaca i operatorska
+- `research/` - foundation pod futures strategy factory: artefakty danych, cech, ryzyka i kandydatow
+- `ai_agents/` - role, prompty, ownership i runtime pracy agentow
+- `monitoring/` - raportowanie operacyjne, artefakty statusu i obserwowalnosc
+- `scripts/` - proste skrypty operatorskie
+- `infrastructure/` - Grafana, Prometheus, Tempo i pomocnicza infrastruktura
+- `data/` - snapshoty `dry_run`, raporty strategii i artefakty runtime/read-only
 
 ## Co już istnieje
 
-- Docker dla `postgres`, `redis`, `grafana`, `freqtrade`
+- Docker dla uslug operatorskich i tradingowych
 - lokalny runtime Freqtrade w trybie `dry_run`
-- szkielet `core/` bez logiki biznesowej
-- pierwszy, offline'owy slice `core/control_layer/` z lokalnym registry i workflow `dry_control_check`
-- dokumentacja zasad projektu, ryzyka, konfiguracji i agentów
-- workflow do pobierania danych i backtestu przez Freqtrade
+- read-only bridge do runtime Freqtrade oraz snapshoty `dry_run`
+- `core/` jako realna warstwa operatorska: raportowanie, API operatorskie, gating, dry-run smoke i supervised coding flow
+- aktywny model agentowy z leadem systemowym, review i izolowanymi worktree
+- foundation pionu strategii futures: `strategy_agent` jako lead oraz helperzy od danych, ryzyka, reżimow i ewaluacji
+- dokumentacja kanoniczna i roadmapa executive
 
 ## Co jest planowane
 
-- implementacja control layer w `core/`
-- kolejne, świadome rozszerzanie `core/control_layer/` dopiero po osobnych review
-- docelowe Control API
-- monitoring wyników i dashboardy
-- warstwa AI wspierająca rozwój systemu
+- dalsze domykanie control layer jako mozgu systemu
+- dalsze porzadkowanie executive reporting i monitoringu operatorskiego
+- futures-aware strategy factory oparta na artefaktach, lifecycle i promotion gate
+- dalsze rozszerzanie research layer bez naruszania bezpieczenstwa runtime
+- dopiero pozniej: dalsza automatyzacja selekcji kandydatow strategii i gotowosc do kolejnych gate'ow
+
+## Najwazniejsze decyzje architektoniczne
+
+Na tym etapie obowiazuja nas ponizsze decyzje:
+
+- `control layer` jest jedynym miejscem, gdzie ma dojrzewac logika sterowania systemem
+- `Freqtrade` pozostaje execution engine, zrodlem backtestu i `dry_run`, ale nie staje sie mozgiem platformy
+- `research/` sluzy do budowy edge futures, nie do wykonywania zlecen
+- `strategy_agent` nie jest juz pojedynczym autorem strategii, tylko leadem pionu futures strategy factory
+- helperzy strategii dostarczaja artefakty evidence-first, a nie "luzne pomysly"
+- wszystko, co dotyczy runtime, sekretow, krytycznych kontraktow lub live tradingu, pozostaje pod review czlowieka
 
 ## Rola Freqtrade
 
-Freqtrade jest execution engine i narzędziem do backtestów.
-Nie jest głównym mózgiem systemu.
-W aktualnym etapie działa też jako źródło read-only danych runtime w trybie `dry_run`.
+Freqtrade jest execution engine i narzedziem do:
+
+- backtestow,
+- `dry_run`,
+- pobierania stanu runtime,
+- wykonywania tego, co zostalo dopuszczone przez warstwy wyzej.
+
+Freqtrade nie jest glownym mozgiem systemu.
+Nie powinno sie do niego przenosic odpowiedzialnosci za:
+
+- governance,
+- gating ryzyka,
+- executive visibility,
+- lifecycle kandydatow strategii,
+- polityke pracy agentow.
 
 ## Rola core/
 
-`core/` ma stać się warstwą sterującą, która łączy sygnały strategii, kontrolę ryzyka i decyzje operacyjne.
-To ta warstwa ma w przyszłości sterować Freqtrade.
-Pierwszy istniejący przyrost w `core/control_layer/` pozostaje jednak całkowicie offline i nie komunikuje się jeszcze z runtime tradingowym.
-Nowy most `dry_run` w `core/` ma charakter wyłącznie odczytowy: control layer pobiera dane z wewnętrznego API Freqtrade i buduje znormalizowane snapshoty dla operatora oraz agentów analitycznych.
+`core/` jest warstwa sterujaca i operatorska.
+To tutaj maja byc spinane:
+
+- sygnaly strategii,
+- gating ryzyka,
+- polityki systemowe,
+- stan runtime,
+- executive reporting,
+- operatorskie API,
+- bezpieczne workflow agentowe.
+
+Na dzis:
+
+- istnieje offline'owy slice `core/control_layer/`
+- dziala read-only bridge do `dry_run`
+- dziala smoke test i snapshot pipeline
+- dziala supervised coding workflow agentow
+
+To nie jest jeszcze finalny mozg systemu, ale to juz nie jest sam szkielet.
 
 ## Rola ai_agents/
 
-`ai_agents/` opisuje przyszłe środowisko agentów AI.
-Agenci mają wspierać rozwój architektury, strategii, monitoringu i integracji, ale nie wykonują bezpośrednio live trade.
-Agenci nie dostają bezpośredniego dostępu do REST API Freqtrade. Pracują wyłącznie na snapshotach i raportach przygotowanych przez control layer.
+`ai_agents/` opisuje i uruchamia kontrolowane srodowisko pracy agentow AI.
+
+Agenci:
+
+- planuja,
+- raportuja,
+- koduja w waskim ownership,
+- rozwijaja dokumentacje, monitoring, API, GUI, control layer i pion strategii futures.
+
+Agenci nie:
+
+- wykonują live tradingu,
+- nie omijaja `RiskManager`,
+- nie czytaja sekretow,
+- nie dostaja bezposredniego dostepu do REST API Freqtrade,
+- nie podejmuja high-risk decyzji bez review.
 
 W aktywowanym pionie strategii futures obowiązuje też dodatkowa hierarchia:
 
@@ -101,19 +163,50 @@ To rozdzielenie jest ważne:
 - agenci AI nie mogą wykonywać write akcji na trading runtime
 - jedynym źródłem danych runtime dla agentów są snapshoty i raporty
 
-## Podstawowy przepływ sterowania
+## Podstawowy przeplyw sterowania
 
-Docelowy przepływ jest następujący:
+Docelowy przeplyw jest nastepujacy:
 
-1. dane wejściowe trafiają do warstwy strategii
-2. strategia generuje sygnał
-3. warstwa ryzyka ocenia, czy sygnał może przejść dalej
-4. control layer podejmuje decyzję systemową
-5. Freqtrade wykonuje zatwierdzoną akcję
-6. monitoring zwraca feedback do dalszego rozwoju systemu
+1. dane i artefakty research trafiaja do warstwy strategii
+2. strategia lub kandydat strategii generuje hipoteze albo sygnal
+3. warstwa ryzyka ocenia, czy kandydat lub sygnal moze przejsc dalej
+4. control layer podejmuje decyzje systemowa
+5. Freqtrade wykonuje tylko zatwierdzona akcje
+6. monitoring, snapshoty i raporty wracaja do ludzi oraz agentow jako feedback
 
-## Ograniczenie bezpieczeństwa
+## Podstawowy przeplyw rozwoju edge
 
-AI nie wykonuje bezpośrednio live trade.
-Zmiany dotyczące runtime, sekretów, live tradingu i konfiguracji krytycznej wymagają kontroli człowieka.
-Read-only most `dry_run` nie zmienia tej zasady: daje wgląd w dane runtime, ale nie daje agentom prawa do sterowania execution engine.
+Rownolegle do przeplywu wykonawczego istnieje przeplyw budowy edge:
+
+1. `research/` buduje datasety, cechy i artefakty hipotez futures
+2. helperzy strategii produkuja evidence dla kandydata
+3. `strategy_agent` scala evidence w candidate bundle
+4. kandydat przechodzi gate `backtest + risk + dry_run`
+5. dopiero wtedy moze stac sie `reviewed_candidate` lub `promoted_candidate`
+
+To oznacza, ze strategia jest rozwijana jak produkt inwestycyjny, a nie jak jednorazowy eksperyment.
+
+## Co znaczy, ze architektura jest "domknieta" na ten etap
+
+Na obecnym etapie "domknieta architektura" nie znaczy "wszystko zrobione".
+Znaczy:
+
+- granice warstw sa jasne
+- ownership agentow jest jasny
+- runtime tradingowy jest odseparowany od AI
+- `dry_run` jest bezpiecznym zrodlem danych
+- pion strategii futures ma leada, helperow i evidence-first model pracy
+- executive reporting umie pokazac postep i ryzyka prostym jezykiem
+
+Nie znaczy jeszcze:
+
+- gotowosci do live tradingu
+- gotowej, zarabiajacej strategii
+- pelnej automatyzacji strategy factory
+- zamkniecia wszystkich prac operatorskich
+
+## Ograniczenie bezpieczenstwa
+
+AI nie wykonuje bezposrednio live trade.
+Zmiany dotyczace runtime, sekretow, live tradingu i konfiguracji krytycznej wymagaja kontroli czlowieka.
+Read-only most `dry_run` nie zmienia tej zasady: daje wglad w dane runtime, ale nie daje agentom prawa do sterowania execution engine.

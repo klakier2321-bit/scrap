@@ -268,6 +268,21 @@ Docelowy przepływ danych jest następujący:
    - agentów analitycznych.
 8. Agenci i człowiek na tej podstawie podejmują decyzję o następnym kroku.
 
+Rownolegle do tego istnieje drugi, researchowy przeplyw danych:
+
+1. `research/` buduje datasety, cechy i artefakty hipotez futures.
+2. Helperzy pionu strategii dostarczaja evidence:
+   - dane i cechy,
+   - raport ryzyka,
+   - definicje reżimow,
+   - wyniki ewaluacji kandydatow.
+3. `strategy_agent` scala te artefakty w candidate bundle.
+4. Candidate bundle przechodzi przez wspolny gate:
+   - `backtest`,
+   - `risk`,
+   - `dry_run`.
+5. Dopiero potem kandydat moze przejsc do kolejnego etapu lifecycle.
+
 ## Jak wygląda przepływ decyzji
 
 Docelowy przepływ decyzyjny ma wyglądać tak:
@@ -312,6 +327,13 @@ Obecny model pracy agentów jest następujący:
    - co już dowieziono.
 
 To jest bardzo ważne, bo pozwala rozwijać system bez chaosu i bez wrzucania całego repo do każdego promptu.
+
+W pionie strategii futures obowiazuje dodatkowy model:
+
+1. `system_lead_agent` zarzadza cala platforma.
+2. `strategy_agent` prowadzi tylko pion strategii futures.
+3. Helperzy strategii nie zastępują leada, tylko dostarczają waskie artefakty evidence-first.
+4. Tylko `strategy_agent` moze spinac lifecycle, handoffy i recommendation gate dla kandydatow.
 
 ## Jak system ma dojść do zarabiania
 
@@ -418,6 +440,26 @@ Aktualny stan strategii jest słaby:
 - stabilność jest zbyt niska,
 - `dry_run` nadal pokazuje ujemny wynik,
 - readiness gate blokuje promocję strategii dalej.
+
+## Co znaczy, ze architektura jest domknieta na ten etap
+
+Na tym etapie "domknieta architektura" nie znaczy jeszcze:
+
+- gotowej zarabiajacej strategii,
+- live tradingu,
+- pelnej automatyzacji strategy factory.
+
+Znaczy natomiast:
+
+- istnieje jedna wersja prawdy o warstwach i odpowiedzialnosciach,
+- `control layer` jest jasno oddzielony od execution engine,
+- runtime tradingowy pozostaje poza bezposrednia kontrola AI,
+- `dry_run` jest bezpiecznym zrodlem danych runtime,
+- pion strategii futures ma leada, helperow i evidence-first model pracy,
+- executive reporting i monitoring umieja pokazac stan platformy prostym jezykiem,
+- dalsze prace mozna prowadzic bez chaosu i bez mieszania ownership.
+
+To jest cel obecnego etapu. Dopiero po jego domknieciu sens ma dalsze przyspieszanie strategy factory.
 
 To znaczy:
 
