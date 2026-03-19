@@ -17,19 +17,20 @@
   "time_stop_minutes": 720,
   "funding_drag_policy": "warn_if_estimated_drag_turns_positive_edge_negative",
   "concentration_policy": "do_not_open_more_than_one_position_per_pair",
-  "promotion_gate": "needs_rework_after_first_backtest",
+  "promotion_gate": "needs_rework_after_broad_backtests",
   "observed_backtest_metrics": {
-    "timerange": "20260217-20260319",
-    "total_trades": 63,
-    "total_profit_pct": -1.72,
-    "drawdown_pct": 2.14,
-    "long_profit_pct": -0.23,
-    "short_profit_pct": -1.49
+    "timerange": "20251119-20260319",
+    "total_trades": 70,
+    "total_profit_pct": -0.33,
+    "drawdown_pct": 0.52,
+    "long_profit_pct": 0.09,
+    "short_profit_pct": -0.42
   },
   "notes": [
     "V1 uses conservative exposure and leverage.",
     "Funding is modeled conservatively until a full futures dataset exists.",
     "Any harmful side imbalance should move that side to needs_rework.",
-    "The first backtest kept drawdown under the current hard limit, but total expectancy remained negative."
+    "Dynamic sizing improved the latest window and reduced broad drawdown, but broader testing remains negative after fees.",
+    "Short-side behavior remains the dominant source of negative expectancy outside the latest window."
   ]
 }

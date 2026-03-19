@@ -11,19 +11,19 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+STRATEGY_PATH = (
+    REPO_ROOT
+    / "trading"
+    / "freqtrade"
+    / "user_data"
+    / "strategies"
+    / "structured_futures_baseline_strategy.py"
+)
 
 
 class StructuredFuturesBaselineTests(unittest.TestCase):
     def test_strategy_file_compiles(self) -> None:
-        strategy_path = (
-            REPO_ROOT
-            / "trading"
-            / "freqtrade"
-            / "user_data"
-            / "strategies"
-            / "structured_futures_baseline_strategy.py"
-        )
-        py_compile.compile(str(strategy_path), doraise=True)
+        py_compile.compile(str(STRATEGY_PATH), doraise=True)
 
     def test_backtest_config_is_futures_specific(self) -> None:
         config_path = (
@@ -72,3 +72,18 @@ class StructuredFuturesBaselineTests(unittest.TestCase):
         self.assertEqual(payload["margin_mode"], "isolated")
         self.assertLessEqual(payload["leverage_cap"], 2.0)
         self.assertLessEqual(payload["max_open_trades"], 2)
+
+    def test_strategy_source_contains_dynamic_stake_controls(self) -> None:
+        source = STRATEGY_PATH.read_text(encoding="utf-8")
+        for marker in (
+            "def custom_stake_amount(",
+            "base_risk_per_trade_pct",
+            "target_atr_ratio",
+            "signal_quality",
+            "volatility_factor",
+            "drawdown_factor",
+            "risk_capped_stake",
+            "get_starting_balance",
+            "get_total_stake_amount",
+        ):
+            self.assertIn(marker, source)

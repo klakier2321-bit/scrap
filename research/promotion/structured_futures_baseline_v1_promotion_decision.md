@@ -2,7 +2,7 @@
 
 - strategy_id: structured_futures_baseline_v1
 - current_state: needs_rework
-- backtest_gate: fail
+- backtest_gate: fail_on_broad_window
 - risk_gate: warn
 - dry_run_gate: blocked
 - promotion_decision: needs_rework
@@ -13,11 +13,11 @@
   - risk_report.json
   - first backtest result
 - first_backtest_summary:
-  - timerange: 2026-02-17 -> 2026-03-19
-  - total_trades: 63
-  - total_profit_pct: -1.72
-  - drawdown_pct: 2.14
-  - long_profit_pct: -0.23
-  - short_profit_pct: -1.49
-- reason: The candidate reached a real futures backtest quickly, but short-side losses are too large and total expectancy is still negative.
-- next_step: Rework the short-side trigger and exit logic first; keep the long-side structure as the reference baseline for the next iteration.
+  - timerange: 2025-11-19 -> 2026-03-19
+  - total_trades: 70
+  - total_profit_pct: -0.33
+  - drawdown_pct: 0.52
+  - long_profit_pct: 0.09
+  - short_profit_pct: -0.42
+- reason: Dynamic sizing materially reduced drawdown and cut the broad loss in half, but broader multi-window testing still shows negative expectancy and a still-harmful short side outside the most recent regime.
+- next_step: Keep the tighter long-side structure and the new dynamic sizing, rework short activation again, and rerun broad windows before any dry_run promotion.
