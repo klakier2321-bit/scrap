@@ -22,6 +22,7 @@ from .schemas import (
     AutopilotStatusResponse,
     AgentRunRecord,
     AgentRunRequest,
+    ControlStatusResponse,
     BotStatus,
     BotSummary,
     CodingReviewDecisionRequest,
@@ -200,6 +201,27 @@ async def ops_agents() -> JSONResponse:
 @app.get("/ops/executive/report", include_in_schema=False)
 async def ops_executive_report() -> JSONResponse:
     return JSONResponse(get_orchestrator().get_executive_report())
+
+
+@app.get(
+    "/ops/control-status/latest",
+    response_model=ControlStatusResponse,
+    include_in_schema=False,
+)
+async def ops_control_status_latest(refresh: bool = Query(default=False)) -> ControlStatusResponse:
+    report = get_orchestrator().get_control_status(refresh_if_missing=refresh)
+    if report is None:
+        raise HTTPException(status_code=404, detail="Control status report is not available yet.")
+    return ControlStatusResponse(**report)
+
+
+@app.post(
+    "/ops/control-status/generate",
+    response_model=ControlStatusResponse,
+    include_in_schema=False,
+)
+async def ops_control_status_generate() -> ControlStatusResponse:
+    return ControlStatusResponse(**get_orchestrator().generate_control_status())
 
 
 @app.get(

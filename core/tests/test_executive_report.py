@@ -58,6 +58,7 @@ class ExecutiveReportServiceTests(unittest.TestCase):
                 },
                 dry_run_snapshot=None,
                 dry_run_smoke=None,
+                control_status=None,
                 coding_status={"running": False, "enabled": True, "attention_needed": False},
                 coding_tasks=[
                     {
@@ -112,6 +113,7 @@ class ExecutiveReportServiceTests(unittest.TestCase):
                 },
                 dry_run_snapshot=None,
                 dry_run_smoke=None,
+                control_status=None,
                 coding_status={"running": True, "enabled": True, "attention_needed": False},
                 coding_tasks=[],
                 coding_workspaces=[],
@@ -155,6 +157,7 @@ class ExecutiveReportServiceTests(unittest.TestCase):
                 },
                 dry_run_snapshot=None,
                 dry_run_smoke=None,
+                control_status=None,
                 coding_status={"running": True, "enabled": True, "attention_needed": False},
                 coding_tasks=[],
                 coding_workspaces=[],
@@ -166,3 +169,31 @@ class ExecutiveReportServiceTests(unittest.TestCase):
             self.assertEqual(risks["autopilot_fallback"]["status"], "Otwarte")
             self.assertIn("risk:autopilot_fallback", blocker_ids)
             self.assertGreaterEqual(report["summary"]["high_risks_total"], 1)
+
+    def test_control_status_is_included_in_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            _write_exec_config(repo_root)
+            service = ExecutiveReportService(repo_root)
+
+            report = service.build_report(
+                runs=[],
+                autopilot_status={"running": True, "poll_interval_seconds": 300},
+                strategy_report=None,
+                dry_run_health={"ready": True, "runtime_mode": "dry_run"},
+                dry_run_snapshot=None,
+                dry_run_smoke=None,
+                control_status={
+                    "generated_at": "2026-03-19T00:00:00+00:00",
+                    "overall_status": "warn",
+                    "summary": "Wykryto 1 uwage.",
+                    "sources": [],
+                },
+                coding_status={"running": True, "enabled": True, "attention_needed": False},
+                coding_tasks=[],
+                coding_workspaces=[],
+            )
+
+            self.assertEqual(report["summary"]["control_status_available"], 1)
+            self.assertEqual(report["summary"]["control_status_warn"], 1)
+            self.assertEqual(report["control_status"]["overall_status"], "warn")

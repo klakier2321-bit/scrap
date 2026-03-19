@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r /app/requirements-ai-control.txt
 COPY core /app/core
 COPY ai_agents /app/ai_agents
 COPY docs /app/docs
+COPY monitoring /app/monitoring
 COPY AGENT_BOUNDARIES.md /app/AGENT_BOUNDARIES.md
 COPY AGENT_BUILD_FLOW.md /app/AGENT_BUILD_FLOW.md
 COPY AGENT_REVIEW_FLOW.md /app/AGENT_REVIEW_FLOW.md

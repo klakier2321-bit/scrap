@@ -326,6 +326,7 @@ class ExecutiveReportService:
         dry_run_health: dict[str, Any] | None,
         dry_run_snapshot: dict[str, Any] | None,
         dry_run_smoke: dict[str, Any] | None,
+        control_status: dict[str, Any] | None = None,
         coding_status: dict[str, Any] | None = None,
         coding_tasks: list[dict[str, Any]] | None = None,
         coding_workspaces: list[dict[str, Any]] | None = None,
@@ -343,6 +344,7 @@ class ExecutiveReportService:
         dry_run_health = dict(dry_run_health or {})
         dry_run_snapshot = dict(dry_run_snapshot or {}) if dry_run_snapshot else None
         dry_run_smoke = dict(dry_run_smoke or {}) if dry_run_smoke else None
+        control_status = dict(control_status or {}) if control_status else None
         dry_run_ready = bool(dry_run_health.get("ready"))
         control_layer_has_commits = any(
             task.get("module_id") == "control_layer_runtime" and task.get("status") == "committed"
@@ -591,6 +593,7 @@ class ExecutiveReportService:
                 "latest_snapshot": dry_run_snapshot,
                 "latest_smoke": dry_run_smoke,
             },
+            "control_status": control_status,
             "assumptions": assumptions,
             "modules": modules,
             "tasks": open_tasks,
@@ -633,5 +636,7 @@ class ExecutiveReportService:
                 "blockers_total": len(blockers),
                 "autopilot_attention_needed": 1 if autopilot_attention_needed else 0,
                 "dry_run_ready": 1 if dry_run_ready else 0,
+                "control_status_available": 1 if control_status else 0,
+                "control_status_warn": 1 if (control_status or {}).get("overall_status") == "warn" else 0,
             },
         }

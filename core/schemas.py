@@ -209,6 +209,27 @@ class DryRunSmokeResponse(BaseModel):
     snapshot_path: str | None = None
 
 
+class ControlStatusSourceResponse(BaseModel):
+    """Per-source view inside the sanitized control status report."""
+
+    source_name: str
+    file_count: int
+    latest_file_name: str | None = None
+    latest_generated_at: datetime | str | None = None
+    latest_status: str | None = None
+    issues: list[str] = Field(default_factory=list)
+    latest_record: dict[str, Any] | None = None
+
+
+class ControlStatusResponse(BaseModel):
+    """Sanitized control status exposed to operators and executive reporting."""
+
+    generated_at: datetime | str
+    overall_status: str
+    summary: str
+    sources: list[ControlStatusSourceResponse] = Field(default_factory=list)
+
+
 class AutopilotStatusResponse(BaseModel):
     """Status of the continuous planning autopilot."""
 

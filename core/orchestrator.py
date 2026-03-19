@@ -39,6 +39,8 @@ from .metrics import (
 from .risk_manager import RiskManager
 from .storage import RunStore
 from .strategy_manager import StrategyManager
+from monitoring.control_status import create_report as create_control_status_report
+from monitoring.control_status import write_report_files as write_control_status_files
 
 
 logger = logging.getLogger(__name__)
@@ -300,10 +302,29 @@ class Orchestrator:
             dry_run_health=dry_run_health,
             dry_run_snapshot=latest_snapshot,
             dry_run_smoke=self.get_latest_dry_run_smoke(),
+            control_status=self.get_control_status(refresh_if_missing=True),
             coding_status=self.coding_supervisor.status(),
             coding_tasks=self.store.list_coding_tasks(limit=100),
             coding_workspaces=self.store.list_coding_workspaces(),
         )
+
+    def get_control_status(self, *, refresh_if_missing: bool = False) -> dict[str, Any] | None:
+        report_path = self.settings.repo_checkout_path / "monitoring" / "reports" / "control_status.json"
+        if not report_path.exists():
+            if not refresh_if_missing:
+                return None
+            return self.generate_control_status()
+        try:
+            return json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            if not refresh_if_missing:
+                return None
+            return self.generate_control_status()
+
+    def generate_control_status(self) -> dict[str, Any]:
+        report = create_control_status_report()
+        write_control_status_files(report)
+        return report
 
     def autopilot_status(self) -> dict[str, Any]:
         return self.autopilot.status()
