@@ -412,6 +412,12 @@ class ExecutiveReportService:
             module["coding_tasks_committed"] = sum(
                 1 for task in module_coding_tasks if task.get("status") == "committed"
             )
+            module["coding_tasks_branch_only"] = sum(
+                1 for task in module_coding_tasks if task.get("status") == "committed"
+            )
+            module["coding_tasks_merged_to_main"] = sum(
+                1 for task in module_coding_tasks if task.get("merged_to_main") is True
+            )
             latest_coding_task = next(
                 (
                     task
@@ -555,8 +561,17 @@ class ExecutiveReportService:
             "ready_total": sum(1 for task in coding_tasks if task.get("status") == "ready"),
             "review_total": sum(1 for task in coding_tasks if task.get("status") == "review"),
             "committed_total": sum(1 for task in coding_tasks if task.get("status") == "committed"),
+            "branch_only_committed_total": sum(
+                1 for task in coding_tasks if task.get("status") == "committed"
+            ),
+            "merged_to_main_total": sum(
+                1 for task in coding_tasks if task.get("merged_to_main") is True
+            ),
             "blocked_total": sum(1 for task in coding_tasks if task.get("status") == "blocked"),
             "tasks_waiting_ceo_total": len(coding_tasks_waiting_ceo),
+            "runtime_active_total": sum(
+                1 for task in coding_tasks if task.get("status") in {"dispatched", "coding", "review", "approved"}
+            ),
             "active_task": active_coding_task,
             "last_committed_task": last_committed_coding_task,
         }
@@ -588,6 +603,11 @@ class ExecutiveReportService:
             "coding": {
                 "status": coding_status,
                 "summary": coding_summary,
+                "delivery_semantics": {
+                    "branch_only_progress": "Task agenta w statusie `committed` oznacza commit na branchu worktree i nie jest rownoznaczny z merge do `main`.",
+                    "mainline_progress": "W v1 merge do `main` pozostaje poza agentami; jesli brak jawnego `merged_to_main`, executive report traktuje commit jako branch-only progress.",
+                    "runtime_active_progress": "Za runtime-active uznajemy tylko aktualnie dzialajace uslugi i taski widoczne w biezacym runtime, a nie sam commit na branchu.",
+                },
                 "tasks": coding_tasks,
                 "workspaces": coding_workspaces,
                 "workspaces_by_task_id": workspaces_by_task_id,
@@ -601,7 +621,10 @@ class ExecutiveReportService:
                 "coding_tasks_ready_total": coding_summary["ready_total"],
                 "coding_tasks_review_total": coding_summary["review_total"],
                 "coding_tasks_committed_total": coding_summary["committed_total"],
+                "coding_tasks_branch_only_total": coding_summary["branch_only_committed_total"],
+                "coding_tasks_merged_to_main_total": coding_summary["merged_to_main_total"],
                 "coding_tasks_waiting_ceo_total": coding_summary["tasks_waiting_ceo_total"],
+                "runtime_active_total": coding_summary["runtime_active_total"],
                 "decisions_waiting_total": len(waiting_decisions),
                 "high_risks_total": len(high_risks),
                 "active_agent_runs_total": sum(

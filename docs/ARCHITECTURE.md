@@ -33,6 +33,7 @@ To rozdzielenie ma chronic projekt przed chaosem architektonicznym i przed zbyt 
 - aktywny model agentowy z leadem systemowym, review i izolowanymi worktree
 - foundation pionu strategii futures: `strategy_agent` jako lead oraz helperzy od danych, ryzyka, reżimow i ewaluacji
 - dokumentacja kanoniczna i roadmapa executive
+- branch-first workflow agentow kodujacych: commit najpierw trafia na branch worktree, a nie automatycznie do `main`
 
 ## Co jest planowane
 
@@ -186,6 +187,20 @@ Rownolegle do przeplywu wykonawczego istnieje przeplyw budowy edge:
 
 To oznacza, ze strategia jest rozwijana jak produkt inwestycyjny, a nie jak jednorazowy eksperyment.
 
+## Jak czytac postep implementacji
+
+W tym projekcie nie wolno mieszac trzech roznych znaczen postepu:
+
+- `committed_on_task_branch` - agent dowiozl zmiane na branchu worktree; to jest postep review/coding flow, ale jeszcze nie domkniecie platformy
+- `merged_to_main` - zmiana jest juz w glownym repo i dopiero wtedy moze byc liczona jako domkniety przyrost architektury lub platformy
+- `runtime_active` - dzialajaca usluga lub pipeline widoczny w biezacym runtime, np. `dry_run`, snapshot bridge, autopilot lub coding supervisor
+
+Na etapie v1 agentowego workflow domyslna interpretacja jest taka:
+
+- `committed` task kodujacy oznacza branch-first progress
+- merge do `main` pozostaje poza agentami i wymaga osobnego kroku nadzoru
+- executive reporting nie powinien sprzedawac branchowego commita jako rownoznacznego z domknieciem platformy
+
 ## Co znaczy, ze architektura jest "domknieta" na ten etap
 
 Na obecnym etapie "domknieta architektura" nie znaczy "wszystko zrobione".
@@ -204,6 +219,7 @@ Nie znaczy jeszcze:
 - gotowej, zarabiajacej strategii
 - pelnej automatyzacji strategy factory
 - zamkniecia wszystkich prac operatorskich
+- ze kazdy task `committed` przez agenta jest juz zmergowany do `main`
 
 ## Ograniczenie bezpieczenstwa
 

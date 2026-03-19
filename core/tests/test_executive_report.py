@@ -39,6 +39,50 @@ executive_dashboard:
 
 
 class ExecutiveReportServiceTests(unittest.TestCase):
+    def test_branch_only_vs_mainline_semantics_are_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            _write_exec_config(repo_root)
+            service = ExecutiveReportService(repo_root)
+
+            report = service.build_report(
+                runs=[],
+                autopilot_status={
+                    "running": True,
+                    "poll_interval_seconds": 300,
+                },
+                strategy_report=None,
+                dry_run_health={
+                    "ready": True,
+                    "runtime_mode": "dry_run",
+                },
+                dry_run_snapshot=None,
+                dry_run_smoke=None,
+                coding_status={"running": False, "enabled": True, "attention_needed": False},
+                coding_tasks=[
+                    {
+                        "task_id": "code-1",
+                        "module_id": "monitoring_and_visibility",
+                        "status": "committed",
+                        "goal": "Branch-only commit",
+                        "owner_agent": "monitoring_agent",
+                    },
+                    {
+                        "task_id": "code-2",
+                        "module_id": "monitoring_and_visibility",
+                        "status": "review",
+                        "goal": "Active runtime task",
+                        "owner_agent": "monitoring_agent",
+                    },
+                ],
+                coding_workspaces=[],
+            )
+
+            self.assertEqual(report["summary"]["coding_tasks_branch_only_total"], 1)
+            self.assertEqual(report["summary"]["coding_tasks_merged_to_main_total"], 0)
+            self.assertEqual(report["summary"]["runtime_active_total"], 1)
+            self.assertIn("branch_only_progress", report["coding"]["delivery_semantics"])
+
     def test_stable_autopilot_and_dry_run_downgrade_risks(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             repo_root = Path(tmpdir)

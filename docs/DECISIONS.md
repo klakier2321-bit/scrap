@@ -40,6 +40,21 @@ To oznacza, ze:
 - helperzy strategii dostarczaja artefakty evidence-first,
 - tylko `strategy_agent` scala lifecycle i promotion gate kandydatow.
 
+## Branch Commits Do Not Equal Mainline Completion
+
+W supervised coding flow agent commituje najpierw na branchu worktree.
+To oznacza:
+
+- `committed` task agenta nie jest automatycznie rowny merge do `main`
+- postep branchowy i postep platformy trzeba raportowac osobno
+- executive reporting nie powinien traktowac branchowego commita jako domkniecia platformy bez dodatkowego kroku nadzoru
+
+Domyslna interpretacja v1:
+
+- `committed_on_task_branch` = postep coding flow
+- `merged_to_main` = postep repo
+- `runtime_active` = postep operacyjny
+
 ## Futures First, Not Spot Thinking
 
 Rozwoj warstwy strategii ma byc futures-first.
@@ -66,6 +81,17 @@ Zmiany w nim powinny być rzadkie, świadome i reviewowane.
 
 Każdy agent ma przypisaną warstwę odpowiedzialności.
 To ogranicza chaos i zmniejsza ryzyko zmian „przy okazji”.
+
+## Local Test Contract Must Be Explicit
+
+Lokalne testy i compile maja byc uruchamiane z root repo i na jawnie zainstalowanych zaleznosciach control plane.
+Nie zakladamy, ze "systemowe python3" ma komplet pakietow do `core/` i `ai_agents/`.
+
+Kanoniczny model lokalny:
+
+- zaleznosci z `requirements-ai-control.txt`
+- uruchamianie z root repo
+- testy odseparowane od aktywnego coding supervisora, gdy potrzebna jest czysta diagnostyka
 
 ## System Lead Orchestrates, Does Not Override Safety
 

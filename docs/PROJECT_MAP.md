@@ -64,6 +64,25 @@ Starsze dokumenty w root pozostaja waznym kontekstem pomocniczym, ale nie powinn
 - `monitoring/` i `infrastructure/` - monitoring, alerty, dashboardy, status platformy
 - `docs/` - dokumentacja kanoniczna
 
+## Jak czytac postep zmian
+
+W repo obowiazuja trzy rozne poziomy postepu:
+
+- `branch-only` - zmiana istnieje na branchu worktree agenta, ale nie jest jeszcze w `main`
+- `mainline` - zmiana jest juz w `main` i moze byc traktowana jako stan repo
+- `runtime-active` - dana usluga lub pipeline rzeczywiscie dziala teraz w systemie
+
+Nie zakladaj automatycznie, ze task agentowy w statusie `committed` oznacza:
+
+- merge do `main`,
+- albo domkniecie platformy w sensie architektonicznym.
+
+Najpierw sprawdz:
+
+1. czy zmiana jest juz w `main`
+2. czy runtime naprawde z niej korzysta
+3. dopiero potem czy mozna uznac etap za domkniety
+
 ## Jak uruchomic obecny projekt
 
 Zgodnie z `README.md`:
@@ -74,6 +93,21 @@ docker compose up -d
 docker compose ps
 docker compose logs -f
 ```
+
+## Kanoniczny local dev/test contract
+
+Pracuj z root repo:
+
+```bash
+cd /home/debian/crypto-system
+python3 -m compileall core ai_agents/runtime monitoring trading
+python3 -m unittest discover -s core/tests -t . -p 'test_*.py'
+```
+
+Przed pelna suite:
+
+- upewnij sie, ze masz zainstalowane zaleznosci z `requirements-ai-control.txt`
+- najlepiej zatrzymaj `coding supervisor`, jesli chcesz uniknac mieszania logow testow z background workerem
 
 ## Jak agent AI ma czytac repo
 
