@@ -46,6 +46,41 @@ agents:
     max_retry_limit: 1
     require_approval_for_strong_model: false
 
+  alpha_research_agent:
+    daily_usd: 0.4
+    per_run_usd: 0.12
+    max_iterations: 3
+    max_retry_limit: 1
+    require_approval_for_strong_model: false
+
+  feature_engineering_agent:
+    daily_usd: 0.45
+    per_run_usd: 0.12
+    max_iterations: 3
+    max_retry_limit: 1
+    require_approval_for_strong_model: false
+
+  regime_model_agent:
+    daily_usd: 0.35
+    per_run_usd: 0.12
+    max_iterations: 3
+    max_retry_limit: 1
+    require_approval_for_strong_model: false
+
+  risk_research_agent:
+    daily_usd: 0.45
+    per_run_usd: 0.12
+    max_iterations: 3
+    max_retry_limit: 1
+    require_approval_for_strong_model: false
+
+  experiment_evaluation_agent:
+    daily_usd: 0.4
+    per_run_usd: 0.12
+    max_iterations: 3
+    max_retry_limit: 1
+    require_approval_for_strong_model: false
+
   integration_agent:
     daily_usd: 0.5
     per_run_usd: 0.2

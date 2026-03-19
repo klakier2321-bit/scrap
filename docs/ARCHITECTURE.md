@@ -50,6 +50,22 @@ Nowy most `dry_run` w `core/` ma charakter wyłącznie odczytowy: control layer 
 Agenci mają wspierać rozwój architektury, strategii, monitoringu i integracji, ale nie wykonują bezpośrednio live trade.
 Agenci nie dostają bezpośredniego dostępu do REST API Freqtrade. Pracują wyłącznie na snapshotach i raportach przygotowanych przez control layer.
 
+W aktywowanym pionie strategii futures obowiązuje też dodatkowa hierarchia:
+
+- `system_lead_agent` zarządza całym systemem,
+- `strategy_agent` działa jako strategy lead,
+- helperzy strategii (`alpha_research_agent`, `feature_engineering_agent`, `regime_model_agent`, `risk_research_agent`, `experiment_evaluation_agent`) produkują tylko własne artefakty badawcze,
+- tylko `strategy_agent` scala evidence i pilnuje lifecycle kandydatów.
+
+Docelowo obok `core/` i `trading/` istnieje też warstwa `research/`, w której powstają:
+
+- datasety futures-aware,
+- feature manifests,
+- definicje reżimów,
+- candidate manifests,
+- eksperymenty,
+- promotion evidence.
+
 ## Read-only most danych runtime
 
 Docelowy przepływ danych runtime dla agentów jest następujący:

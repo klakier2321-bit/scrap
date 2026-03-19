@@ -1,5 +1,5 @@
 autopilot:
-  objective: "Budowac skuteczny, risk-adjusted system tradingowy: stale pracowac na danych dry_run, wzmacniac droge do zarabiania i nie obchodzic zasad bezpieczenstwa."
+  objective: "Rownolegle domykac architekture, control plane, monitoring, API i GUI oraz uruchomic foundation pionu strategii futures tak, aby platforma budowala edge bez chaosu i bez naruszania zasad bezpieczenstwa."
   auto_start: true
   poll_interval_seconds: 300
   max_cycles: 0
@@ -7,8 +7,8 @@ autopilot:
   tasks:
     - name: "lead_next_increment"
       agent_name: "system_lead_agent"
-      goal: "Wyznacz jeden maly, konkretny i bezpieczny krok rozwoju systemu, ktory poprawia gotowosc platformy do skutecznej pracy na danych dry_run i przybliza nas do zarabiajacego systemu."
-      business_reason: "Glowny agent ma stale pilnowac kolejnosci prac i kierowac zespol najpierw w strategy/backtest workflow na danych dry_run."
+      goal: "Wyznacz jeden maly, konkretny i bezpieczny krok, ktory domyka architekture, control plane, monitoring, API, GUI lub foundation pionu strategii futures bez naruszania runtime tradingowego."
+      business_reason: "Glowny agent ma stale pilnowac kolejnosci prac i rownowagi miedzy platforma a nowo aktywowanym pionem strategii futures."
       requested_paths:
         - "docs/"
         - "core/"
@@ -25,8 +25,8 @@ autopilot:
 
     - name: "lead_executive_watch"
       agent_name: "system_lead_agent"
-      goal: "Na podstawie roadmapy executive, snapshotow dry_run, raportow strategii i ostatnich runow przygotuj krotka notatke zarzadcza: co sie zmienilo, co przybliza nas do zarabiania w dry_run, co wymaga uwagi oraz czego potrzebujemy od prezesa."
-      business_reason: "Pulpit prezesa ma stale pokazywac nie tylko status techniczny, ale przede wszystkim droge do skutecznego systemu pracujacego na danych dry_run."
+      goal: "Na podstawie roadmapy executive, statusu taskow i ostatnich runow przygotuj krotka notatke zarzadcza: co zostalo domkniete w platformie oraz co ruszylo w pionie strategii futures."
+      business_reason: "Pulpit prezesa ma pokazywac rownoczesnie porzadkowanie platformy i uruchomienie strategy factory foundation."
       requested_paths:
         - "ai_agents/config/executive_roadmap.yaml"
         - "core/executive_report.py"
@@ -41,26 +41,10 @@ autopilot:
       force_strong_model: false
       auto_approve: true
 
-    - name: "strategy_dry_run_watch"
-      agent_name: "strategy_agent"
-      goal: "Na podstawie najnowszego snapshotu dry_run, ostatniego raportu strategii i assessmentu przygotuj jeden maly, bezpieczny krok, ktory poprawia gotowosc systemu do skutecznego zarabiania w trybie dry_run."
-      business_reason: "Chcemy, aby strategy_agent juz stale pracowal na danych runtime i wyprowadzal rekomendacje oparte na risk-adjusted profit, a nie na domyslach."
-      requested_paths:
-        - "data/ai_control/dry_run_snapshots/"
-        - "data/ai_control/strategy_reports/"
-        - "docs/ARCHITECTURE.md"
-        - "core/strategy_manager.py"
-      risk_level: "low"
-      cross_layer: false
-      does_touch_contract: false
-      does_touch_runtime: false
-      force_strong_model: false
-      auto_approve: false
-
     - name: "monitoring_dry_run_watch"
       agent_name: "monitoring_agent"
-      goal: "Sprawdz, czy dashboardy, metryki i alerty jasno pokazuja gotowosc dry_run, swiezosc snapshotow oraz to, czy strategia zbliza sie do skutecznego systemu."
-      business_reason: "Chcemy, aby prezes i operator widzieli, czy system realnie uczy sie na danych dry_run i co blokuje droge do zarabiania."
+      goal: "Sprawdz, czy dashboardy, metryki i alerty jasno pokazuja stan platformy oraz postep foundation pionu strategii futures."
+      business_reason: "Chcemy, aby prezes i operator widzieli postep porzadkowania platformy i rozwoju strategy factory, a nie tylko stan runtime."
       requested_paths:
         - "infrastructure/grafana/"
         - "infrastructure/prometheus/"
@@ -76,13 +60,68 @@ autopilot:
 
     - name: "architecture_business_refinement"
       agent_name: "architecture_agent"
-      goal: "Doprecyzuj docelowa architekture platformy jezykiem biznesowym i sprawdz, czy przeplyw miedzy warstwami pozostaje czytelny, bezpieczny i zgodny z zasada: control layer steruje, Freqtrade wykonuje."
-      business_reason: "Chcemy unikac dryfu architektury, ale jednoczesnie miec opis zrozumialy dla prezesa i zespolu bez ukrywania odpowiedzialnosci warstw."
+      goal: "Doprecyzuj docelowa architekture platformy i nowego pionu strategii futures jezykiem biznesowym, tak aby control layer sterowal, Freqtrade wykonywal, a research layer budowal edge."
+      business_reason: "Chcemy unikac dryfu architektury i wejsc w kolejny etap ze spojna platforma oraz jasno opisanym pionem futures strategy factory."
       requested_paths:
         - "docs/ARCHITECTURE.md"
         - "docs/PROJECT_MAP.md"
+        - "docs/TRADING_SYSTEM_MASTER_PLAN.md"
         - "docs/DECISIONS.md"
       risk_level: "medium"
+      cross_layer: false
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false
+
+    - name: "strategy_lead_foundation"
+      agent_name: "strategy_agent"
+      goal: "Jako strategy lead wyznacz jeden maly, konkretny i bezpieczny krok dla futures strategy factory: lifecycle, handoff helperow albo promotion gate."
+      business_reason: "Pion strategii futures ma ruszyc od razu, ale przez male, reviewowalne foundation tasks zamiast chaosu."
+      requested_paths:
+        - "docs/"
+        - "research/"
+        - "trading/"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
+        - "core/risk_manager.py"
+      risk_level: "medium"
+      cross_layer: true
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false
+
+    - name: "feature_foundation_watch"
+      agent_name: "feature_engineering_agent"
+      goal: "Doprecyzuj foundation futures-aware dataset buildera i feature store v1 tak, aby strategy factory miala versioned inputs zamiast luznych pomyslow."
+      business_reason: "Strategy factory potrzebuje danych i cech jako foundation, inaczej hipotezy beda chaotyczne i nieporownywalne."
+      requested_paths:
+        - "docs/FUTURES_TRADING_MODEL.md"
+        - "docs/RESEARCH_LAYER.md"
+        - "docs/FEATURE_STORE.md"
+        - "research/"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
+      risk_level: "low"
+      cross_layer: false
+      does_touch_contract: false
+      does_touch_runtime: false
+      force_strong_model: false
+      auto_approve: false
+
+    - name: "risk_research_foundation"
+      agent_name: "risk_research_agent"
+      goal: "Doprecyzuj foundation futures risk architecture dla leverage, liquidation, funding drag, concentration i exposure tak, aby strategy factory byla risk-first."
+      business_reason: "Przewaga nie ma sensu bez futures-aware risk architecture, wiec risk research musi ruszyc od razu razem z foundation strategii."
+      requested_paths:
+        - "docs/FUTURES_TRADING_MODEL.md"
+        - "docs/RISK_MODEL_FUTURES.md"
+        - "docs/SYSTEM_OPERATING_MODEL.md"
+        - "research/"
+        - "core/risk_manager.py"
+        - "data/ai_control/dry_run_snapshots/"
+      risk_level: "low"
       cross_layer: false
       does_touch_contract: false
       does_touch_runtime: false

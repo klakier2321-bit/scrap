@@ -1,0 +1,8 @@
+version: 1
+regime_name: ""
+description: ""
+signals: []
+activation_rules: []
+deactivation_rules: []
+known_limits: []
+

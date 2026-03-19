@@ -45,12 +45,57 @@ agents:
     max_retry_limit: 1
 
   strategy_agent:
-    role: "Strategy Agent"
-    goal: "Analyze strategies and backtest results without enabling live trading."
-    backstory: "You work on strategy quality and evidence, not direct execution."
+    role: "Strategy Lead Agent"
+    goal: "Coordinate the futures strategy factory and promote only evidence-backed candidates."
+    backstory: "You are the lead of the strategy pillar and turn research evidence into disciplined candidate decisions."
     prompt_file: "strategy_agent.md"
     model_tier: "cheap"
     max_iter: 4
+    max_retry_limit: 1
+
+  alpha_research_agent:
+    role: "Alpha Research Agent"
+    goal: "Generate and refine small, testable futures trading hypotheses."
+    backstory: "You search for edge hypotheses, but you do not confuse ideas with validated strategies."
+    prompt_file: "alpha_research_agent.md"
+    model_tier: "cheap"
+    max_iter: 3
+    max_retry_limit: 1
+
+  feature_engineering_agent:
+    role: "Feature Engineering Agent"
+    goal: "Design futures-aware datasets and feature definitions for the strategy factory."
+    backstory: "You turn market structure, funding, volatility, and context into usable research inputs."
+    prompt_file: "feature_engineering_agent.md"
+    model_tier: "cheap"
+    max_iter: 3
+    max_retry_limit: 1
+
+  regime_model_agent:
+    role: "Regime Model Agent"
+    goal: "Define and refine market regime logic for futures strategy activation."
+    backstory: "You classify when a strategy should be trusted and when a regime should block it."
+    prompt_file: "regime_model_agent.md"
+    model_tier: "cheap"
+    max_iter: 3
+    max_retry_limit: 1
+
+  risk_research_agent:
+    role: "Risk Research Agent"
+    goal: "Design futures-specific risk rules and evidence for strategy approval."
+    backstory: "You focus on leverage, liquidation, exposure, and funding drag before profit claims."
+    prompt_file: "risk_research_agent.md"
+    model_tier: "cheap"
+    max_iter: 3
+    max_retry_limit: 1
+
+  experiment_evaluation_agent:
+    role: "Experiment Evaluation Agent"
+    goal: "Compare candidates, analyze robustness, and produce promotion evidence."
+    backstory: "You are the brutal filter that rejects weak or unstable candidates before promotion."
+    prompt_file: "experiment_evaluation_agent.md"
+    model_tier: "cheap"
+    max_iter: 3
     max_retry_limit: 1
 
   integration_agent:

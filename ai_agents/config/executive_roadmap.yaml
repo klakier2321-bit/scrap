@@ -1,7 +1,7 @@
 executive_dashboard:
   title: "Pulpit Prezesa"
   subtitle: "Jeden widok dla decyzji zarządczych, priorytetów, ryzyk i postępu pracy nad platformą tradingową."
-  strategic_goal: "Budować skuteczny, risk-adjusted system tradingowy: najpierw uruchomić powtarzalną pracę na realnych danych w dry_run, wyciągać wnioski z wyników i dopiero potem rozszerzać automatyzację."
+  strategic_goal: "Domknąć architekturę i warstwy operatorskie platformy oraz równolegle uruchomić foundation futures strategy factory, aby platforma budowała edge na uporządkowanym i bezpiecznym fundamencie."
 
   assumptions:
     - id: "assumption_control_over_execution"
@@ -66,12 +66,12 @@ executive_dashboard:
       name: "Dokumentacja i architektura"
       owner_agent: "architecture_agent"
       status: "W toku"
-      progress_pct: 88
+      progress_pct: 91
       direction: "Jedna wersja prawdy dla architektury, decyzji i zasad bezpieczeństwa"
-      current_focus: "Przepisać kluczowe opisy architektury na język biznesowy i stanowczy: control layer steruje, Freqtrade wykonuje"
-      next_milestone: "Mieć krótką, zarządczą wersję architektury bez rozmywania odpowiedzialności między warstwami"
+      current_focus: "Domknąć architekturę platformy prostym językiem biznesowym i spiąć ją z kanonicznym planem systemu tradingowego"
+      next_milestone: "Mieć pełny, spójny komplet dokumentów zarządczych przed powrotem do strategii w czwartek"
       risk_level: "Niskie"
-      executive_note: "Możesz oczekiwać jasnych, biznesowych opisów zamiast technicznego chaosu"
+      executive_note: "To jest teraz pierwszy priorytet: domknąć opis architektury i odpowiedzialności warstw tak, by kolejny etap nie wprowadzał chaosu"
       paths:
         - "docs/"
         - "README.md"
@@ -82,12 +82,12 @@ executive_dashboard:
       name: "Monitoring i widoczność systemu"
       owner_agent: "monitoring_agent"
       status: "W toku"
-      progress_pct: 82
-      direction: "Pokazywać koszty, aktywność agentów, ryzyka i stan tradingu jednym językiem"
-      current_focus: "Poszerzyć Grafanę o założenia, zmiany, uwagi lead agenta i sygnały o taskach domkniętych"
-      next_milestone: "Pokazywać pełny stan projektu z perspektywy prezesa bez potrzeby zaglądania do kodu"
+      progress_pct: 84
+      direction: "Pokazywać koszty, aktywność agentów, ryzyka i stan platformy jednym językiem"
+      current_focus: "Domknąć reporting zarządczy wokół architektury, control plane i warstw operatorskich"
+      next_milestone: "Pokazywać pełny stan platformy z perspektywy prezesa bez potrzeby zaglądania do kodu"
       risk_level: "Średnie"
-      executive_note: "Jeśli chcesz inny układ informacji, to właśnie ten moduł powinien go dostarczyć"
+      executive_note: "Monitoring ma teraz pokazać, czy platforma jest uporządkowana i gotowa na powrót do strategii, a nie tylko czy strategia zarabia"
       paths:
         - "infrastructure/grafana/"
         - "infrastructure/prometheus/"
@@ -98,26 +98,28 @@ executive_dashboard:
       name: "Control layer"
       owner_agent: "control_layer_agent"
       status: "W toku"
-      progress_pct: 72
+      progress_pct: 75
       direction: "Budować prawdziwy mózg systemowy nad Freqtrade"
-      current_focus: "Dowozic tylko te małe przyrosty control layer, które bezpośrednio odblokowują pracę strategii i danych dry_run"
-      next_milestone: "Stabilnie wspierać strategię i monitoring bez rozbudowywania control layer ponad to, co potrzebne do dry_run"
+      current_focus: "Domknąć małe przyrosty control layer, które porządkują platformę i usuwają dług architektoniczny przed powrotem do strategii"
+      next_milestone: "Mieć bardziej domknięty i czytelny control layer wspierający monitoring, API i GUI"
       risk_level: "Średnie"
-      executive_note: "To pierwszy moduł, na którym testujemy model: lead deleguje, agent koduje, review zatwierdza, a main pozostaje bez auto-merge"
+      executive_note: "To ma teraz domknąć warstwę sterującą platformy, aby strategia wróciła na stabilniejszy fundament"
       paths:
         - "core/"
 
     - id: "strategy_and_backtests"
-      name: "Strategie i backtesty"
+      name: "Fabryka strategii futures"
       owner_agent: "strategy_agent"
       status: "W toku"
-      progress_pct: 64
-      direction: "Pracować na realnych danych dry_run i raportach, budując drogę do zysku skorygowanego o ryzyko"
-      current_focus: "Analizować najnowsze snapshoty dry_run i raporty strategii, aby wyprowadzać małe kroki poprawiające gotowość systemu do zarabiania"
-      next_milestone: "Mieć pierwszy powtarzalny workflow strategii oparty o snapshoty dry_run oraz jasny executive summary z wnioskami"
+      progress_pct: 46
+      direction: "Uruchomić futures strategy factory: strategy lead, helperzy, lifecycle, feature foundation i risk foundation"
+      current_focus: "Aktywowac strategy lead oraz helperow feature/risk i zbudowac foundation futures-aware bez naruszania runtime tradingowego"
+      next_milestone: "Miec aktywny pion strategii z lifecycle, artefaktami i pierwszymi helper taskami evidence-first"
       risk_level: "Średnie"
-      executive_note: "To jest teraz główny priorytet: pracować na danych dry_run i szukać drogi do skutecznego zarabiania bez wchodzenia w live trading"
+      executive_note: "Strategia juz nie czeka. Rusza od razu, ale jako kontrolowany pion: strategy lead plus helperzy futures research, feature, regime, risk i evaluation."
       paths:
+        - "research/"
+        - "docs/"
         - "trading/"
         - "data/ai_control/strategy_reports/"
 
@@ -188,9 +190,9 @@ executive_dashboard:
       title: "Doprecyzować architekturę językiem zrozumiałym dla biznesu"
       status: "W toku"
       owner_agent: "architecture_agent"
-      priority: "Średni"
+      priority: "Wysoki"
       needs_human: "Nie"
-      next_step: "Przepisać ARCHITECTURE.md i PROJECT_MAP.md językiem biznesowym i stanowczym: control layer steruje, Freqtrade wykonuje"
+      next_step: "Domknąć ARCHITECTURE.md, PROJECT_MAP.md i master plan systemu tradingowego językiem biznesowym i stanowczym: control layer steruje, Freqtrade wykonuje"
 
     - id: "monitoring_for_management"
       module_id: "monitoring_and_visibility"
@@ -239,21 +241,30 @@ executive_dashboard:
 
     - id: "strategy_reporting_depth"
       module_id: "strategy_and_backtests"
-      title: "Rozszerzyć raport strategii o czytelne porównanie zysku i drawdownu"
+      title: "Przestawić strategy_agent na rolę strategy lead dla futures factory"
       status: "W toku"
       owner_agent: "strategy_agent"
       priority: "Wysoki"
       needs_human: "Nie"
-      next_step: "Analizować latest snapshoty dry_run i raporty strategii, a potem podać executive summary: co poprawiać, by dojść do zarabiającego systemu"
+      next_step: "Dopiąć lifecycle, handoff helperów i wspólny promotion gate"
 
     - id: "strategy_dry_run_loop"
       module_id: "strategy_and_backtests"
-      title: "Uruchomić stałą analizę danych dry_run przez strategy_agent"
+      title: "Uruchomić foundation feature i risk research dla futures"
       status: "W toku"
-      owner_agent: "strategy_agent"
+      owner_agent: "feature_engineering_agent"
       priority: "Wysoki"
       needs_human: "Nie"
-      next_step: "Na podstawie snapshotów dry_run i assessmentów wyznaczać jeden bezpieczny krok poprawiający gotowość systemu do zarabiania"
+      next_step: "Dowiezc futures-aware dataset builder v1, feature store v1 i risk architecture v1 bez uruchamiania live tradingu"
+
+    - id: "strategy_helper_activation"
+      module_id: "strategy_and_backtests"
+      title: "Aktywować helperów alpha, regime i evaluation po foundation"
+      status: "Gotowe do startu"
+      owner_agent: "strategy_agent"
+      priority: "Średni"
+      needs_human: "Nie"
+      next_step: "Po pierwszych artefaktach danych i ryzyka uruchomić alpha_research_agent, regime_model_agent i experiment_evaluation_agent"
 
     - id: "dry_run_runtime_bridge"
       module_id: "control_layer_runtime"

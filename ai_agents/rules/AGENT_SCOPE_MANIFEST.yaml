@@ -76,13 +76,104 @@ agents:
     role: trading_strategy
     owned_scope:
       - trading/
-    read_only_scope:
+      - research/
       - docs/
+    read_only_scope:
       - core/
       - ai_agents/
       - scripts/
       - data/ai_control/dry_run_snapshots/
       - data/ai_control/dry_run_smoke/
+      - data/ai_control/strategy_reports/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  alpha_research_agent:
+    role: alpha_research
+    owned_scope:
+      - research/
+      - docs/
+    read_only_scope:
+      - trading/
+      - core/
+      - ai_agents/
+      - data/ai_control/dry_run_snapshots/
+      - data/ai_control/strategy_reports/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  feature_engineering_agent:
+    role: feature_engineering
+    owned_scope:
+      - research/
+      - docs/
+    read_only_scope:
+      - trading/
+      - core/
+      - ai_agents/
+      - data/ai_control/dry_run_snapshots/
+      - data/ai_control/strategy_reports/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  regime_model_agent:
+    role: regime_modeling
+    owned_scope:
+      - research/
+      - docs/
+    read_only_scope:
+      - trading/
+      - core/
+      - ai_agents/
+      - data/ai_control/dry_run_snapshots/
+      - data/ai_control/strategy_reports/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  risk_research_agent:
+    role: futures_risk_research
+    owned_scope:
+      - research/
+      - docs/
+    read_only_scope:
+      - trading/
+      - core/
+      - ai_agents/
+      - data/ai_control/dry_run_snapshots/
+      - data/ai_control/strategy_reports/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  experiment_evaluation_agent:
+    role: experiment_evaluation
+    owned_scope:
+      - research/
+      - docs/
+    read_only_scope:
+      - trading/
+      - core/
+      - ai_agents/
+      - data/ai_control/dry_run_snapshots/
       - data/ai_control/strategy_reports/
     forbidden_scope:
       - .env

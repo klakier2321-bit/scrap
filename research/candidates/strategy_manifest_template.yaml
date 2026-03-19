@@ -1,0 +1,10 @@
+version: 1
+strategy_id: ""
+market_type: futures
+allowed_sides: both
+timeframes: []
+required_regimes: []
+risk_model: ""
+known_weaknesses: []
+status: idea
+

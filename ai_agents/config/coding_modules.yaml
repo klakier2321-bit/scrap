@@ -7,43 +7,165 @@ coding_runtime:
   max_target_files: 6
 
   modules:
-    - module_id: "strategy_and_backtests"
+    - module_id: "strategy_orchestration"
       owner_agent: "strategy_agent"
       enabled: true
-      priority: 120
+      priority: 85
       max_target_files: 3
-      title: "Strategie i backtesty"
-      module_summary: "Naucz warstwe strategii czytac read-only snapshoty dry_run, budowac assessmenty, testy i male artefakty analizy ryzyka, ale zawsze jednym reviewowalnym krokiem naraz."
+      title: "Orkiestracja strategii futures"
+      module_summary: "Strategy lead spina lifecycle kandydatow, artefakty helperow i wspolny gate `backtest + risk + dry_run`."
       read_only_context:
         - "docs/ARCHITECTURE.md"
+        - "docs/TRADING_SYSTEM_MASTER_PLAN.md"
+        - "docs/FUTURES_TRADING_MODEL.md"
         - "data/ai_control/dry_run_snapshots/"
         - "data/ai_control/strategy_reports/"
         - "core/strategy_manager.py"
         - "core/risk_manager.py"
-        - "core/orchestrator.py"
       target_candidates:
-        - "trading/DRY_RUN_RUNTIME_ASSESSMENT.md"
-        - "trading/DRY_RUN_NEXT_STEPS.md"
-        - "trading/generate_dry_run_assessment.py"
-        - "trading/README.md"
-        - "trading/analysis/README.md"
-        - "trading/tests/test_risk_metrics.py"
+        - "docs/STRATEGY_LIFECYCLE.md"
+        - "docs/STRATEGY_PROMOTION_PIPELINE.md"
+        - "docs/AI_AGENT_ROLES.md"
+        - "research/candidates/README.md"
+        - "research/promotion/README.md"
       acceptance_checks:
-        - "Zmiana nie modyfikuje strategii handlowej ani configow runtime."
-        - "Dane dry_run sa konsumowane tylko read-only."
-        - "Kazda rekomendacja lub artefakt strategii laczy evidence z backtestu, RiskManagera i dry_run."
-        - "Artefakt strategii lub raport jest czytelny dla review i dla prezesa."
-        - "Wynik ocenia strategie przez pryzmat risk-adjusted profit, a nie samego profitu."
+        - "Zmiana nie modyfikuje runtime tradingowego ani sekretow."
+        - "Lifecycle strategii i ownership helperow sa jednoznaczne."
+        - "Kazdy kandydat przechodzi przez wspolny gate backtest + risk + dry_run."
       required_tests:
-        - "python -m compileall core trading"
-        - "python -m unittest discover -s core/tests -p test_*.py"
-        - "python -m unittest discover -s trading/tests -p test_*.py"
+        - "python -m compileall core ai_agents/runtime"
       definition_of_done:
-        - "Warstwa strategii dowozi jeden maly, reviewowalny krok pracy na snapshotach dry_run lub raportach strategii."
-        - "Wynik przechodzi przez wspolny gate backtest + risk + dry_run, zamiast opierac sie na jednym sygnale."
-        - "Diff nie wykracza poza approved scope i dane raportowe."
-        - "Wynik przybliza system do skutecznej pracy na danych dry_run, bez drogi do live tradingu."
-        - "Jesli task dotyczy oceny strategii, uwzglednia tez kat ryzyka lub gotowosci risk-adjusted."
+        - "Strategy lead ma jawny model lifecycle, handoffow i promotion gate."
+        - "Diff jest maly, reviewowalny i nie wykracza poza scope strategii foundation."
+
+    - module_id: "futures_feature_foundation"
+      owner_agent: "feature_engineering_agent"
+      enabled: true
+      priority: 82
+      max_target_files: 3
+      title: "Foundation cech i datasetow futures"
+      module_summary: "Buduj foundation futures-aware dla dataset buildera i feature store, bez jeszcze rozbudowanego silnika eksperymentow."
+      read_only_context:
+        - "docs/ARCHITECTURE.md"
+        - "docs/FUTURES_TRADING_MODEL.md"
+        - "core/risk_manager.py"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
+      target_candidates:
+        - "docs/RESEARCH_LAYER.md"
+        - "docs/FEATURE_STORE.md"
+        - "research/datasets/README.md"
+        - "research/features/README.md"
+      acceptance_checks:
+        - "Zmiana traktuje futures jako futures, nie spot."
+        - "Foundation uwzglednia funding, leverage, slippage i regime context."
+        - "Nie ma zmian w live tradingu ani runtime configach."
+      required_tests:
+        - "python -m compileall core ai_agents/runtime"
+      definition_of_done:
+        - "Istnieje jawny foundation datasetow i feature store v1."
+        - "Artefakty sa wersjonowalne i czytelne dla strategy lead."
+
+    - module_id: "futures_risk_research"
+      owner_agent: "risk_research_agent"
+      enabled: true
+      priority: 81
+      max_target_files: 3
+      title: "Foundation risk research futures"
+      module_summary: "Buduj futures-aware risk foundation dla leverage, liquidation, concentration, funding drag i exposure."
+      read_only_context:
+        - "docs/ARCHITECTURE.md"
+        - "docs/FUTURES_TRADING_MODEL.md"
+        - "core/risk_manager.py"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
+      target_candidates:
+        - "docs/RISK_MODEL_FUTURES.md"
+        - "docs/SYSTEM_OPERATING_MODEL.md"
+        - "research/risk/README.md"
+      acceptance_checks:
+        - "Ryzyko jest opisane dla futures, nie dla spot."
+        - "Brak omijania RiskManagera i brak zmian w runtime tradingowym."
+        - "Kazda polityka ryzyka ma sens biznesowy i mierzalne konsekwencje."
+      required_tests:
+        - "python -m compileall core ai_agents/runtime"
+      definition_of_done:
+        - "Istnieje foundation risk modelu futures na poziomie strategii, portfela i systemu."
+        - "Risk research nadaje sie jako input do gate'u promotion."
+
+    - module_id: "alpha_research"
+      owner_agent: "alpha_research_agent"
+      enabled: false
+      priority: 40
+      max_target_files: 3
+      title: "Alpha research"
+      module_summary: "Generuj i filtruj male, testowalne hipotezy futures dopiero po foundation danych i ryzyka."
+      read_only_context:
+        - "docs/FUTURES_TRADING_MODEL.md"
+        - "docs/RESEARCH_LAYER.md"
+        - "docs/RISK_MODEL_FUTURES.md"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
+      target_candidates:
+        - "research/alpha/README.md"
+        - "research/candidates/hypothesis_template.md"
+        - "research/candidates/strategy_manifest_template.yaml"
+      acceptance_checks:
+        - "Hipotezy sa falsyfikowalne i male."
+        - "Nie ma promowania strategii z pomyslu bez evidence."
+      required_tests:
+        - "python -m compileall ai_agents/runtime"
+      definition_of_done:
+        - "Istnieje jasny wzorzec hipotezy i manifestu strategii futures."
+
+    - module_id: "regime_detection"
+      owner_agent: "regime_model_agent"
+      enabled: false
+      priority: 39
+      max_target_files: 3
+      title: "Regime detection"
+      module_summary: "Buduj model reżimów rynku dopiero po foundation danych i ryzyka."
+      read_only_context:
+        - "docs/FUTURES_TRADING_MODEL.md"
+        - "docs/RESEARCH_LAYER.md"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
+      target_candidates:
+        - "docs/REGIME_DETECTION.md"
+        - "research/regimes/README.md"
+        - "research/regimes/regime_definition_template.yaml"
+      acceptance_checks:
+        - "Rezimy sa operacyjne, nie magiczne."
+        - "Model reżimow wspiera aktywacje i de-risking strategii."
+      required_tests:
+        - "python -m compileall ai_agents/runtime"
+      definition_of_done:
+        - "Istnieje jawny kontrakt reżimow do uzycia przez strategy lead i risk."
+
+    - module_id: "experiment_evaluation"
+      owner_agent: "experiment_evaluation_agent"
+      enabled: false
+      priority: 38
+      max_target_files: 3
+      title: "Experiment evaluation"
+      module_summary: "Porownuj kandydatow i buduj promotion evidence dopiero gdy istnieja juz foundation i hipotezy."
+      read_only_context:
+        - "docs/FEATURE_STORE.md"
+        - "docs/RISK_MODEL_FUTURES.md"
+        - "docs/STRATEGY_LIFECYCLE.md"
+        - "data/ai_control/dry_run_snapshots/"
+        - "data/ai_control/strategy_reports/"
+      target_candidates:
+        - "docs/EXPERIMENT_TRACKING.md"
+        - "research/experiments/README.md"
+        - "research/evaluation/README.md"
+      acceptance_checks:
+        - "Ocena kandydatow opiera sie na risk-adjusted quality."
+        - "Brak promotion bez evidence bundle."
+      required_tests:
+        - "python -m compileall ai_agents/runtime"
+      definition_of_done:
+        - "Istnieje kontrakt eksperymentow, porownania kandydatow i promotion evidence."
 
     - module_id: "control_layer_runtime"
       owner_agent: "control_layer_agent"
