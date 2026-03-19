@@ -6,8 +6,14 @@ timeframes: []
 required_regimes: []
 allowed_primary_regimes: []
 blocked_primary_regimes: []
+allowed_htf_biases: []
+allowed_market_states: []
+blocked_market_states: []
+preferred_market_phases: []
+blocked_market_phases: []
 entry_contexts: []
 regime_risk_policy: {}
+execution_constraints_policy: {}
 risk_model: ""
 known_weaknesses: []
 status: idea

@@ -203,6 +203,24 @@ class RegimeStatusResponse(BaseModel):
     eligible_candidate_ids: list[str] = Field(default_factory=list)
     blocked_candidate_ids: list[str] = Field(default_factory=list)
     candidate_freeze_mode: str | None = None
+    htf_bias: str | None = None
+    market_state: str | None = None
+    ltf_execution_state: str | None = None
+    bias: str | None = None
+    alignment_score: float | None = None
+    market_phase: str | None = None
+    volatility_phase: str | None = None
+    active_event_flags: dict[str, bool] = Field(default_factory=dict)
+    signals: dict[str, bool] = Field(default_factory=dict)
+    regime_persistence: dict[str, Any] = Field(default_factory=dict)
+    position_size_multiplier: float | None = None
+    entry_aggressiveness: str | None = None
+    strategy_priority_order: list[str] = Field(default_factory=list)
+    execution_constraints: dict[str, bool] = Field(default_factory=dict)
+    btc_state: dict[str, Any] | None = None
+    eth_state: dict[str, Any] | None = None
+    market_consensus: str | None = None
+    consensus_strength: float | None = None
 
 
 class DryRunHealthResponse(BaseModel):

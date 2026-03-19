@@ -10,6 +10,19 @@ blocked_primary_regimes:
   - trend_down
   - range
   - stress_panic
+allowed_htf_biases:
+  - long
+allowed_market_states:
+  - trend
+blocked_market_states:
+  - range
+  - transition
+preferred_market_phases:
+  - expansion
+  - mature_trend
+blocked_market_phases:
+  - compression
+  - pullback
 entry_contexts:
   - continuation
   - breakout_after_consolidation
@@ -20,6 +33,11 @@ regime_risk_policy:
   range: blocked
   low_vol: reduced
   stress_panic: blocked
+execution_constraints_policy:
+  no_trade_zone: block
+  reduced_exposure_only: allow
+  high_noise_environment: block
+  post_shock_cooldown: block
 universe:
   - BTC/USDT:USDT
   - ETH/USDT:USDT
