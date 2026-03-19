@@ -281,6 +281,7 @@ executive_dashboard:
                 candidate_assessments=[
                     {
                         "candidate_id": "structured_futures_baseline_v1",
+                        "candidate_bot_id": "freqtrade_candidate",
                         "lifecycle_status": "limited_dry_run_candidate",
                         "active_side_policy": "long_biased_with_parked_short",
                         "broad_backtest_status": "pass",
@@ -310,3 +311,67 @@ executive_dashboard:
             )
             self.assertEqual(report["summary"]["candidate_assessments_total"], 1)
             self.assertEqual(report["summary"]["candidate_dry_run_ready"], 1)
+
+    def test_regime_freeze_mode_is_exposed_in_executive_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            _write_exec_config(repo_root)
+            service = ExecutiveReportService(repo_root)
+
+            report = service.build_report(
+                runs=[],
+                autopilot_status={"running": True, "poll_interval_seconds": 300},
+                strategy_report=None,
+                dry_run_health={"ready": True, "runtime_mode": "dry_run"},
+                dry_run_snapshot=None,
+                dry_run_smoke=None,
+                candidate_assessments=[
+                    {
+                        "candidate_id": "structured_futures_baseline_v1",
+                        "candidate_bot_id": "freqtrade_candidate",
+                        "lifecycle_status": "frozen_pending_regime_engine",
+                        "active_side_policy": "long_biased_with_parked_short",
+                        "broad_backtest_status": "pass",
+                        "risk_gate_status": "ready",
+                        "dry_run_gate_status": "telemetry_ready",
+                        "overall_decision": "wait_for_regime_engine",
+                        "next_step": "Keep candidate in telemetry-only dry run.",
+                        "blocked_reasons": ["Candidate build is frozen until regime detector is ready."],
+                    }
+                ],
+                candidate_dry_run={
+                    "candidate_id": "structured_futures_baseline_v1",
+                    "bot_id": "freqtrade_candidate",
+                    "health": {"ready": True},
+                    "latest_snapshot": {"strategy": "StructuredFuturesBaselineStrategy"},
+                    "latest_smoke": {"status": "pass"},
+                },
+                regime_report={
+                    "generated_at": "2026-03-19T00:00:00+00:00",
+                    "asof_timeframe": "1h",
+                    "universe": ["BTC/USDT:USDT", "ETH/USDT:USDT"],
+                    "primary_regime": "trend_up",
+                    "confidence": 0.81,
+                    "risk_level": "low",
+                    "trend_strength": 0.77,
+                    "volatility_level": "normal",
+                    "volume_state": "normal",
+                    "derivatives_state": "neutral",
+                    "feature_snapshot": {},
+                    "reasons": ["Trend i ADX wspieraja wzrost."],
+                    "eligible_candidate_ids": ["structured_futures_baseline_v1"],
+                    "blocked_candidate_ids": ["structured_futures_short_breakdown_v1"],
+                    "candidate_freeze_mode": "freeze_build_keep_dry_run",
+                },
+                control_status=None,
+                coding_status={"running": True, "enabled": True, "attention_needed": False},
+                coding_tasks=[],
+                coding_workspaces=[],
+            )
+
+            self.assertEqual(
+                report["candidate_factory"]["factory_mode"],
+                "regime_first_freeze_build_keep_dry_run",
+            )
+            self.assertEqual(report["summary"]["regime_available"], 1)
+            self.assertEqual(report["regime"]["latest"]["primary_regime"], "trend_up")

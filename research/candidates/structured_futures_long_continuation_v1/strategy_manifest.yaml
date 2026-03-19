@@ -3,6 +3,23 @@ strategy_id: structured_futures_long_continuation_v1
 strategy_name: StructuredFuturesLongContinuationStrategy
 market_type: futures
 allowed_sides: long
+allowed_primary_regimes:
+  - trend_up
+  - high_vol
+blocked_primary_regimes:
+  - trend_down
+  - range
+  - stress_panic
+entry_contexts:
+  - continuation
+  - breakout_after_consolidation
+regime_risk_policy:
+  trend_up: normal
+  high_vol: reduced
+  trend_down: blocked
+  range: blocked
+  low_vol: reduced
+  stress_panic: blocked
 universe:
   - BTC/USDT:USDT
   - ETH/USDT:USDT
@@ -13,10 +30,10 @@ required_regimes:
   - trend_up_continuation
   - breakout_after_consolidation
 risk_model: structured_futures_long_continuation_v1_risk
-status: research_experiment
+status: frozen_pending_regime_engine
 known_weaknesses:
   - no validated broad backtest yet
-  - no dedicated regime engine in v1
+  - candidate build is frozen until the regime engine is ready
   - long-only candidate may underperform in stress-down regimes
 backtest_config: trading/freqtrade/user_data/config.backtest.futures.long_continuation.json
 strategy_path: trading/freqtrade/user_data/strategies/structured_futures_long_continuation_strategy.py

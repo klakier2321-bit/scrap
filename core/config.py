@@ -107,6 +107,10 @@ class AppSettings(BaseSettings):
         return self.data_dir / "dry_run_smoke"
 
     @property
+    def regime_reports_dir(self) -> Path:
+        return self.data_dir / "regime"
+
+    @property
     def autopilot_config_path(self) -> Path:
         if self.agent_autopilot_config.startswith("/app/") and not Path("/app").exists():
             return self.repo_root / self.agent_autopilot_config.removeprefix("/app/")

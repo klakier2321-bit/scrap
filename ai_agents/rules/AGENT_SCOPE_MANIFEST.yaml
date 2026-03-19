@@ -135,12 +135,14 @@ agents:
     owned_scope:
       - research/
       - docs/
+      - core/regime_detector.py
     read_only_scope:
       - trading/
       - core/
       - ai_agents/
       - data/ai_control/dry_run_snapshots/
       - data/ai_control/strategy_reports/
+      - data/ai_control/regime/
     forbidden_scope:
       - .env
       - docker-compose.yml

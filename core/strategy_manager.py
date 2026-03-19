@@ -215,6 +215,10 @@ class StrategyManager:
         )
 
         blocked_reasons: list[str] = []
+        if lifecycle_status == "frozen_pending_regime_engine":
+            blocked_reasons.append(
+                "Candidate build jest zamrozony do czasu gotowego regime detectora."
+            )
         if summary is None:
             blocked_reasons.append("Brakuje broad_backtest_summary.json dla kandydata.")
         elif broad_status != "pass":
@@ -583,6 +587,14 @@ class StrategyManager:
         dry_run_snapshot: dict[str, Any] | None,
         promotion_decision: dict[str, str],
     ) -> str:
+        if lifecycle_status == "frozen_pending_regime_engine":
+            if not candidate_bot_id:
+                return "frozen"
+            if dry_run_health is None or dry_run_snapshot is None:
+                return "telemetry_missing"
+            if dry_run_health.get("ready"):
+                return "telemetry_ready"
+            return "telemetry_warn"
         if lifecycle_status != "limited_dry_run_candidate":
             return promotion_decision.get("dry_run_gate", "not_started")
         if not candidate_bot_id:
@@ -601,6 +613,8 @@ class StrategyManager:
         risk_status: str,
         dry_run_status: str,
     ) -> str:
+        if lifecycle_status == "frozen_pending_regime_engine":
+            return "wait_for_regime_engine"
         if lifecycle_status == "limited_dry_run_candidate" and dry_run_status == "ready":
             return "continue_limited_dry_run"
         if broad_status in {"blocked", "fail"}:
@@ -616,6 +630,10 @@ class StrategyManager:
         broad_status: str,
         dry_run_status: str,
     ) -> str:
+        if lifecycle_status == "frozen_pending_regime_engine":
+            if dry_run_status == "telemetry_ready":
+                return "Utrzymac candidate dry-run jako telemetry lane i nie iterowac strategii przed gotowym regime detector."
+            return "Zamrozic iteracje kandydata i dowiezc kanoniczny regime detector."
         if lifecycle_status == "limited_dry_run_candidate" and dry_run_status != "ready":
             return "Uruchomic i potwierdzic osobny candidate dry-run bot."
         if broad_status == "blocked":

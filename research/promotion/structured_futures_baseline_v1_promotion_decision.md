@@ -1,11 +1,11 @@
 # Structured Futures Baseline V1 Promotion Decision
 
 - strategy_id: structured_futures_baseline_v1
-- current_state: limited_dry_run_candidate
-- backtest_gate: pass_for_limited_dry_run
-- risk_gate: warn
-- dry_run_gate: ready
-- promotion_decision: promote_to_limited_dry_run
+- current_state: frozen_pending_regime_engine
+- backtest_gate: telemetry_only
+- risk_gate: wait_for_regime_policy
+- dry_run_gate: telemetry_ready
+- promotion_decision: wait_for_regime_engine
 - active_side_policy: long_biased_with_parked_short
 - required_evidence:
   - hypothesis.md
@@ -20,5 +20,5 @@
   - drawdown_pct: 0.27
   - long_profit_pct: 0.10
   - short_profit_pct: 0.0
-- reason: After rebuilding short activation, the broad futures window turned slightly positive with lower drawdown. The current candidate is acceptable for a limited dry_run as a long-biased baseline, but short-side edge is not yet validated.
-- next_step: Start a limited dry_run on BTC/ETH futures with conservative exposure and monitor whether the baseline stays stable without relying on short participation.
+- reason: Baseline remains the telemetry reference candidate, but active promotion is frozen until the platform has a canonical regime detector. Current dry_run stays online only to observe how the long-biased baseline behaves under real market conditions.
+- next_step: Keep the candidate bot running as telemetry lane, generate regime reports, and resume promotion only after regime-aware contracts and gating are stable.

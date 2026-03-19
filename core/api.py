@@ -25,6 +25,7 @@ from .schemas import (
     CandidateAssessmentResponse,
     CandidateDryRunResponse,
     ControlStatusResponse,
+    RegimeStatusResponse,
     BotStatus,
     BotSummary,
     CodingReviewDecisionRequest,
@@ -517,6 +518,40 @@ async def ops_candidate_dry_run(candidate_id: str) -> CandidateDryRunResponse:
         return CandidateDryRunResponse(**get_orchestrator().get_candidate_dry_run(candidate_id))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get(
+    "/ops/regime/latest",
+    response_model=RegimeStatusResponse,
+    include_in_schema=False,
+)
+async def ops_regime_latest(
+    refresh: bool = Query(default=False),
+) -> RegimeStatusResponse:
+    report = (
+        get_orchestrator().generate_regime_report()
+        if refresh
+        else get_orchestrator().get_latest_regime_report()
+    )
+    if report is None:
+        raise HTTPException(status_code=404, detail="No regime report is available yet.")
+    return RegimeStatusResponse(**report)
+
+
+@app.post(
+    "/ops/regime/generate",
+    response_model=RegimeStatusResponse,
+    include_in_schema=False,
+)
+async def ops_regime_generate() -> RegimeStatusResponse:
+    return RegimeStatusResponse(**get_orchestrator().generate_regime_report())
+
+
+@app.get("/ops/regime/history", include_in_schema=False)
+async def ops_regime_history(
+    limit: int = Query(default=20, ge=1, le=100),
+) -> JSONResponse:
+    return JSONResponse({"reports": get_orchestrator().list_regime_history(limit=limit)})
 
 
 @app.get(

@@ -115,3 +115,68 @@ class StrategyManagerMergeTests(unittest.TestCase):
             self.assertEqual(assessment["dry_run_gate_status"], "ready")
             self.assertEqual(assessment["overall_decision"], "promote_to_limited_dry_run")
             self.assertEqual(assessment["blocked_reasons"], [])
+
+    def test_build_candidate_assessment_marks_frozen_candidate_as_telemetry_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            user_data_dir = repo_root / "trading" / "freqtrade" / "user_data"
+            reports_dir = repo_root / "data" / "ai_control" / "strategy_reports"
+            snapshots_dir = repo_root / "data" / "ai_control" / "dry_run_snapshots"
+            (repo_root / "research" / "candidates" / "candidate_v1").mkdir(parents=True)
+            (repo_root / "research" / "risk").mkdir(parents=True)
+            (repo_root / "research" / "promotion").mkdir(parents=True)
+            (repo_root / "research" / "evaluation").mkdir(parents=True)
+            user_data_dir.mkdir(parents=True)
+            reports_dir.mkdir(parents=True)
+            snapshots_dir.mkdir(parents=True)
+
+            manifest = {
+                "strategy_id": "candidate_v1",
+                "strategy_name": "CandidateStrategy",
+                "market_type": "futures",
+                "status": "frozen_pending_regime_engine",
+                "active_side_policy": "long_biased_with_parked_short",
+                "candidate_bot_id": "freqtrade_candidate",
+                "risk_report_path": "research/risk/candidate_v1_risk_report.json",
+                "promotion_decision_path": "research/promotion/candidate_v1_promotion_decision.md",
+                "broad_backtest_summary_path": "research/evaluation/candidate_v1_broad_backtest_summary.json",
+            }
+            (repo_root / "research" / "candidates" / "candidate_v1" / "strategy_manifest.yaml").write_text(
+                yaml.safe_dump(manifest, sort_keys=False),
+                encoding="utf-8",
+            )
+            (repo_root / "research" / "risk" / "candidate_v1_risk_report.json").write_text(
+                json.dumps({"status": "ready", "promotion_gate": "wait_for_regime_engine"}),
+                encoding="utf-8",
+            )
+            (repo_root / "research" / "evaluation" / "candidate_v1_broad_backtest_summary.json").write_text(
+                json.dumps({"result": "frozen_pending_regime_engine", "notes": []}),
+                encoding="utf-8",
+            )
+            (repo_root / "research" / "promotion" / "candidate_v1_promotion_decision.md").write_text(
+                "\n".join(
+                    [
+                        "# Candidate Promotion Decision",
+                        "- promotion_decision: wait_for_regime_engine",
+                        "- dry_run_gate: telemetry_ready",
+                        "- next_step: Keep telemetry lane running while regime detector is built.",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            manager = StrategyManager(
+                user_data_dir=user_data_dir,
+                reports_dir=reports_dir,
+                dry_run_snapshots_dir=snapshots_dir,
+            )
+            assessment = manager.build_candidate_assessment(
+                "candidate_v1",
+                dry_run_health={"ready": True},
+                dry_run_snapshot={"strategy": "CandidateStrategy"},
+            )
+
+            self.assertEqual(assessment["lifecycle_status"], "frozen_pending_regime_engine")
+            self.assertEqual(assessment["dry_run_gate_status"], "telemetry_ready")
+            self.assertEqual(assessment["overall_decision"], "wait_for_regime_engine")
+            self.assertTrue(assessment["blocked_reasons"])

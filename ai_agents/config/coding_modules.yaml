@@ -9,11 +9,11 @@ coding_runtime:
   modules:
     - module_id: "candidate_baseline_runtime"
       owner_agent: "strategy_agent"
-      enabled: true
-      priority: 100
+      enabled: false
+      priority: 18
       max_target_files: 3
       title: "Baseline runtime candidate"
-      module_summary: "Strategy lead utrzymuje biezacy baseline candidate: manifest, promotion decision i shipping do ograniczonego dry_run."
+      module_summary: "Shipping baseline jest zamrozony jako telemetry lane do czasu gotowego regime detectora."
       read_only_context:
         - "docs/ARCHITECTURE.md"
         - "docs/FUTURES_TRADING_MODEL.md"
@@ -29,23 +29,23 @@ coding_runtime:
         - "research/candidates/structured_futures_baseline_v1/strategy_manifest.yaml"
         - "research/promotion/structured_futures_baseline_v1_promotion_decision.md"
       acceptance_checks:
-        - "Zmiana dotyczy tylko aktywnego baseline candidate, nie szerokiego foundation sweepu."
-        - "Baseline moze byc promowany tylko jako long-biased limited dry_run candidate, jesli short jest jawnie zaparkowany."
-        - "Kazda decyzja strategy leada wskazuje lifecycle, missing evidence i jeden next step."
+        - "Write lane pozostaje zamrozony, dopoki regime detector nie bedzie gotowy."
+        - "Baseline pozostaje tylko telemetry lane z parked short."
+        - "Kazda decyzja strategy leada ma wskazywac freeze i zaleznosc od regime engine."
       required_tests:
         - "python -m compileall trading"
         - "python -m unittest trading.tests.test_structured_futures_baseline"
       definition_of_done:
-        - "Baseline candidate ma aktualny manifest, broad backtest evidence i promotion decision."
-        - "Diff jest maly, reviewowalny i nie wykracza poza scope jednego kandydata."
+        - "Manifest i promotion decision baseline'u sa zgodne z freeze-build keep-dry-run."
+        - "Diff jest maly, reviewowalny i nie reaktywuje candidate sprintu."
 
     - module_id: "candidate_short_research"
       owner_agent: "alpha_research_agent"
-      enabled: true
-      priority: 98
+      enabled: false
+      priority: 12
       max_target_files: 3
       title: "Short candidate research"
-      module_summary: "Buduj osobny kandydat short-only albo short-first, bez mieszania go z baseline'em."
+      module_summary: "Short candidate pozostaje zamrozony do czasu gotowego regime detectora."
       read_only_context:
         - "docs/FUTURES_TRADING_MODEL.md"
         - "docs/STRATEGY_LIFECYCLE.md"
@@ -64,16 +64,16 @@ coding_runtime:
         - "python -m compileall trading"
         - "python -m unittest trading.tests.test_structured_futures_baseline"
       definition_of_done:
-        - "Istnieje osobny short candidate z hipoteza, manifestem i kompilujaca sie strategia."
-        - "Candidate pozostaje w stanie `research_experiment`, dopoki nie ma broad backtest evidence."
+        - "Short candidate pozostaje w stanie `frozen_pending_regime_engine`."
+        - "Nie powstaja nowe write-taski shortowe przed regime core."
 
     - module_id: "candidate_feature_support"
       owner_agent: "feature_engineering_agent"
-      enabled: true
-      priority: 96
+      enabled: false
+      priority: 14
       max_target_files: 3
       title: "Candidate feature support"
-      module_summary: "Dostarczaj tylko dataset spec i feature manifest potrzebny dla konkretnego kandydata, bez szerokiego feature-store sweepu."
+      module_summary: "Stary candidate feature lane jest wstrzymany; aktywne sa tylko regime features."
       read_only_context:
         - "docs/FUTURES_TRADING_MODEL.md"
         - "docs/FEATURE_STORE.md"
@@ -87,22 +87,22 @@ coding_runtime:
         - "research/features/structured_futures_short_breakdown_v1_feature_manifest.yaml"
         - "research/features/structured_futures_long_continuation_v1_feature_manifest.yaml"
       acceptance_checks:
-        - "Feature support dotyczy tylko aktywnego albo bezposrednio nastepnego kandydata."
-        - "Artefakty sa wersjonowane per candidate, a nie jako ogolna teoria."
-        - "Brak zmian w runtime tradingowym i brak szerokiego docs sweepu."
+        - "Ten lane pozostaje wylaczony podczas freeze."
+        - "Jesli powstaje nowy feature artifact, musi sluzyc regime detectorowi, nie nowemu kandydatowi."
+        - "Brak zmian w runtime tradingowym."
       required_tests:
         - "python -m unittest trading.tests.test_structured_futures_baseline"
       definition_of_done:
-        - "Kazdy aktywny candidate ma jawny dataset spec lub feature manifest."
-        - "Strategy lead dostaje versioned inputs bez interpretowania luznych pomyslow."
+        - "Candidate feature build nie jest reaktywowany przed regime detector."
+        - "Nowe artefakty cech sa kierowane do regime feature support."
 
     - module_id: "candidate_risk_gate"
       owner_agent: "risk_research_agent"
-      enabled: true
-      priority: 95
+      enabled: false
+      priority: 14
       max_target_files: 3
       title: "Candidate risk gate"
-      module_summary: "Dostarczaj lub aktualizuj tylko risk gate dla konkretnego kandydata, zamiast szerokiego risk foundation sweepu."
+      module_summary: "Stary candidate risk lane jest wstrzymany; aktywne jest tylko regime-aware risk mapping."
       read_only_context:
         - "docs/FUTURES_TRADING_MODEL.md"
         - "docs/STRATEGY_PROMOTION_PIPELINE.md"
@@ -113,46 +113,51 @@ coding_runtime:
         - "research/risk/structured_futures_short_breakdown_v1_risk_report.json"
         - "research/risk/structured_futures_long_continuation_v1_risk_report.json"
       acceptance_checks:
-        - "Risk gate jest per candidate i odnosi sie do konkretnego broad backtest bundle."
+        - "Ten lane pozostaje wylaczony podczas freeze."
+        - "Ryzyko ma byc mapowane na reżimy rynku, nie na nowe iteracje kandydatow."
         - "Brak omijania RiskManagera i brak zmian w runtime tradingowym."
-        - "Jesli strona strategii jest zaparkowana, risk report mowi to wprost."
       required_tests:
         - "python -m unittest trading.tests.test_structured_futures_baseline"
       definition_of_done:
-        - "Kazdy aktywny candidate ma mierzalny risk gate."
-        - "Risk report nadaje sie bezposrednio jako input do promotion decision."
+        - "Candidate risk build nie jest reaktywowany przed regime detector."
+        - "Nowe mapowania ryzyka sa kierowane do regime_risk_mapping."
 
     - module_id: "regime_detection"
       owner_agent: "regime_model_agent"
-      enabled: false
-      priority: 39
+      enabled: true
+      priority: 100
       max_target_files: 3
       title: "Regime detection"
-      module_summary: "Buduj model reżimów rynku dopiero po foundation danych i ryzyka."
+      module_summary: "Buduj kanoniczny, futures-aware regime detector jako glowny write lane strategii."
       read_only_context:
         - "docs/FUTURES_TRADING_MODEL.md"
         - "docs/RESEARCH_LAYER.md"
+        - "docs/REGIME_DETECTION.md"
         - "data/ai_control/dry_run_snapshots/"
         - "data/ai_control/strategy_reports/"
       target_candidates:
+        - "core/regime_detector.py"
         - "docs/REGIME_DETECTION.md"
-        - "research/regimes/README.md"
-        - "research/regimes/regime_definition_template.yaml"
+        - "research/regimes/"
+        - "data/ai_control/regime/"
       acceptance_checks:
         - "Rezimy sa operacyjne, nie magiczne."
-        - "Model reżimow wspiera aktywacje i de-risking strategii."
+        - "Detektor generuje latest.json i historie jako jedyna prawde runtime."
+        - "Model reżimow wspiera future strategy gating i risk mapping."
       required_tests:
-        - "python -m compileall ai_agents/runtime"
+        - "python -m compileall core"
+        - "python -m unittest core.tests.test_regime_detector"
       definition_of_done:
-        - "Istnieje jawny kontrakt reżimow do uzycia przez strategy lead i risk."
+        - "Istnieje jawny kontrakt reżimow do uzycia przez operator API, strategy lead i risk."
+        - "Regime detector klasyfikuje 6 glownych stanów rynku i zapisuje runtime artifacts."
 
     - module_id: "candidate_evaluation"
       owner_agent: "experiment_evaluation_agent"
-      enabled: true
-      priority: 94
+      enabled: false
+      priority: 12
       max_target_files: 3
       title: "Candidate evaluation"
-      module_summary: "Uruchamiaj broad backtest bundle dla aktywnego kandydata i przygotowuj promotion evidence tym samym gate'em dla wszystkich kandydatow."
+      module_summary: "Candidate evaluation pozostaje wstrzymane do czasu gotowego regime detectora i oceny per regime."
       read_only_context:
         - "docs/STRATEGY_LIFECYCLE.md"
         - "docs/STRATEGY_PROMOTION_PIPELINE.md"
@@ -167,14 +172,91 @@ coding_runtime:
         - "research/promotion/structured_futures_short_breakdown_v1_promotion_decision.md"
         - "research/promotion/structured_futures_long_continuation_v1_promotion_decision.md"
       acceptance_checks:
-        - "Broad backtest bundle uzywa zawsze tych samych okien czasu."
-        - "Ocena kandydatow opiera sie na risk-adjusted quality."
+        - "Ten lane pozostaje wylaczony podczas freeze."
+        - "Po odmrozeniu evaluation ma byc globalne plus per regime."
         - "Brak promotion bez evidence bundle."
       required_tests:
         - "python -m unittest trading.tests.test_structured_futures_baseline"
       definition_of_done:
-        - "Aktywny candidate ma broad backtest summary i promotion decision."
-        - "Ocena porownawcza jest porownywalna miedzy kandydatami."
+        - "Candidate evaluation nie jest reaktywowane przed regime detector."
+        - "Po odmrozeniu ocena ma byc porownywalna miedzy kandydatami i reżimami."
+
+    - module_id: "regime_feature_support"
+      owner_agent: "feature_engineering_agent"
+      enabled: true
+      priority: 97
+      max_target_files: 3
+      title: "Regime feature support"
+      module_summary: "Buduj tylko te cechy i manifesty, ktore zasilaja regime detector."
+      read_only_context:
+        - "docs/FUTURES_TRADING_MODEL.md"
+        - "docs/FEATURE_STORE.md"
+        - "docs/REGIME_DETECTION.md"
+        - "data/ai_control/dry_run_snapshots/"
+      target_candidates:
+        - "research/features/"
+        - "research/datasets/"
+        - "research/regimes/"
+      acceptance_checks:
+        - "Artefakty sa tworzone dla regime detectora, nie dla nowych kandydatow."
+        - "Brak zmian w runtime tradingowym."
+        - "Diff pozostaje maly i auditowalny."
+      required_tests:
+        - "python -m unittest core.tests.test_regime_detector"
+      definition_of_done:
+        - "Istnieje jawny regime feature packet lub manifest."
+        - "Detektor dostaje mierzalne wejscia dla trendu, zmiennosci i wolumenu."
+
+    - module_id: "regime_risk_mapping"
+      owner_agent: "risk_research_agent"
+      enabled: true
+      priority: 96
+      max_target_files: 3
+      title: "Regime risk mapping"
+      module_summary: "Mapuj reżimy rynku na polityki ryzyka futures."
+      read_only_context:
+        - "docs/RISK_MODEL_FUTURES.md"
+        - "docs/SYSTEM_OPERATING_MODEL.md"
+        - "docs/REGIME_DETECTION.md"
+        - "core/risk_manager.py"
+      target_candidates:
+        - "research/risk/"
+        - "research/regimes/"
+        - "docs/RISK_MODEL_FUTURES.md"
+      acceptance_checks:
+        - "Mapowanie ryzyka dotyczy trendu, range, high_vol i stress_panic."
+        - "Brak nowych risk packetow dla kandydatow w czasie freeze."
+        - "Brak zmian w runtime tradingowym."
+      required_tests:
+        - "python -m compileall core"
+      definition_of_done:
+        - "Istnieje jawne regime -> risk policy mapping."
+        - "Warstwa ryzyka potrafi wskazac, kiedy rynek wymaga deriskingu lub blokady wejsc."
+
+    - module_id: "strategy_regime_alignment"
+      owner_agent: "strategy_agent"
+      enabled: true
+      priority: 95
+      max_target_files: 3
+      title: "Strategy regime alignment"
+      module_summary: "Utrzymuj kandydatow w stanie frozen_pending_regime_engine i dopinaj kontrakty regime-aware."
+      read_only_context:
+        - "docs/STRATEGY_LIFECYCLE.md"
+        - "docs/STRATEGY_PROMOTION_PIPELINE.md"
+        - "docs/REGIME_DETECTION.md"
+        - "research/candidates/"
+      target_candidates:
+        - "research/candidates/"
+        - "research/promotion/"
+      acceptance_checks:
+        - "Kandydaci pozostaja zamrozeni do czasu gotowego regime detectora."
+        - "Manifesty maja allowed_primary_regimes, blocked_primary_regimes, entry_contexts i regime_risk_policy."
+        - "Brak nowych strategy build-taskow."
+      required_tests:
+        - "python -m unittest core.tests.test_strategy_manager"
+      definition_of_done:
+        - "Lifecycle kandydatow jest zgodny z freeze-build keep-dry-run."
+        - "Strategy lead nie generuje nowych sprintow kandydatowych przed regime core."
 
     - module_id: "control_layer_runtime"
       owner_agent: "control_layer_agent"

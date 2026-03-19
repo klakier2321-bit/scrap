@@ -1,0 +1,31 @@
+version: 1
+mode: regime_first
+asof_timeframe: 1h
+freeze_build_mode: freeze_build_keep_dry_run
+primary_regimes:
+  - trend_up
+  - trend_down
+  - range
+  - low_vol
+  - high_vol
+  - stress_panic
+universe:
+  - BTC/USDT:USDT
+  - ETH/USDT:USDT
+thresholds:
+  adx_trend_min: 22.0
+  adx_range_max: 18.0
+  trend_spread_min_pct: 0.12
+  range_spread_max_pct: 0.08
+  slope_min_pct: 0.08
+  low_volatility_ratio_max: 0.85
+  high_volatility_ratio_min: 1.2
+  stress_volatility_ratio_min: 1.8
+  high_std_ratio_min: 1.15
+  low_candle_spread_max: 0.0025
+  low_volume_spike_max: 0.9
+  volume_spike_high: 1.25
+  stress_volume_spike_min: 1.8
+  stress_move_abs_pct_min: 1.6
+  funding_elevated_bps: 4.0
+  funding_extreme_bps: 8.0

@@ -1,10 +1,10 @@
 # Structured Futures Short Breakdown V1 Promotion Decision
 
 - strategy_id: structured_futures_short_breakdown_v1
-- current_state: research_experiment
-- backtest_gate: blocked
-- risk_gate: research_only
-- dry_run_gate: blocked
-- promotion_decision: build_broad_backtest_bundle_first
-- reason: This candidate exists as a separate short research lane and must prove itself through the standard broad backtest bundle before any promotion discussion.
-- next_step: Run the standard 4-window broad backtest bundle and compare the short-only candidate against the long-biased baseline.
+- current_state: frozen_pending_regime_engine
+- backtest_gate: frozen
+- risk_gate: frozen
+- dry_run_gate: frozen
+- promotion_decision: wait_for_regime_engine
+- reason: Short candidate build is frozen until the platform can classify downtrend, high-vol, and stress regimes with one canonical detector.
+- next_step: Hold this candidate as reference material and resume only after regime detection and regime-aware risk policy are ready.

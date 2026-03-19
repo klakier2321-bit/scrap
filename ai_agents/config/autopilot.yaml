@@ -1,24 +1,21 @@
 autopilot:
-  objective: "Produkować realne kandydaty strategii futures szybciej przez candidate-first loop: hypothesis -> strategy -> broad backtests -> risk gate -> promotion decision -> limited dry_run. Nie spalac mocy na szeroki foundation/docs, jesli aktywny kandydat nie ma jeszcze kompletnego evidence bundle."
+  objective: "Najpierw zbudowac mocny, futures-aware regime detector, a dopiero potem wracac do strategii budowanych pod konkretne reżimy rynku. Freeze build, keep dry-run telemetry."
   auto_start: true
   poll_interval_seconds: 600
   max_cycles: 0
 
   tasks:
-    - name: "candidate_runtime_watch"
+    - name: "strategy_regime_alignment"
       agent_name: "strategy_agent"
-      goal: "Przesun aktywny kandydat strategii o jeden stan lifecycle: zbierz brakujace evidence, zadecyduj `reject / iterate / move_to_backtest / move_to_limited_dry_run` i nie generuj foundation-only taskow, jesli kandydat nie ma pelnego evidence bundle."
-      business_reason: "Strategy lead ma zarzadzac konkretnym portfolio kandydatow, a nie wracac do szerokich taskow dokumentacyjnych."
+      goal: "Utrzymuj lifecycle kandydatow w trybie frozen_pending_regime_engine, dopinaj allowed/blocked regimes, entry_contexts i regime_risk_policy. Nie generuj nowych build-taskow strategii."
+      business_reason: "Pion strategii ma pozostac uporzadkowany, ale aktywne budowanie kandydatow jest zamrozone do czasu gotowego regime detectora."
       requested_paths:
-        - "research/candidates/structured_futures_baseline_v1/"
-        - "research/candidates/structured_futures_short_breakdown_v1/"
-        - "research/candidates/structured_futures_long_continuation_v1/"
-        - "research/evaluation/"
+        - "research/candidates/"
         - "research/promotion/"
-        - "trading/freqtrade/user_data/strategies/structured_futures_baseline_strategy.py"
-        - "data/ai_control/dry_run_snapshots/"
-        - "data/ai_control/strategy_reports/"
-      risk_level: "medium"
+        - "docs/STRATEGY_LIFECYCLE.md"
+        - "docs/STRATEGY_PROMOTION_PIPELINE.md"
+        - "docs/REGIME_DETECTION.md"
+      risk_level: "low"
       cross_layer: false
       does_touch_contract: false
       does_touch_runtime: false
@@ -26,32 +23,34 @@ autopilot:
       auto_approve: false
       allow_parallel: true
 
-    - name: "candidate_short_build"
-      agent_name: "alpha_research_agent"
-      goal: "Zbuduj osobny short candidate futures jako research experiment: osobna hipoteza, osobny manifest i osobna strategia short-only lub short-first. Nie mieszaj tego z baseline'em."
-      business_reason: "Short ma byc rozwijany jako osobny kandydat zamiast dalej zanieczyszczac baseline long-biased."
+    - name: "regime_core_build"
+      agent_name: "regime_model_agent"
+      goal: "Zbuduj i utrzymuj kanoniczny Regime Detector v1: 6 reżimow, confidence, risk level, reasons, latest.json i historia. To jest teraz glowny write lane strategii."
+      business_reason: "Dalsze poprawianie strategii bez porzadnego podzialu rynku na reżimy prowadzi do chaosu i zlej oceny kandydatow."
       requested_paths:
-        - "research/candidates/structured_futures_short_breakdown_v1/"
-        - "trading/freqtrade/user_data/strategies/structured_futures_short_breakdown_strategy.py"
-        - "trading/freqtrade/user_data/strategies/structured_futures_baseline_strategy.py"
-        - "data/ai_control/strategy_reports/"
+        - "core/regime_detector.py"
+        - "research/regimes/"
+        - "docs/REGIME_DETECTION.md"
+        - "data/ai_control/regime/"
+        - "core/tests/test_regime_detector.py"
       risk_level: "medium"
       cross_layer: false
-      does_touch_contract: false
+      does_touch_contract: true
       does_touch_runtime: false
       force_strong_model: false
       auto_approve: false
       allow_parallel: true
 
-    - name: "candidate_feature_support"
+    - name: "regime_feature_support"
       agent_name: "feature_engineering_agent"
-      goal: "Dostarcz tylko dataset spec i feature manifest potrzebny dla aktywnego albo bezposrednio nastepnego kandydata. Nie wracaj do ogolnego feature-store sweepu."
-      business_reason: "Kandydaci potrzebuja versioned inputs per candidate, inaczej strategy lead sklada evidence z luznych notatek."
+      goal: "Dostarcz regime feature snapshot i manifest: trend, volatility, volume, session i derivatives context dla futures. Nie rozwijaj nowych candidate packetow."
+      business_reason: "Detektor reżimu potrzebuje stabilnych, audytowalnych cech zanim powstana kolejne strategie pod reżimy."
       requested_paths:
-        - "research/datasets/"
         - "research/features/"
-        - "research/candidates/"
-        - "trading/freqtrade/user_data/strategies/"
+        - "research/datasets/"
+        - "research/regimes/"
+        - "docs/FEATURE_STORE.md"
+        - "docs/RESEARCH_LAYER.md"
       risk_level: "low"
       cross_layer: false
       does_touch_contract: false
@@ -60,34 +59,16 @@ autopilot:
       auto_approve: false
       allow_parallel: true
 
-    - name: "candidate_risk_support"
+    - name: "regime_risk_mapping"
       agent_name: "risk_research_agent"
-      goal: "Zaktualizuj tylko risk gate aktywnego lub nastepnego kandydata: leverage, exposure, side imbalance i decyzja czy dana strona ma byc aktywna czy zaparkowana."
-      business_reason: "Risk gate ma filtrowac kandydatow szybko i per candidate, zamiast tworzyc szerokie foundation docs bez ruchu na strategiach."
+      goal: "Zmapuj reżimy rynku na polityki ryzyka: leverage, exposure, concurrency, stress derisking i side parking. Nie buduj nowych candidate risk packetow."
+      business_reason: "Platforma ma najpierw wiedziec jak rynek wplywa na ryzyko, a dopiero potem jakie strategie warto pod niego uruchamiac."
       requested_paths:
         - "research/risk/"
-        - "research/candidates/"
+        - "research/regimes/"
         - "docs/RISK_MODEL_FUTURES.md"
+        - "docs/SYSTEM_OPERATING_MODEL.md"
         - "core/risk_manager.py"
-        - "data/ai_control/strategy_reports/"
-      risk_level: "low"
-      cross_layer: false
-      does_touch_contract: false
-      does_touch_runtime: false
-      force_strong_model: false
-      auto_approve: false
-      allow_parallel: true
-
-    - name: "candidate_eval_watch"
-      agent_name: "experiment_evaluation_agent"
-      goal: "Ocen aktywny kandydat przez broad backtest bundle z ustalonymi 4 oknami, porownaj go z poprzednim stanem i zwroc jeden werdykt evidence-based."
-      business_reason: "Realne zarabiajace strategie powstana tylko wtedy, gdy kandydaci beda szybko i brutalnie odsiewani tym samym zestawem okien i progow."
-      requested_paths:
-        - "research/evaluation/"
-        - "research/promotion/"
-        - "research/candidates/"
-        - "research/risk/"
-        - "trading/freqtrade/user_data/backtest_results/"
       risk_level: "low"
       cross_layer: false
       does_touch_contract: false

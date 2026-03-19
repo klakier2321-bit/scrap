@@ -4,7 +4,10 @@ market_type: futures
 allowed_sides: both
 timeframes: []
 required_regimes: []
+allowed_primary_regimes: []
+blocked_primary_regimes: []
+entry_contexts: []
+regime_risk_policy: {}
 risk_model: ""
 known_weaknesses: []
 status: idea
-

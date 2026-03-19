@@ -3,6 +3,23 @@ strategy_id: structured_futures_short_breakdown_v1
 strategy_name: StructuredFuturesShortBreakdownStrategy
 market_type: futures
 allowed_sides: short
+allowed_primary_regimes:
+  - trend_down
+  - high_vol
+  - stress_panic
+blocked_primary_regimes:
+  - trend_up
+  - low_vol
+entry_contexts:
+  - breakdown
+  - downside_expansion
+regime_risk_policy:
+  trend_down: normal
+  high_vol: reduced
+  stress_panic: reduced
+  trend_up: blocked
+  range: blocked
+  low_vol: blocked
 universe:
   - BTC/USDT:USDT
   - ETH/USDT:USDT
@@ -13,11 +30,12 @@ required_regimes:
   - trend_down_breakdown
   - stress_downside_expansion
 risk_model: structured_futures_short_breakdown_v1_risk
-status: research_experiment
+status: frozen_pending_regime_engine
 known_weaknesses:
   - no validated broad backtest yet
   - short squeezes can destroy a thin edge quickly
   - funding drag is modeled conservatively, not ingested as a full time series
+  - candidate build is frozen until the regime engine is ready
 backtest_config: trading/freqtrade/user_data/config.backtest.futures.short_breakdown.json
 strategy_path: trading/freqtrade/user_data/strategies/structured_futures_short_breakdown_strategy.py
 hypothesis_path: research/candidates/structured_futures_short_breakdown_v1/hypothesis.md

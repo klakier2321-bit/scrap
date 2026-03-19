@@ -4,6 +4,23 @@ strategy_name: StructuredFuturesBaselineStrategy
 market_type: futures
 allowed_sides: both
 active_side_policy: long_biased_with_parked_short
+allowed_primary_regimes:
+  - trend_up
+  - trend_down
+blocked_primary_regimes:
+  - range
+  - low_vol
+  - stress_panic
+entry_contexts:
+  - pullback
+  - continuation_after_confirmation
+regime_risk_policy:
+  trend_up: normal
+  trend_down: reduced
+  range: blocked
+  low_vol: blocked
+  high_vol: reduced
+  stress_panic: blocked
 universe:
   - BTC/USDT:USDT
   - ETH/USDT:USDT
@@ -14,10 +31,10 @@ required_regimes:
   - trend_up_pullback
   - trend_down_pullback
 risk_model: structured_futures_baseline_v1_risk
-status: limited_dry_run_candidate
+status: frozen_pending_regime_engine
 known_weaknesses:
   - funding is modeled conservatively, not ingested as a full time series
-  - no dedicated regime engine in v1
+  - candidate build is frozen until the regime engine is ready
   - small universe can underrepresent regime diversity
   - the current edge is still small and should be treated as a baseline, not a finished strategy
   - short-side logic is effectively parked after the rebuild and needs its own future validation

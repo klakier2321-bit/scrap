@@ -328,6 +328,7 @@ class ExecutiveReportService:
         dry_run_smoke: dict[str, Any] | None,
         candidate_assessments: list[dict[str, Any]] | None = None,
         candidate_dry_run: dict[str, Any] | None = None,
+        regime_report: dict[str, Any] | None = None,
         control_status: dict[str, Any] | None = None,
         coding_status: dict[str, Any] | None = None,
         coding_tasks: list[dict[str, Any]] | None = None,
@@ -348,6 +349,7 @@ class ExecutiveReportService:
         dry_run_smoke = dict(dry_run_smoke or {}) if dry_run_smoke else None
         candidate_assessments = list(candidate_assessments or [])
         candidate_dry_run = dict(candidate_dry_run or {}) if candidate_dry_run else None
+        regime_report = dict(regime_report or {}) if regime_report else None
         control_status = dict(control_status or {}) if control_status else None
         dry_run_ready = bool(dry_run_health.get("ready"))
         control_layer_has_commits = any(
@@ -538,11 +540,12 @@ class ExecutiveReportService:
             (
                 candidate
                 for candidate in candidate_assessments
-                if candidate.get("lifecycle_status") == "limited_dry_run_candidate"
+                if candidate.get("lifecycle_status") in {"limited_dry_run_candidate", "frozen_pending_regime_engine"}
+                and candidate.get("candidate_bot_id")
             ),
             None,
         )
-        if shipping_candidate and shipping_candidate.get("dry_run_gate_status") != "ready":
+        if shipping_candidate and shipping_candidate.get("dry_run_gate_status") not in {"ready", "telemetry_ready"}:
             blockers.append(
                 {
                     "blocker_id": f"candidate:{shipping_candidate['candidate_id']}",
@@ -554,6 +557,19 @@ class ExecutiveReportService:
                     "why_blocking": "; ".join(shipping_candidate.get("blocked_reasons") or [])
                     or "Kandydat shippingowy nie ma jeszcze osobnego, gotowego toru dry-run.",
                     "expected_action": "Uruchomic osobnego candidate bota i potwierdzic snapshot, smoke oraz assessment baseline.",
+                }
+            )
+        if regime_report is None:
+            blockers.append(
+                {
+                    "blocker_id": "regime:not-available",
+                    "source": "Regime detector",
+                    "area": "Regime detection",
+                    "title": "Brakuje kanonicznego raportu reżimu rynku",
+                    "severity": "Wysoki",
+                    "status": "Wymaga uwagi",
+                    "why_blocking": "Platforma jest przestawiona na regime-first, ale nie ma jeszcze aktualnego latest.json dla reżimu.",
+                    "expected_action": "Wygenerować raport reżimu i potwierdzić klasyfikację 6 głównych stanów rynku.",
                 }
             )
 
@@ -638,6 +654,10 @@ class ExecutiveReportService:
                 ),
                 "candidate_assessments": candidate_assessments,
                 "candidate_dry_run": candidate_dry_run,
+                "factory_mode": "regime_first_freeze_build_keep_dry_run",
+            },
+            "regime": {
+                "latest": regime_report,
             },
             "control_status": control_status,
             "assumptions": assumptions,
@@ -686,11 +706,13 @@ class ExecutiveReportService:
                 "candidate_shipping_ready_total": sum(
                     1
                     for candidate in candidate_assessments
-                    if candidate.get("lifecycle_status") == "limited_dry_run_candidate"
+                    if candidate.get("lifecycle_status") in {"limited_dry_run_candidate", "frozen_pending_regime_engine"}
+                    and candidate.get("candidate_bot_id")
                 ),
                 "candidate_dry_run_ready": 1
                 if (candidate_dry_run or {}).get("health", {}).get("ready")
                 else 0,
+                "regime_available": 1 if regime_report else 0,
                 "control_status_available": 1 if control_status else 0,
                 "control_status_warn": 1 if (control_status or {}).get("overall_status") == "warn" else 0,
             },

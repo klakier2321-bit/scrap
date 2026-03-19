@@ -185,6 +185,26 @@ class CandidateDryRunResponse(BaseModel):
     latest_smoke: dict[str, Any] | None = None
 
 
+class RegimeStatusResponse(BaseModel):
+    """Current market regime classification for operator and executive views."""
+
+    generated_at: datetime | str
+    asof_timeframe: str
+    universe: list[str] = Field(default_factory=list)
+    primary_regime: str
+    confidence: float
+    risk_level: str
+    trend_strength: float
+    volatility_level: str
+    volume_state: str
+    derivatives_state: str
+    feature_snapshot: dict[str, Any] = Field(default_factory=dict)
+    reasons: list[str] = Field(default_factory=list)
+    eligible_candidate_ids: list[str] = Field(default_factory=list)
+    blocked_candidate_ids: list[str] = Field(default_factory=list)
+    candidate_freeze_mode: str | None = None
+
+
 class DryRunHealthResponse(BaseModel):
     """Read-only health view of the active dry-run runtime."""
 

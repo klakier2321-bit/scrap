@@ -36,6 +36,7 @@ from .metrics import (
     record_run_succeeded,
     record_scope_violation,
 )
+from .regime_detector import RegimeDetector
 from .risk_manager import RiskManager
 from .storage import RunStore
 from .strategy_manager import StrategyManager
@@ -58,6 +59,11 @@ class Orchestrator:
             user_data_dir=settings.freqtrade_user_data_path,
             reports_dir=settings.strategy_reports_dir,
             dry_run_snapshots_dir=settings.dry_run_snapshots_dir,
+        )
+        self.regime_detector = RegimeDetector(
+            user_data_dir=settings.freqtrade_user_data_path,
+            output_dir=settings.regime_reports_dir,
+            research_dir=settings.repo_checkout_path / "research",
         )
         self.freqtrade_runtime_client = FreqtradeRuntimeClient(
             base_url=settings.freqtrade_api_base_url,
@@ -287,6 +293,15 @@ class Orchestrator:
             )
         return merged
 
+    def get_latest_regime_report(self) -> dict[str, Any] | None:
+        return self.regime_detector.latest_report()
+
+    def list_regime_history(self, limit: int = 20) -> list[dict[str, Any]]:
+        return self.regime_detector.list_reports(limit=limit)
+
+    def generate_regime_report(self) -> dict[str, Any]:
+        return self.regime_detector.generate_report()
+
     def generate_strategy_assessment(
         self,
         strategy_name: str | None = None,
@@ -341,7 +356,10 @@ class Orchestrator:
             assessments.append(self.get_candidate_assessment(str(candidate_id)))
         assessments.sort(
             key=lambda item: (
-                0 if item.get("lifecycle_status") == "limited_dry_run_candidate" else 1,
+                0
+                if item.get("lifecycle_status") in {"limited_dry_run_candidate", "frozen_pending_regime_engine"}
+                and item.get("candidate_bot_id")
+                else 1,
                 item.get("candidate_id", ""),
             )
         )
@@ -369,11 +387,17 @@ class Orchestrator:
         latest_snapshot = self.get_latest_dry_run_snapshot(refresh_if_stale=True)
         dry_run_health = self.get_dry_run_health()
         candidate_assessments = self.list_candidate_assessments()
+        regime_report = self.get_latest_regime_report()
+        if regime_report is None:
+            try:
+                regime_report = self.generate_regime_report()
+            except Exception:
+                regime_report = None
         shipping_candidate = next(
             (
                 candidate
                 for candidate in candidate_assessments
-                if candidate.get("lifecycle_status") == "limited_dry_run_candidate"
+                if candidate.get("lifecycle_status") in {"limited_dry_run_candidate", "frozen_pending_regime_engine"}
                 and candidate.get("candidate_bot_id")
             ),
             None,
@@ -395,6 +419,7 @@ class Orchestrator:
             dry_run_smoke=self.get_latest_dry_run_smoke(),
             candidate_assessments=candidate_assessments,
             candidate_dry_run=candidate_dry_run,
+            regime_report=regime_report,
             control_status=self.get_control_status(refresh_if_missing=True),
             coding_status=self.coding_supervisor.status(),
             coding_tasks=self.store.list_coding_tasks(limit=100),
