@@ -1,0 +1,30 @@
+version: 1
+dataset_id: structured_futures_baseline_v1
+market_type: futures
+exchange: binance
+pairs:
+  - BTC/USDT:USDT
+  - ETH/USDT:USDT
+timeframes:
+  - 5m
+  - 1h
+inputs:
+  - name: ohlcv_5m
+    source: freqtrade_user_data
+    required: true
+  - name: ohlcv_1h
+    source: freqtrade_user_data
+    required: true
+  - name: dry_run_snapshots
+    source: data/ai_control/dry_run_snapshots
+    required: false
+cost_assumptions:
+  maker_fee_bps: 2.0
+  taker_fee_bps: 5.0
+  slippage_bps: 3.0
+  funding_mode: assumed_until_timeseries_exists
+  funding_bps_per_8h_assumption: 1.0
+limitations:
+  - open interest is not part of v1
+  - funding is not yet ingested as a point-by-point series
+  - runtime context is supplemental, not the primary market dataset

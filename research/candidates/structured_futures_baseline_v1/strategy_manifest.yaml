@@ -1,0 +1,36 @@
+version: 1
+strategy_id: structured_futures_baseline_v1
+strategy_name: StructuredFuturesBaselineStrategy
+market_type: futures
+allowed_sides: both
+universe:
+  - BTC/USDT:USDT
+  - ETH/USDT:USDT
+primary_timeframe: 5m
+informative_timeframes:
+  - 1h
+required_regimes:
+  - trend_up_pullback
+  - trend_down_pullback
+risk_model: structured_futures_baseline_v1_risk
+status: needs_rework
+known_weaknesses:
+  - funding is modeled conservatively, not ingested as a full time series
+  - no dedicated regime engine in v1
+  - small universe can underrepresent regime diversity
+  - first backtest showed harmful short-side behavior on ETH/USDT:USDT
+backtest_config: trading/freqtrade/user_data/config.backtest.futures.baseline.json
+dry_run_config: trading/freqtrade/user_data/config.dryrun.futures.baseline.json
+hypothesis_path: research/candidates/structured_futures_baseline_v1/hypothesis.md
+dataset_spec_path: research/datasets/structured_futures_baseline_v1_dataset_spec.yaml
+feature_manifest_path: research/features/structured_futures_baseline_v1_feature_manifest.yaml
+risk_report_path: research/risk/structured_futures_baseline_v1_risk_report.json
+promotion_decision_path: research/promotion/structured_futures_baseline_v1_promotion_decision.md
+last_backtest:
+  timerange: 20260217-20260319
+  total_trades: 63
+  total_profit_pct: -1.72
+  drawdown_pct: 2.14
+  long_profit_pct: -0.23
+  short_profit_pct: -1.49
+  decision: needs_rework

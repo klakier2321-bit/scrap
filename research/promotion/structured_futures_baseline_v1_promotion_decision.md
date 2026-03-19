@@ -1,0 +1,23 @@
+# Structured Futures Baseline V1 Promotion Decision
+
+- strategy_id: structured_futures_baseline_v1
+- current_state: needs_rework
+- backtest_gate: fail
+- risk_gate: warn
+- dry_run_gate: blocked
+- promotion_decision: needs_rework
+- required_evidence:
+  - hypothesis.md
+  - strategy_manifest.yaml
+  - feature_manifest.yaml
+  - risk_report.json
+  - first backtest result
+- first_backtest_summary:
+  - timerange: 2026-02-17 -> 2026-03-19
+  - total_trades: 63
+  - total_profit_pct: -1.72
+  - drawdown_pct: 2.14
+  - long_profit_pct: -0.23
+  - short_profit_pct: -1.49
+- reason: The candidate reached a real futures backtest quickly, but short-side losses are too large and total expectancy is still negative.
+- next_step: Rework the short-side trigger and exit logic first; keep the long-side structure as the reference baseline for the next iteration.

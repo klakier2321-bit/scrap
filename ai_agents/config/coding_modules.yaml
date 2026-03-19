@@ -23,11 +23,9 @@ coding_runtime:
         - "core/strategy_manager.py"
         - "core/risk_manager.py"
       target_candidates:
-        - "docs/STRATEGY_LIFECYCLE.md"
-        - "docs/STRATEGY_PROMOTION_PIPELINE.md"
-        - "docs/AI_AGENT_ROLES.md"
-        - "research/candidates/README.md"
-        - "research/promotion/README.md"
+        - "research/candidates/structured_futures_baseline_v1/hypothesis.md"
+        - "research/candidates/structured_futures_baseline_v1/strategy_manifest.yaml"
+        - "research/promotion/structured_futures_baseline_v1_promotion_decision.md"
       acceptance_checks:
         - "Zmiana nie modyfikuje runtime tradingowego ani sekretow."
         - "Lifecycle strategii i ownership helperow sa jednoznaczne."
@@ -52,10 +50,9 @@ coding_runtime:
         - "data/ai_control/dry_run_snapshots/"
         - "data/ai_control/strategy_reports/"
       target_candidates:
-        - "docs/RESEARCH_LAYER.md"
+        - "research/datasets/structured_futures_baseline_v1_dataset_spec.yaml"
+        - "research/features/structured_futures_baseline_v1_feature_manifest.yaml"
         - "docs/FEATURE_STORE.md"
-        - "research/datasets/README.md"
-        - "research/features/README.md"
       acceptance_checks:
         - "Zmiana traktuje futures jako futures, nie spot."
         - "Foundation uwzglednia funding, leverage, slippage i regime context."
@@ -80,9 +77,9 @@ coding_runtime:
         - "data/ai_control/dry_run_snapshots/"
         - "data/ai_control/strategy_reports/"
       target_candidates:
+        - "research/risk/structured_futures_baseline_v1_risk_report.json"
         - "docs/RISK_MODEL_FUTURES.md"
         - "docs/SYSTEM_OPERATING_MODEL.md"
-        - "research/risk/README.md"
       acceptance_checks:
         - "Ryzyko jest opisane dla futures, nie dla spot."
         - "Brak omijania RiskManagera i brak zmian w runtime tradingowym."

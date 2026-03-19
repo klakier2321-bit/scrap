@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "strategy_id": "structured_futures_baseline_v1",
+  "status": "warn",
+  "market_type": "futures",
+  "margin_mode": "isolated",
+  "leverage_cap": 2.0,
+  "max_open_trades": 2,
+  "max_risk_per_trade_pct": 1.0,
+  "max_portfolio_exposure_pct": 50.0,
+  "max_pair_exposure_pct": 25.0,
+  "allowed_pairs": [
+    "BTC/USDT:USDT",
+    "ETH/USDT:USDT"
+  ],
+  "hard_stoploss_pct": 3.0,
+  "time_stop_minutes": 720,
+  "funding_drag_policy": "warn_if_estimated_drag_turns_positive_edge_negative",
+  "concentration_policy": "do_not_open_more_than_one_position_per_pair",
+  "promotion_gate": "needs_rework_after_first_backtest",
+  "observed_backtest_metrics": {
+    "timerange": "20260217-20260319",
+    "total_trades": 63,
+    "total_profit_pct": -1.72,
+    "drawdown_pct": 2.14,
+    "long_profit_pct": -0.23,
+    "short_profit_pct": -1.49
+  },
+  "notes": [
+    "V1 uses conservative exposure and leverage.",
+    "Funding is modeled conservatively until a full futures dataset exists.",
+    "Any harmful side imbalance should move that side to needs_rework.",
+    "The first backtest kept drawdown under the current hard limit, but total expectancy remained negative."
+  ]
+}

@@ -1,0 +1,48 @@
+version: 1
+feature_set_id: structured_futures_baseline_v1
+market_type: futures
+features:
+  - name: ema_fast_5m
+    version: 1
+    source: ohlcv_5m
+    definition: EMA close over 21 candles
+  - name: ema_slow_5m
+    version: 1
+    source: ohlcv_5m
+    definition: EMA close over 55 candles
+  - name: ema_trend_5m
+    version: 1
+    source: ohlcv_5m
+    definition: EMA close over 200 candles
+  - name: rsi_14_5m
+    version: 1
+    source: ohlcv_5m
+    definition: RSI 14 for momentum confirmation
+  - name: adx_14_5m
+    version: 1
+    source: ohlcv_5m
+    definition: ADX 14 for trend strength filter
+  - name: atr_14_5m
+    version: 1
+    source: ohlcv_5m
+    definition: ATR 14 for volatility and stop calibration
+  - name: ema_fast_1h
+    version: 1
+    source: ohlcv_1h
+    definition: EMA close over 50 candles
+  - name: ema_slow_1h
+    version: 1
+    source: ohlcv_1h
+    definition: EMA close over 200 candles
+  - name: rsi_14_1h
+    version: 1
+    source: ohlcv_1h
+    definition: RSI 14 on the informative timeframe
+  - name: volume_mean_20_5m
+    version: 1
+    source: ohlcv_5m
+    definition: Rolling mean volume over 20 candles
+limitations:
+  - no regime-labeled features in v1
+  - no funding imbalance feature in v1
+  - no cross-asset relative strength feature in v1
