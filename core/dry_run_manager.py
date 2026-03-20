@@ -429,6 +429,9 @@ class DryRunManager:
                 {
                     "trade_id": trade.get("trade_id") or trade.get("id"),
                     "pair": trade.get("pair"),
+                    "side": trade.get("side") or ("short" if trade.get("is_short") else "long"),
+                    "is_short": bool(trade.get("is_short", False)),
+                    "leverage": trade.get("leverage"),
                     "stake_amount": trade.get("stake_amount"),
                     "amount": trade.get("amount"),
                     "open_rate": trade.get("open_rate"),

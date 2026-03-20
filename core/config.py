@@ -121,6 +121,10 @@ class AppSettings(BaseSettings):
         return self.data_dir / "derivatives"
 
     @property
+    def risk_decisions_dir(self) -> Path:
+        return self.data_dir / "risk_decisions"
+
+    @property
     def derivatives_vendor_input_dir(self) -> Path:
         return self.data_dir / "derivatives_vendor"
 

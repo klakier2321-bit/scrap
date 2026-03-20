@@ -3,6 +3,10 @@ strategy_id: structured_futures_short_breakdown_v1
 strategy_name: StructuredFuturesShortBreakdownStrategy
 market_type: futures
 allowed_sides: short
+strategy_family: breakout
+risk_profile: aggressive
+execution_style: breakout
+allowed_directions: short
 allowed_primary_regimes:
   - trend_down
   - high_vol

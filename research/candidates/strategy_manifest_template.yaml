@@ -2,6 +2,10 @@ version: 1
 strategy_id: ""
 market_type: futures
 allowed_sides: both
+strategy_family: trend_continuation
+risk_profile: balanced
+execution_style: confirmation
+allowed_directions: both
 timeframes: []
 required_regimes: []
 allowed_primary_regimes: []

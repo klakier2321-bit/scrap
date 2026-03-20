@@ -172,6 +172,7 @@ class CandidateAssessmentResponse(BaseModel):
     selector_status: str | None = None
     selector_rank: int | None = None
     runtime_policy: dict[str, Any] = Field(default_factory=dict)
+    risk_decision: dict[str, Any] = Field(default_factory=dict)
     manifest_path: str | None = None
     broad_backtest_summary_path: str | None = None
     risk_report_path: str | None = None
@@ -274,6 +275,39 @@ class RegimeReplayResponse(BaseModel):
     derivatives_event_reliability_breakdown: dict[str, int] = Field(default_factory=dict)
     derivatives_stale_share: float = 0.0
     notes: list[str] = Field(default_factory=list)
+
+
+class RiskDecisionResponse(BaseModel):
+    """Canonical runtime risk decision for one bot/runtime scope."""
+
+    generated_at: datetime | str
+    allow_trading: bool = False
+    trading_mode: str
+    risk_state: str
+    risk_score: int
+    data_validation_status: str
+    data_trust_level: str
+    allowed_directions: list[str] = Field(default_factory=list)
+    blocked_directions: list[str] = Field(default_factory=list)
+    max_position_size_pct: float = 0.0
+    max_total_exposure_pct: float = 0.0
+    max_positions_total: int = 0
+    max_positions_per_symbol: int = 0
+    max_correlated_positions: int = 0
+    allowed_strategy_ids: list[str] = Field(default_factory=list)
+    blocked_strategy_ids: list[str] = Field(default_factory=list)
+    allowed_strategy_families: list[str] = Field(default_factory=list)
+    blocked_strategy_families: list[str] = Field(default_factory=list)
+    leverage_cap: float = 1.0
+    force_reduce_only: bool = False
+    new_entries_allowed: bool = False
+    cooldown_active: bool = False
+    protective_overrides: dict[str, bool] = Field(default_factory=dict)
+    risk_reason_codes: list[str] = Field(default_factory=list)
+    risk_notes: list[str] = Field(default_factory=list)
+    decision_trace: list[dict[str, Any]] = Field(default_factory=list)
+    degradation_flags: dict[str, bool] = Field(default_factory=dict)
+    context: dict[str, Any] = Field(default_factory=dict)
 
 
 class DryRunHealthResponse(BaseModel):

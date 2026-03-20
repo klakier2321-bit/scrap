@@ -5,11 +5,18 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .risk_management import RiskEngine
+
 
 class RiskManager:
     """Centralizes runtime safety checks and approval rules."""
 
-    def __init__(self, sensitive_paths: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        sensitive_paths: list[str] | None = None,
+        *,
+        risk_output_dir: Path | None = None,
+    ) -> None:
         self.sensitive_paths = sensitive_paths or [
             ".env",
             "docker-compose.yml",
@@ -29,6 +36,7 @@ class RiskManager:
         self.dry_run_fail_loss_ratio = -0.05
         self.warning_open_trade_exposure_ratio = 0.75
         self.fail_open_trade_exposure_ratio = 0.95
+        self.engine = RiskEngine(output_dir=risk_output_dir)
 
     def ensure_bot_start_allowed(self, bot_status: dict[str, Any]) -> None:
         if not bot_status.get("dry_run", True):
@@ -384,39 +392,127 @@ class RiskManager:
         selector_allowed: bool,
     ) -> dict[str, Any]:
         if not regime_report:
-            return {
-                "entry_allowed": False,
-                "risk_regime": "unknown",
-                "position_size_multiplier": 0.0,
-                "entry_aggressiveness": "blocked",
-                "execution_constraints": {
-                    "no_trade_zone": True,
-                    "reduced_exposure_only": True,
-                    "high_noise_environment": True,
-                    "post_shock_cooldown": False,
-                },
-                "selector_allowed": False,
-            }
+            return self._default_runtime_policy(selector_allowed=False)
 
-        constraints = dict(regime_report.get("execution_constraints") or {})
-        no_trade_zone = bool(constraints.get("no_trade_zone"))
-        entry_allowed = selector_allowed and not no_trade_zone
-        size_multiplier = float(regime_report.get("position_size_multiplier") or 0.0)
-        if not selector_allowed:
+        risk_decision = self.evaluate_risk(
+            regime_report=regime_report,
+            candidate_manifests=[],
+            portfolio_state=None,
+            bot_id="runtime_compat",
+        )
+        return self.build_candidate_runtime_policy(
+            risk_decision=risk_decision,
+            candidate_id=None,
+            selector_allowed=selector_allowed,
+        )
+
+    def evaluate_risk(
+        self,
+        *,
+        regime_report: dict[str, Any] | None,
+        candidate_manifests: list[dict[str, Any]],
+        portfolio_state: Any = None,
+        bot_id: str = "runtime",
+    ) -> dict[str, Any]:
+        return self.engine.evaluate(
+            regime_report=regime_report,
+            candidate_manifests=candidate_manifests,
+            portfolio_state=portfolio_state,
+            bot_id=bot_id,
+        )
+
+    def latest_risk_decision(self, *, bot_id: str = "runtime") -> dict[str, Any] | None:
+        return self.engine.latest_decision(bot_id=bot_id)
+
+    def build_portfolio_state_from_snapshot(self, snapshot: dict[str, Any] | None) -> Any:
+        return self.engine.build_portfolio_state(snapshot)
+
+    def build_candidate_runtime_policy(
+        self,
+        *,
+        risk_decision: dict[str, Any] | None,
+        candidate_id: str | None,
+        selector_allowed: bool,
+    ) -> dict[str, Any]:
+        if not risk_decision:
+            return self._default_runtime_policy(selector_allowed=False)
+
+        execution_constraints = {
+            "no_trade_zone": risk_decision.get("trading_mode") == "blocked",
+            "reduced_exposure_only": risk_decision.get("trading_mode") in {"capital_protection", "reduced_risk"},
+            "high_noise_environment": rc_bool(risk_decision, "HIGH_NOISE_ENVIRONMENT"),
+            "post_shock_cooldown": bool(risk_decision.get("cooldown_active")),
+        }
+        strategy_allowed = True
+        if candidate_id:
+            strategy_allowed = candidate_id in list(risk_decision.get("allowed_strategy_ids") or [])
+
+        mode = str(risk_decision.get("trading_mode") or "blocked")
+        max_position_size_pct = float(risk_decision.get("max_position_size_pct") or 0.0)
+        size_multiplier = min(1.25, max(0.0, max_position_size_pct))
+        entry_allowed = bool(
+            selector_allowed
+            and strategy_allowed
+            and risk_decision.get("allow_trading", False)
+            and risk_decision.get("new_entries_allowed", False)
+            and not execution_constraints["no_trade_zone"]
+        )
+
+        if not entry_allowed:
             size_multiplier = 0.0
-        elif bool(constraints.get("reduced_exposure_only")):
-            size_multiplier = min(size_multiplier, 0.75)
 
         return {
             "entry_allowed": entry_allowed,
-            "risk_regime": str(regime_report.get("risk_regime") or regime_report.get("risk_level") or "unknown"),
+            "risk_regime": str(risk_decision.get("risk_state") or "unknown"),
             "position_size_multiplier": round(max(0.0, size_multiplier), 4),
-            "entry_aggressiveness": str(regime_report.get("entry_aggressiveness") or "blocked"),
+            "entry_aggressiveness": "blocked" if not entry_allowed else self._runtime_entry_aggressiveness(risk_decision),
+            "execution_constraints": execution_constraints,
+            "selector_allowed": selector_allowed,
+            "strategy_allowed": strategy_allowed,
+            "trading_mode": mode,
+            "leverage_cap": float(risk_decision.get("leverage_cap") or 1.0),
+            "force_reduce_only": bool(risk_decision.get("force_reduce_only")),
+            "cooldown_active": bool(risk_decision.get("cooldown_active")),
+            "max_total_exposure_pct": float(risk_decision.get("max_total_exposure_pct") or 0.0),
+        }
+
+    @staticmethod
+    def _runtime_entry_aggressiveness(risk_decision: dict[str, Any]) -> str:
+        if bool((risk_decision.get("protective_overrides") or {}).get("disable_aggressive_entries")):
+            mode = str(risk_decision.get("trading_mode") or "blocked")
+            if mode in {"blocked", "capital_protection"}:
+                return "blocked" if mode == "blocked" else "low"
+            return "moderate"
+        mode = str(risk_decision.get("trading_mode") or "blocked")
+        return {
+            "blocked": "blocked",
+            "capital_protection": "low",
+            "reduced_risk": "moderate",
+            "normal": "moderate",
+            "selective_offense": "high",
+        }.get(mode, "blocked")
+
+    def _default_runtime_policy(self, *, selector_allowed: bool) -> dict[str, Any]:
+        return {
+            "entry_allowed": False,
+            "risk_regime": "unknown",
+            "position_size_multiplier": 0.0,
+            "entry_aggressiveness": "blocked",
             "execution_constraints": {
-                "no_trade_zone": bool(constraints.get("no_trade_zone")),
-                "reduced_exposure_only": bool(constraints.get("reduced_exposure_only")),
-                "high_noise_environment": bool(constraints.get("high_noise_environment")),
-                "post_shock_cooldown": bool(constraints.get("post_shock_cooldown")),
+                "no_trade_zone": True,
+                "reduced_exposure_only": True,
+                "high_noise_environment": True,
+                "post_shock_cooldown": False,
             },
             "selector_allowed": selector_allowed,
+            "strategy_allowed": False,
+            "trading_mode": "blocked",
+            "leverage_cap": 1.0,
+            "force_reduce_only": True,
+            "cooldown_active": False,
+            "max_total_exposure_pct": 0.0,
         }
+
+
+def rc_bool(risk_decision: dict[str, Any], code: str) -> bool:
+    return code in list(risk_decision.get("risk_reason_codes") or [])

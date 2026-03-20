@@ -3,6 +3,10 @@ strategy_id: structured_futures_long_continuation_v1
 strategy_name: StructuredFuturesLongContinuationStrategy
 market_type: futures
 allowed_sides: long
+strategy_family: trend_continuation
+risk_profile: balanced
+execution_style: confirmation
+allowed_directions: long
 allowed_primary_regimes:
   - trend_up
   - high_vol

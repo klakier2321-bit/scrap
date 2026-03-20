@@ -55,7 +55,7 @@ class Orchestrator:
     def __init__(self, settings: AppSettings) -> None:
         self.settings = settings
         self.bot_manager = BotManager(docker_base_url=settings.docker_socket_path)
-        self.risk_manager = RiskManager()
+        self.risk_manager = RiskManager(risk_output_dir=settings.risk_decisions_dir)
         self.strategy_manager = StrategyManager(
             user_data_dir=settings.freqtrade_user_data_path,
             reports_dir=settings.strategy_reports_dir,
@@ -340,6 +340,28 @@ class Orchestrator:
     def generate_derivatives_report(self) -> dict[str, Any]:
         return self.derivatives_feed.generate_report()
 
+    def get_latest_risk_decision(self, bot_id: str = "freqtrade_candidate") -> dict[str, Any] | None:
+        return self.risk_manager.latest_risk_decision(bot_id=bot_id)
+
+    def generate_risk_decision(self, bot_id: str = "freqtrade_candidate") -> dict[str, Any]:
+        regime_report = self.get_latest_regime_report()
+        if regime_report is None:
+            regime_report = self.generate_regime_report()
+        try:
+            dry_run_snapshot = self.get_latest_dry_run_snapshot(
+                bot_id=bot_id,
+                refresh_if_stale=True,
+            )
+        except KeyError:
+            dry_run_snapshot = None
+        portfolio_state = self.risk_manager.build_portfolio_state_from_snapshot(dry_run_snapshot)
+        return self.risk_manager.evaluate_risk(
+            regime_report=regime_report,
+            candidate_manifests=self.strategy_manager.list_candidate_manifests(),
+            portfolio_state=portfolio_state,
+            bot_id=bot_id,
+        )
+
     def get_latest_regime_replay(self) -> dict[str, Any] | None:
         return self.regime_detector.latest_replay_report()
 
@@ -392,8 +414,15 @@ class Orchestrator:
                 dry_run_health = None
                 dry_run_snapshot = None
         selector_allowed = candidate_id in list((regime_report or {}).get("eligible_candidate_ids") or [])
-        runtime_policy = self.risk_manager.build_regime_runtime_policy(
+        risk_decision = self.risk_manager.evaluate_risk(
             regime_report=regime_report,
+            candidate_manifests=self.strategy_manager.list_candidate_manifests(),
+            portfolio_state=self.risk_manager.build_portfolio_state_from_snapshot(dry_run_snapshot),
+            bot_id=bot_id or f"candidate-{candidate_id}",
+        )
+        runtime_policy = self.risk_manager.build_candidate_runtime_policy(
+            risk_decision=risk_decision,
+            candidate_id=candidate_id,
             selector_allowed=selector_allowed,
         )
         return self.strategy_manager.build_candidate_assessment(
@@ -402,6 +431,7 @@ class Orchestrator:
             dry_run_snapshot=dry_run_snapshot,
             regime_report=regime_report,
             runtime_policy=runtime_policy,
+            risk_decision=risk_decision,
         )
 
     def list_candidate_assessments(self) -> list[dict[str, Any]]:
@@ -457,6 +487,12 @@ class Orchestrator:
             except Exception:
                 derivatives_report = None
         replay_report = self.get_latest_regime_replay()
+        risk_decision = self.get_latest_risk_decision(bot_id="freqtrade_candidate")
+        if risk_decision is None:
+            try:
+                risk_decision = self.generate_risk_decision(bot_id="freqtrade_candidate")
+            except Exception:
+                risk_decision = None
         shipping_candidate = next(
             (
                 candidate
@@ -485,6 +521,7 @@ class Orchestrator:
             candidate_dry_run=candidate_dry_run,
             regime_report=regime_report,
             derivatives_report=derivatives_report,
+            risk_decision=risk_decision,
             regime_replay_report=replay_report,
             control_status=self.get_control_status(refresh_if_missing=True),
             coding_status=self.coding_supervisor.status(),

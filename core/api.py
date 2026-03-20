@@ -39,6 +39,7 @@ from .schemas import (
     DryRunSmokeResponse,
     DryRunSnapshotResponse,
     HealthResponse,
+    RiskDecisionResponse,
     StrategyReportResponse,
 )
 from .tracing import setup_tracing, suppress_crewai_trace_console
@@ -252,6 +253,36 @@ async def ops_derivatives_latest(refresh: bool = Query(default=False)) -> Deriva
 )
 async def ops_derivatives_generate() -> DerivativesStatusResponse:
     return DerivativesStatusResponse(**get_orchestrator().generate_derivatives_report())
+
+
+@app.get(
+    "/ops/risk/latest",
+    response_model=RiskDecisionResponse,
+    include_in_schema=False,
+)
+async def ops_risk_latest(
+    bot_id: str = Query(default="freqtrade_candidate"),
+    refresh: bool = Query(default=False),
+) -> RiskDecisionResponse:
+    report = (
+        get_orchestrator().generate_risk_decision(bot_id=bot_id)
+        if refresh
+        else get_orchestrator().get_latest_risk_decision(bot_id=bot_id)
+    )
+    if report is None:
+        raise HTTPException(status_code=404, detail="No risk decision is available yet.")
+    return RiskDecisionResponse(**report)
+
+
+@app.post(
+    "/ops/risk/generate",
+    response_model=RiskDecisionResponse,
+    include_in_schema=False,
+)
+async def ops_risk_generate(
+    bot_id: str = Query(default="freqtrade_candidate"),
+) -> RiskDecisionResponse:
+    return RiskDecisionResponse(**get_orchestrator().generate_risk_decision(bot_id=bot_id))
 
 
 @app.get(

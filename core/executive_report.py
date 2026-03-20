@@ -330,6 +330,7 @@ class ExecutiveReportService:
         candidate_dry_run: dict[str, Any] | None = None,
         regime_report: dict[str, Any] | None = None,
         derivatives_report: dict[str, Any] | None = None,
+        risk_decision: dict[str, Any] | None = None,
         regime_replay_report: dict[str, Any] | None = None,
         control_status: dict[str, Any] | None = None,
         coding_status: dict[str, Any] | None = None,
@@ -353,6 +354,7 @@ class ExecutiveReportService:
         candidate_dry_run = dict(candidate_dry_run or {}) if candidate_dry_run else None
         regime_report = dict(regime_report or {}) if regime_report else None
         derivatives_report = dict(derivatives_report or {}) if derivatives_report else None
+        risk_decision = dict(risk_decision or {}) if risk_decision else None
         regime_replay_report = dict(regime_replay_report or {}) if regime_replay_report else None
         control_status = dict(control_status or {}) if control_status else None
         dry_run_ready = bool(dry_run_health.get("ready"))
@@ -572,6 +574,11 @@ class ExecutiveReportService:
             "execution_constraints": (regime_report or {}).get("execution_constraints") or {},
             "strategy_priority_order": (regime_report or {}).get("strategy_priority_order") or [],
             "entry_allowed": bool((selector_candidate or {}).get("runtime_policy", {}).get("entry_allowed")),
+            "trading_mode": (risk_decision or {}).get("trading_mode"),
+            "allowed_directions": (risk_decision or {}).get("allowed_directions") or [],
+            "leverage_cap": (risk_decision or {}).get("leverage_cap"),
+            "data_trust_level": (risk_decision or {}).get("data_trust_level"),
+            "cooldown_active": bool((risk_decision or {}).get("cooldown_active")),
         }
         if shipping_candidate and shipping_candidate.get("dry_run_gate_status") not in {"ready", "telemetry_ready"}:
             blockers.append(
@@ -688,6 +695,7 @@ class ExecutiveReportService:
             "regime": {
                 "latest": regime_report,
                 "derivatives": derivatives_report,
+                "risk_decision": risk_decision,
                 "replay": regime_replay_report,
                 "derivatives_runtime_quality": {
                     "source": (derivatives_report or {}).get("source"),
@@ -753,6 +761,7 @@ class ExecutiveReportService:
                 "selector_candidate_available": 1 if selector_candidate else 0,
                 "regime_available": 1 if regime_report else 0,
                 "derivatives_available": 1 if derivatives_report else 0,
+                "risk_decision_available": 1 if risk_decision else 0,
                 "regime_replay_available": 1 if regime_replay_report else 0,
                 "derivatives_stale": 1 if (derivatives_report or {}).get("is_stale") else 0,
                 "derivatives_binance_share": round(

@@ -187,6 +187,7 @@ class StrategyManager:
         dry_run_snapshot: dict[str, Any] | None = None,
         regime_report: dict[str, Any] | None = None,
         runtime_policy: dict[str, Any] | None = None,
+        risk_decision: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         manifest = self.get_candidate_manifest(candidate_id)
         if manifest is None:
@@ -264,6 +265,11 @@ class StrategyManager:
             )
         if runtime_policy and not runtime_policy.get("entry_allowed", False):
             blocked_reasons.append("Runtime policy blokuje nowe wejścia dla tego kandydata.")
+        if risk_decision:
+            if candidate_id in list(risk_decision.get("blocked_strategy_ids") or []):
+                blocked_reasons.append("Risk engine blokuje te strategie w biezacym trybie tradingowym.")
+            elif risk_decision.get("allow_trading") and candidate_id not in list(risk_decision.get("allowed_strategy_ids") or []):
+                blocked_reasons.append("Risk engine nie dopuszcza tego kandydata po filtrach rodzin strategii i profilu ryzyka.")
 
         overall_decision = promotion_decision.get("promotion_decision") or self._derive_candidate_decision(
             lifecycle_status=lifecycle_status,
@@ -279,6 +285,9 @@ class StrategyManager:
         if selector_status == "blocked":
             overall_decision = "wait_for_regime_alignment"
             next_step = "Nie wybierac tego kandydata do nowych wejsc, dopoki selector i regime nie beda zgodne."
+        elif runtime_policy and not runtime_policy.get("entry_allowed", False):
+            overall_decision = "wait_for_risk_alignment"
+            next_step = "Risk engine blokuje nowe wejscia dla tego kandydata; utrzymac telemetry i czekac na zgodny rynek lub lepszy risk mode."
 
         return {
             "candidate_id": candidate_id,
@@ -297,6 +306,7 @@ class StrategyManager:
             "selector_status": selector_status,
             "selector_rank": selector_rank,
             "runtime_policy": runtime_policy or {},
+            "risk_decision": risk_decision or {},
             "manifest_path": manifest.get("_manifest_path"),
             "broad_backtest_summary_path": manifest.get("broad_backtest_summary_path"),
             "risk_report_path": manifest.get("risk_report_path"),

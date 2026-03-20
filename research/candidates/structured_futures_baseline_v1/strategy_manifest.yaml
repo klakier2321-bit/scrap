@@ -3,6 +3,10 @@ strategy_id: structured_futures_baseline_v1
 strategy_name: StructuredFuturesBaselineStrategy
 market_type: futures
 allowed_sides: both
+strategy_family: pullback_trend
+risk_profile: balanced
+execution_style: confirmation
+allowed_directions: both
 active_side_policy: long_biased_with_parked_short
 allowed_primary_regimes:
   - trend_up
