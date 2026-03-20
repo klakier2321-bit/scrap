@@ -302,6 +302,12 @@ class RiskDecisionResponse(BaseModel):
     force_reduce_only: bool = False
     new_entries_allowed: bool = False
     cooldown_active: bool = False
+    execution_budget_multiplier: float = 1.0
+    hard_enforcement_enabled: bool = True
+    enforced_by: list[str] = Field(default_factory=list)
+    last_enforcement_status: str | None = None
+    last_blocked_order_reason_codes: list[str] = Field(default_factory=list)
+    enforcement_counters: dict[str, int] = Field(default_factory=dict)
     protective_overrides: dict[str, bool] = Field(default_factory=dict)
     risk_reason_codes: list[str] = Field(default_factory=list)
     risk_notes: list[str] = Field(default_factory=list)

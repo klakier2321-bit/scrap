@@ -116,6 +116,12 @@ def empty_risk_decision() -> dict[str, Any]:
         "force_reduce_only": True,
         "new_entries_allowed": False,
         "cooldown_active": False,
+        "execution_budget_multiplier": 0.5,
+        "hard_enforcement_enabled": True,
+        "enforced_by": ["control_layer_preselection", "freqtrade_strategy_hook"],
+        "last_enforcement_status": "unknown",
+        "last_blocked_order_reason_codes": [],
+        "enforcement_counters": {},
         "protective_overrides": {
             "force_conservative_execution": True,
             "disable_aggressive_entries": True,

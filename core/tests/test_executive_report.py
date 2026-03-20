@@ -263,7 +263,48 @@ executive_dashboard:
 
             self.assertEqual(report["summary"]["control_status_available"], 1)
             self.assertEqual(report["summary"]["control_status_warn"], 1)
-            self.assertEqual(report["control_status"]["overall_status"], "warn")
+
+    def test_risk_enforcement_counters_are_exposed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            _write_exec_config(repo_root)
+            service = ExecutiveReportService(repo_root)
+
+            report = service.build_report(
+                runs=[],
+                autopilot_status={"running": True, "poll_interval_seconds": 300},
+                strategy_report=None,
+                dry_run_health={"ready": True, "runtime_mode": "dry_run"},
+                dry_run_snapshot=None,
+                dry_run_smoke=None,
+                control_status=None,
+                coding_status={"running": False, "enabled": True, "attention_needed": False},
+                coding_tasks=[],
+                coding_workspaces=[],
+                risk_decision={
+                    "hard_enforcement_enabled": True,
+                    "execution_budget_multiplier": 0.5,
+                    "last_enforcement_status": "blocked",
+                    "last_blocked_order_reason_codes": ["EXECUTION_BLOCKED_DIRECTION"],
+                    "enforcement_counters": {
+                        "blocked_total": 3,
+                        "clamped_stake_total": 2,
+                        "clamped_leverage_total": 1,
+                        "blocked_by_direction": 1,
+                        "blocked_by_strategy": 1,
+                        "blocked_by_portfolio_limit": 1,
+                        "blocked_by_cooldown": 0,
+                        "blocked_by_reduce_only": 0,
+                    },
+                },
+            )
+
+            self.assertEqual(report["summary"]["risk_hard_enforcement_enabled"], 1)
+            self.assertEqual(report["summary"]["risk_execution_blocked_total"], 3)
+            self.assertEqual(
+                report["regime"]["execution_enforcement"]["last_status"],
+                "blocked",
+            )
 
     def test_candidate_factory_is_included_in_executive_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -579,6 +579,10 @@ class ExecutiveReportService:
             "leverage_cap": (risk_decision or {}).get("leverage_cap"),
             "data_trust_level": (risk_decision or {}).get("data_trust_level"),
             "cooldown_active": bool((risk_decision or {}).get("cooldown_active")),
+            "execution_budget_multiplier": (risk_decision or {}).get("execution_budget_multiplier"),
+            "hard_enforcement_enabled": bool((risk_decision or {}).get("hard_enforcement_enabled")),
+            "last_enforcement_status": (risk_decision or {}).get("last_enforcement_status"),
+            "last_blocked_order_reason_codes": (risk_decision or {}).get("last_blocked_order_reason_codes") or [],
         }
         if shipping_candidate and shipping_candidate.get("dry_run_gate_status") not in {"ready", "telemetry_ready"}:
             blockers.append(
@@ -696,6 +700,14 @@ class ExecutiveReportService:
                 "latest": regime_report,
                 "derivatives": derivatives_report,
                 "risk_decision": risk_decision,
+                "execution_enforcement": {
+                    "enabled": bool((risk_decision or {}).get("hard_enforcement_enabled")),
+                    "enforced_by": (risk_decision or {}).get("enforced_by") or [],
+                    "execution_budget_multiplier": (risk_decision or {}).get("execution_budget_multiplier"),
+                    "last_status": (risk_decision or {}).get("last_enforcement_status"),
+                    "last_blocked_order_reason_codes": (risk_decision or {}).get("last_blocked_order_reason_codes") or [],
+                    "counters": (risk_decision or {}).get("enforcement_counters") or {},
+                },
                 "replay": regime_replay_report,
                 "derivatives_runtime_quality": {
                     "source": (derivatives_report or {}).get("source"),
@@ -762,6 +774,15 @@ class ExecutiveReportService:
                 "regime_available": 1 if regime_report else 0,
                 "derivatives_available": 1 if derivatives_report else 0,
                 "risk_decision_available": 1 if risk_decision else 0,
+                "risk_hard_enforcement_enabled": 1 if (risk_decision or {}).get("hard_enforcement_enabled") else 0,
+                "risk_execution_blocked_total": int((risk_decision or {}).get("enforcement_counters", {}).get("blocked_total", 0) or 0),
+                "risk_execution_clamped_stake_total": int((risk_decision or {}).get("enforcement_counters", {}).get("clamped_stake_total", 0) or 0),
+                "risk_execution_clamped_leverage_total": int((risk_decision or {}).get("enforcement_counters", {}).get("clamped_leverage_total", 0) or 0),
+                "risk_blocked_by_direction_total": int((risk_decision or {}).get("enforcement_counters", {}).get("blocked_by_direction", 0) or 0),
+                "risk_blocked_by_strategy_total": int((risk_decision or {}).get("enforcement_counters", {}).get("blocked_by_strategy", 0) or 0),
+                "risk_blocked_by_portfolio_limit_total": int((risk_decision or {}).get("enforcement_counters", {}).get("blocked_by_portfolio_limit", 0) or 0),
+                "risk_blocked_by_cooldown_total": int((risk_decision or {}).get("enforcement_counters", {}).get("blocked_by_cooldown", 0) or 0),
+                "risk_blocked_by_reduce_only_total": int((risk_decision or {}).get("enforcement_counters", {}).get("blocked_by_reduce_only", 0) or 0),
                 "regime_replay_available": 1 if regime_replay_report else 0,
                 "derivatives_stale": 1 if (derivatives_report or {}).get("is_stale") else 0,
                 "derivatives_binance_share": round(

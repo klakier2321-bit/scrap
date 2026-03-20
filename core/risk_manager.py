@@ -449,7 +449,8 @@ class RiskManager:
 
         mode = str(risk_decision.get("trading_mode") or "blocked")
         max_position_size_pct = float(risk_decision.get("max_position_size_pct") or 0.0)
-        size_multiplier = min(1.25, max(0.0, max_position_size_pct))
+        execution_budget_multiplier = float(risk_decision.get("execution_budget_multiplier") or 1.0)
+        size_multiplier = min(1.25, max(0.0, max_position_size_pct)) * execution_budget_multiplier
         entry_allowed = bool(
             selector_allowed
             and strategy_allowed
@@ -474,6 +475,7 @@ class RiskManager:
             "force_reduce_only": bool(risk_decision.get("force_reduce_only")),
             "cooldown_active": bool(risk_decision.get("cooldown_active")),
             "max_total_exposure_pct": float(risk_decision.get("max_total_exposure_pct") or 0.0),
+            "execution_budget_multiplier": execution_budget_multiplier,
         }
 
     @staticmethod

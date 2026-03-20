@@ -10,9 +10,10 @@ from freqtrade.strategy import IStrategy, Trade, merge_informative_pair
 
 import talib.abstract as ta
 from technical import qtpylib
+from futures_risk_guard_mixin import FuturesRiskGuardMixin
 
 
-class StructuredFuturesShortBreakdownStrategy(IStrategy):
+class StructuredFuturesShortBreakdownStrategy(FuturesRiskGuardMixin, IStrategy):
     """
     Dedicated short-side candidate.
 
@@ -23,6 +24,9 @@ class StructuredFuturesShortBreakdownStrategy(IStrategy):
     INTERFACE_VERSION = 3
 
     can_short: bool = True
+    risk_strategy_id: str = "structured_futures_short_breakdown_v1"
+    risk_bot_id: str = "freqtrade_candidate"
+    default_signal_profile: str = "aggressive"
     timeframe = "5m"
     informative_timeframe = "1h"
     process_only_new_candles = True
@@ -64,8 +68,36 @@ class StructuredFuturesShortBreakdownStrategy(IStrategy):
         side: str,
         **kwargs,
     ) -> float:
-        del pair, current_time, current_rate, proposed_leverage, entry_tag, side, kwargs
-        return min(2.0, max_leverage)
+        del current_time, current_rate, entry_tag, kwargs
+        return self.enforce_risk_leverage(
+            pair=pair,
+            side=side,
+            proposed_leverage=min(2.0, proposed_leverage or max_leverage),
+            max_leverage=max_leverage,
+        )
+
+    def custom_stake_amount(
+        self,
+        pair: str,
+        current_time: datetime,
+        current_rate: float,
+        proposed_stake: float,
+        min_stake: float | None,
+        max_stake: float,
+        leverage: float,
+        entry_tag: str | None,
+        side: str,
+        **kwargs,
+    ) -> float:
+        del current_time, current_rate, leverage, kwargs
+        return self.enforce_risk_stake(
+            pair=pair,
+            side=side,
+            entry_tag=entry_tag,
+            proposed_stake=proposed_stake,
+            min_stake=min_stake,
+            max_stake=max_stake,
+        )
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         dataframe["ema_fast"] = ta.EMA(dataframe, timeperiod=21)

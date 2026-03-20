@@ -35,7 +35,8 @@ class RiskEngine:
         path = self.output_dir / f"latest-{bot_id}.json"
         if not path.exists():
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        return self._merge_enforcement_status(bot_id, payload)
 
     def evaluate(
         self,
@@ -192,6 +193,7 @@ class RiskEngine:
             actionable_event_flags=dict(regime_report.get("actionable_event_flags") or {}),
         )
         decision["protective_overrides"] = protective
+        decision["execution_budget_multiplier"] = 0.5 if protective.get("tighter_risk_budget") else 1.0
         self._trace(decision, "protective_overrides", protective)
 
         decision["max_position_size_pct"] = round(float(budget["max_position_size_pct"]), 4)
@@ -221,6 +223,7 @@ class RiskEngine:
         self._trace(decision, "leverage_gate", {"leverage_cap": decision["leverage_cap"]})
 
         self._dedupe_lists(decision)
+        decision = self._merge_enforcement_status(bot_id, decision)
         self._persist(bot_id, decision)
         return decision
 
@@ -281,3 +284,35 @@ class RiskEngine:
         path = self.output_dir / f"latest-{bot_id}.json"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(decision, indent=2, ensure_ascii=True), encoding="utf-8")
+
+    def _merge_enforcement_status(self, bot_id: str, decision: dict[str, Any]) -> dict[str, Any]:
+        if self.output_dir is None:
+            return decision
+        merged = dict(decision)
+        merged.setdefault("hard_enforcement_enabled", True)
+        merged.setdefault("enforced_by", ["control_layer_preselection", "freqtrade_strategy_hook"])
+        merged.setdefault("last_enforcement_status", "unknown")
+        merged.setdefault("last_blocked_order_reason_codes", [])
+        merged.setdefault("enforcement_counters", {})
+        path = self.output_dir / f"enforcement-latest-{bot_id}.json"
+        if not path.exists():
+            return merged
+        try:
+            enforcement = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return merged
+        for key in (
+            "hard_enforcement_enabled",
+            "enforced_by",
+            "last_enforcement_status",
+            "last_blocked_order_reason_codes",
+            "last_strategy_id",
+            "last_pair",
+            "last_side",
+            "last_final_stake",
+            "last_final_leverage",
+            "enforcement_counters",
+        ):
+            if key in enforcement:
+                merged[key] = enforcement[key]
+        return merged

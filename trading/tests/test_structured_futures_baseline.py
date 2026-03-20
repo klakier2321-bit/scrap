@@ -35,6 +35,14 @@ LONG_STRATEGY_PATH = (
     / "strategies"
     / "structured_futures_long_continuation_strategy.py"
 )
+MIXIN_PATH = (
+    REPO_ROOT
+    / "trading"
+    / "freqtrade"
+    / "user_data"
+    / "strategies"
+    / "futures_risk_guard_mixin.py"
+)
 
 
 class StructuredFuturesBaselineTests(unittest.TestCase):
@@ -42,6 +50,7 @@ class StructuredFuturesBaselineTests(unittest.TestCase):
         py_compile.compile(str(STRATEGY_PATH), doraise=True)
         py_compile.compile(str(SHORT_STRATEGY_PATH), doraise=True)
         py_compile.compile(str(LONG_STRATEGY_PATH), doraise=True)
+        py_compile.compile(str(MIXIN_PATH), doraise=True)
 
     def test_backtest_config_is_futures_specific(self) -> None:
         config_path = (
@@ -72,15 +81,16 @@ class StructuredFuturesBaselineTests(unittest.TestCase):
         self.assertEqual(manifest["market_type"], "futures")
         self.assertEqual(manifest["allowed_sides"], "both")
         self.assertIn(
-            manifest["status"],
-            {
-                "hypothesis",
-                "needs_rework",
-                "dry_run_candidate",
-                "limited_dry_run_candidate",
-                "research_experiment",
-            },
-        )
+                manifest["status"],
+                {
+                    "hypothesis",
+                    "needs_rework",
+                    "dry_run_candidate",
+                    "limited_dry_run_candidate",
+                    "research_experiment",
+                    "frozen_pending_regime_engine",
+                },
+            )
         for key in (
             "hypothesis_path",
             "dataset_spec_path",
@@ -120,6 +130,7 @@ class StructuredFuturesBaselineTests(unittest.TestCase):
                     "dry_run_candidate",
                     "limited_dry_run_candidate",
                     "needs_rework",
+                    "frozen_pending_regime_engine",
                 },
             )
             for key in (
@@ -146,6 +157,7 @@ class StructuredFuturesBaselineTests(unittest.TestCase):
         source = STRATEGY_PATH.read_text(encoding="utf-8")
         for marker in (
             "def custom_stake_amount(",
+            "FuturesRiskGuardMixin",
             "base_risk_per_trade_pct",
             "target_atr_ratio",
             "signal_quality",
@@ -154,5 +166,7 @@ class StructuredFuturesBaselineTests(unittest.TestCase):
             "risk_capped_stake",
             "get_starting_balance",
             "get_total_stake_amount",
+            "enforce_risk_stake",
+            "enforce_risk_leverage",
         ):
             self.assertIn(marker, source)
