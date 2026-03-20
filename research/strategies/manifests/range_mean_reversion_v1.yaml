@@ -1,0 +1,37 @@
+strategy_id: range_mean_reversion_v1
+display_name: Range Mean Reversion
+version: "1.0.0"
+strategy_family: mean_reversion
+risk_profile: defensive
+execution_style: fade
+archetype: bounded range rotation
+status: experimental
+supported_regimes: [range, low_vol]
+supported_market_states: [range]
+supported_market_phases: [compression, transition]
+supported_volatility_phases: [compression, cooling]
+supported_biases: [neutral, long, short]
+supported_event_contexts: []
+minimum_data_trust: low_trust
+disallowed_conditions: [post_shock_cooldown]
+required_data_inputs: [regime_report, market_consensus, feature_snapshot]
+optional_data_inputs: [derivatives_state_global]
+signal_contract:
+  required_fields: [strategy_id, signal_id, direction, setup_quality, entry_type, invalidation, exit_logic_template, aggressiveness_tag, regime_alignment]
+parameter_schema:
+  min_setup_quality: {type: float, min: 0.55, max: 0.85, step: 0.01, default: 0.62}
+entry_semantics:
+  requires_confirmation: true
+  supports_limit_entry: true
+  supports_market_entry: true
+exit_semantics:
+  structure_exit: true
+  time_stop: true
+telemetry_requirements: [setup_detected, signal_built, blocked_by_risk, blocked_by_execution, entry, exit, invalidation]
+backtest_priority: high
+steward_agent_role: Range Reversion Steward
+owner_team: strategy_stewards
+dependencies: [regime_engine, risk_engine]
+implementation_status: implemented
+notes:
+  - Only valid in clean non-trending range conditions.

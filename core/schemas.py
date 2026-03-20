@@ -153,6 +153,66 @@ class StrategyReportResponse(BaseModel):
     generated_at: datetime | str
 
 
+class StrategyManifestResponse(BaseModel):
+    """Canonical manifest entry for one regime-aware strategy."""
+
+    strategy_id: str
+    display_name: str
+    version: str
+    strategy_family: str
+    risk_profile: str
+    execution_style: str
+    archetype: str
+    status: str
+    supported_regimes: list[str] = Field(default_factory=list)
+    supported_market_states: list[str] = Field(default_factory=list)
+    supported_market_phases: list[str] = Field(default_factory=list)
+    supported_volatility_phases: list[str] = Field(default_factory=list)
+    supported_biases: list[str] = Field(default_factory=list)
+    supported_event_contexts: list[str] = Field(default_factory=list)
+    minimum_data_trust: str = "low_trust"
+    disallowed_conditions: list[str] = Field(default_factory=list)
+    required_data_inputs: list[str] = Field(default_factory=list)
+    optional_data_inputs: list[str] = Field(default_factory=list)
+    signal_contract: dict[str, Any] = Field(default_factory=dict)
+    parameter_schema: dict[str, Any] = Field(default_factory=dict)
+    entry_semantics: dict[str, Any] = Field(default_factory=dict)
+    exit_semantics: dict[str, Any] = Field(default_factory=dict)
+    telemetry_requirements: list[str] = Field(default_factory=list)
+    backtest_priority: str = "medium"
+    steward_agent_role: str | None = None
+    owner_team: str | None = None
+    dependencies: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    implementation_status: str = "planned"
+    manifest_path: str | None = None
+
+
+class StrategyLayerResponse(BaseModel):
+    """Canonical runtime view of the regime-aware strategy layer."""
+
+    generated_at: datetime | str
+    bot_id: str
+    status: str
+    primary_regime: str | None = None
+    market_state: str | None = None
+    market_phase: str | None = None
+    volatility_phase: str | None = None
+    trading_mode: str | None = None
+    data_trust_level: str | None = None
+    allowed_directions: list[str] = Field(default_factory=list)
+    manifests_total: int = 0
+    implemented_strategies_total: int = 0
+    applicable_strategy_ids: list[str] = Field(default_factory=list)
+    blocked_strategy_ids: list[str] = Field(default_factory=list)
+    advisory_strategy_ids: list[str] = Field(default_factory=list)
+    strategy_evaluations: list[dict[str, Any]] = Field(default_factory=list)
+    built_signals: list[dict[str, Any]] = Field(default_factory=list)
+    preferred_strategy_id: str | None = None
+    ranking: list[dict[str, Any]] = Field(default_factory=list)
+    reason: str | None = None
+
+
 class CandidateAssessmentResponse(BaseModel):
     """Candidate-native assessment used by the strategy factory."""
 

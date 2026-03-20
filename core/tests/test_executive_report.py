@@ -264,6 +264,39 @@ executive_dashboard:
             self.assertEqual(report["summary"]["control_status_available"], 1)
             self.assertEqual(report["summary"]["control_status_warn"], 1)
 
+    def test_strategy_layer_is_exposed_in_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            _write_exec_config(repo_root)
+            service = ExecutiveReportService(repo_root)
+
+            report = service.build_report(
+                runs=[],
+                autopilot_status={"running": True, "poll_interval_seconds": 300},
+                strategy_report=None,
+                dry_run_health={"ready": True, "runtime_mode": "dry_run"},
+                dry_run_snapshot=None,
+                dry_run_smoke=None,
+                strategy_layer_report={
+                    "generated_at": "2026-03-20T00:00:00+00:00",
+                    "preferred_strategy_id": "trend_pullback_continuation_v1",
+                    "built_signals": [{"strategy_id": "trend_pullback_continuation_v1"}],
+                    "applicable_strategy_ids": ["trend_pullback_continuation_v1", "breakout_from_compression_v1"],
+                },
+                control_status=None,
+                coding_status={"running": False, "enabled": True, "attention_needed": False},
+                coding_tasks=[],
+                coding_workspaces=[],
+            )
+
+            self.assertEqual(report["summary"]["strategy_layer_available"], 1)
+            self.assertEqual(report["summary"]["strategy_layer_built_signals_total"], 1)
+            self.assertEqual(report["summary"]["strategy_layer_applicable_total"], 2)
+            self.assertEqual(
+                report["strategy_layer"]["preferred_strategy_id"],
+                "trend_pullback_continuation_v1",
+            )
+
     def test_risk_enforcement_counters_are_exposed(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             repo_root = Path(tmpdir)

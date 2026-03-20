@@ -1,0 +1,39 @@
+strategy_id: breakout_from_compression_v1
+display_name: Breakout From Compression
+version: "1.0.0"
+strategy_family: breakout
+risk_profile: aggressive
+execution_style: breakout
+archetype: directional expansion after compression
+status: experimental
+supported_regimes: [low_vol, high_vol, trend_up, trend_down]
+supported_market_states: [trend, transition, range]
+supported_market_phases: [compression]
+supported_volatility_phases: [compression]
+supported_biases: [long, short]
+supported_event_contexts: []
+minimum_data_trust: limited_trust
+disallowed_conditions: [no_trade_zone, post_shock_cooldown]
+required_data_inputs: [regime_report, feature_snapshot, derivatives_state_global, market_consensus]
+optional_data_inputs: [btc_state, eth_state]
+signal_contract:
+  required_fields: [strategy_id, signal_id, direction, setup_quality, entry_type, invalidation, exit_logic_template, aggressiveness_tag, regime_alignment]
+parameter_schema:
+  min_setup_quality: {type: float, min: 0.60, max: 0.90, step: 0.01, default: 0.68}
+  compression_window_bars: {type: int, min: 4, max: 30, step: 1, default: 10}
+entry_semantics:
+  requires_confirmation: true
+  supports_limit_entry: false
+  supports_market_entry: false
+  supports_stop_entry: true
+exit_semantics:
+  time_stop: true
+  volatility_exit: true
+telemetry_requirements: [setup_detected, setup_rejected, signal_built, blocked_by_risk, blocked_by_execution, entry, exit]
+backtest_priority: high
+steward_agent_role: Compression Breakout Steward
+owner_team: strategy_stewards
+dependencies: [regime_engine, derivatives_feed, risk_engine, execution_guard]
+implementation_status: implemented
+notes:
+  - Requires careful monitoring of false breakout rate.

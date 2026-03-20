@@ -1,0 +1,35 @@
+strategy_id: deleveraging_defense_v1
+display_name: Deleveraging Defense
+version: "1.0.0"
+strategy_family: defense_only
+risk_profile: defensive
+execution_style: confirmation
+archetype: preservation or defensive participation
+status: proposed
+supported_regimes: [stress_panic, high_vol]
+supported_market_states: [transition]
+supported_market_phases: [transition]
+supported_volatility_phases: [extreme, cooling]
+supported_biases: [long, short, neutral]
+supported_event_contexts: [deleveraging]
+minimum_data_trust: limited_trust
+disallowed_conditions: []
+required_data_inputs: [regime_report, risk_decision]
+optional_data_inputs: [derivatives_state_global]
+signal_contract:
+  required_fields: [strategy_id, signal_id, direction, setup_quality, entry_type, invalidation, exit_logic_template, aggressiveness_tag, regime_alignment]
+parameter_schema:
+  confirmation_bars: {type: int, min: 1, max: 8, step: 1, default: 2}
+entry_semantics:
+  requires_confirmation: true
+  supports_market_entry: false
+exit_semantics:
+  time_stop: true
+telemetry_requirements: [setup_detected, blocked_by_risk, entry, exit]
+backtest_priority: medium
+steward_agent_role: Deleveraging Defense Steward
+owner_team: strategy_stewards
+dependencies: [regime_engine, risk_engine]
+implementation_status: planned
+notes:
+  - Protective strategy reserved for deleveraging and defense states.

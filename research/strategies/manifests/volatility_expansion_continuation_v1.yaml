@@ -1,0 +1,36 @@
+strategy_id: volatility_expansion_continuation_v1
+display_name: Volatility Expansion Continuation
+version: "1.0.0"
+strategy_family: breakout
+risk_profile: aggressive
+execution_style: breakout
+archetype: high-vol continuation after expansion confirmation
+status: proposed
+supported_regimes: [high_vol]
+supported_market_states: [trend, transition]
+supported_market_phases: [expansion]
+supported_volatility_phases: [expanding, extreme]
+supported_biases: [long, short]
+supported_event_contexts: []
+minimum_data_trust: full_trust
+disallowed_conditions: [no_trade_zone, post_shock_cooldown]
+required_data_inputs: [regime_report, derivatives_state_global, market_consensus]
+optional_data_inputs: [feature_snapshot]
+signal_contract:
+  required_fields: [strategy_id, signal_id, direction, setup_quality, entry_type, invalidation, exit_logic_template, aggressiveness_tag, regime_alignment]
+parameter_schema:
+  expansion_followthrough_min: {type: float, min: 0.10, max: 1.0, step: 0.05, default: 0.45}
+entry_semantics:
+  requires_confirmation: true
+  supports_stop_entry: true
+exit_semantics:
+  volatility_exit: true
+  time_stop: true
+telemetry_requirements: [setup_detected, signal_built, blocked_by_risk, entry, exit]
+backtest_priority: medium
+steward_agent_role: Vol Expansion Steward
+owner_team: strategy_stewards
+dependencies: [regime_engine, derivatives_feed, risk_engine]
+implementation_status: planned
+notes:
+  - High-risk strategy reserved for full-trust derivatives conditions.

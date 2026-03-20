@@ -40,6 +40,8 @@ from .schemas import (
     DryRunSnapshotResponse,
     HealthResponse,
     RiskDecisionResponse,
+    StrategyLayerResponse,
+    StrategyManifestResponse,
     StrategyReportResponse,
 )
 from .tracing import setup_tracing, suppress_crewai_trace_console
@@ -283,6 +285,48 @@ async def ops_risk_generate(
     bot_id: str = Query(default="freqtrade_candidate"),
 ) -> RiskDecisionResponse:
     return RiskDecisionResponse(**get_orchestrator().generate_risk_decision(bot_id=bot_id))
+
+
+@app.get(
+    "/ops/strategies/manifests",
+    response_model=list[StrategyManifestResponse],
+    include_in_schema=False,
+)
+async def ops_strategy_manifests() -> list[StrategyManifestResponse]:
+    return [
+        StrategyManifestResponse(**manifest)
+        for manifest in get_orchestrator().strategy_manager.list_strategy_manifests()
+    ]
+
+
+@app.get(
+    "/ops/strategies/latest",
+    response_model=StrategyLayerResponse,
+    include_in_schema=False,
+)
+async def ops_strategy_layer_latest(
+    bot_id: str = Query(default="freqtrade_candidate"),
+    refresh: bool = Query(default=False),
+) -> StrategyLayerResponse:
+    report = (
+        get_orchestrator().generate_strategy_layer_report(bot_id=bot_id)
+        if refresh
+        else get_orchestrator().get_latest_strategy_layer_report(bot_id=bot_id)
+    )
+    if report is None:
+        raise HTTPException(status_code=404, detail="No strategy layer report is available yet.")
+    return StrategyLayerResponse(**report)
+
+
+@app.post(
+    "/ops/strategies/generate",
+    response_model=StrategyLayerResponse,
+    include_in_schema=False,
+)
+async def ops_strategy_layer_generate(
+    bot_id: str = Query(default="freqtrade_candidate"),
+) -> StrategyLayerResponse:
+    return StrategyLayerResponse(**get_orchestrator().generate_strategy_layer_report(bot_id=bot_id))
 
 
 @app.get(

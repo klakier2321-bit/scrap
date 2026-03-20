@@ -1,0 +1,34 @@
+strategy_id: post_shock_stabilization_v1
+display_name: Post-Shock Stabilization
+version: "1.0.0"
+strategy_family: defense_only
+risk_profile: defensive
+execution_style: confirmation
+archetype: post-shock normalization filter
+status: proposed
+supported_regimes: [stress_panic, low_vol]
+supported_market_states: [transition]
+supported_market_phases: [transition, compression]
+supported_volatility_phases: [cooling, compression]
+supported_biases: [long, short, neutral]
+supported_event_contexts: []
+minimum_data_trust: limited_trust
+disallowed_conditions: [post_shock_cooldown]
+required_data_inputs: [regime_report, risk_decision]
+optional_data_inputs: [derivatives_state_global]
+signal_contract:
+  required_fields: [strategy_id, signal_id, direction, setup_quality, entry_type, invalidation, exit_logic_template, aggressiveness_tag, regime_alignment]
+parameter_schema:
+  stabilization_bars: {type: int, min: 2, max: 20, step: 1, default: 6}
+entry_semantics:
+  requires_confirmation: true
+exit_semantics:
+  time_stop: true
+telemetry_requirements: [setup_detected, blocked_by_risk, entry, exit]
+backtest_priority: medium
+steward_agent_role: Post-Shock Stabilization Steward
+owner_team: strategy_stewards
+dependencies: [regime_engine, risk_engine]
+implementation_status: planned
+notes:
+  - Should only be promoted after panic-reversal and defense research matures.

@@ -40,6 +40,7 @@ from .metrics import (
 from .regime_detector import RegimeDetector
 from .risk_manager import RiskManager
 from .storage import RunStore
+from .strategy_layer import StrategyLayerService
 from .strategy_manager import StrategyManager
 from monitoring.control_status import create_report as create_control_status_report
 from monitoring.control_status import write_report_files as write_control_status_files
@@ -60,6 +61,12 @@ class Orchestrator:
             user_data_dir=settings.freqtrade_user_data_path,
             reports_dir=settings.strategy_reports_dir,
             dry_run_snapshots_dir=settings.dry_run_snapshots_dir,
+            strategy_signals_dir=settings.strategy_signals_dir,
+        )
+        self.strategy_layer = StrategyLayerService(
+            manifests_dir=settings.repo_checkout_path / "research" / "strategies" / "manifests",
+            output_dir=settings.strategy_signals_dir,
+            telemetry_dir=settings.strategy_telemetry_dir,
         )
         self.regime_detector = RegimeDetector(
             user_data_dir=settings.freqtrade_user_data_path,
@@ -387,6 +394,28 @@ class Orchestrator:
         )
         return self.strategy_manager.persist_strategy_assessment(report, assessment)
 
+    def get_latest_strategy_layer_report(
+        self,
+        bot_id: str = "freqtrade_candidate",
+    ) -> dict[str, Any] | None:
+        return self.strategy_manager.latest_strategy_layer_report(bot_id=bot_id)
+
+    def generate_strategy_layer_report(
+        self,
+        bot_id: str = "freqtrade_candidate",
+    ) -> dict[str, Any]:
+        regime_report = self.get_latest_regime_report()
+        if regime_report is None:
+            regime_report = self.generate_regime_report()
+        risk_decision = self.get_latest_risk_decision(bot_id=bot_id)
+        if risk_decision is None:
+            risk_decision = self.generate_risk_decision(bot_id=bot_id)
+        return self.strategy_layer.generate_report(
+            regime_report=regime_report,
+            risk_decision=risk_decision,
+            bot_id=bot_id,
+        )
+
     def list_agents(self) -> list[dict[str, Any]]:
         return self.agent_runtime.list_agents()
 
@@ -487,6 +516,14 @@ class Orchestrator:
             except Exception:
                 derivatives_report = None
         replay_report = self.get_latest_regime_replay()
+        strategy_layer_report = self.get_latest_strategy_layer_report(bot_id="freqtrade_candidate")
+        if strategy_layer_report is None:
+            try:
+                strategy_layer_report = self.generate_strategy_layer_report(
+                    bot_id="freqtrade_candidate"
+                )
+            except Exception:
+                strategy_layer_report = None
         risk_decision = self.get_latest_risk_decision(bot_id="freqtrade_candidate")
         if risk_decision is None:
             try:
@@ -523,6 +560,7 @@ class Orchestrator:
             derivatives_report=derivatives_report,
             risk_decision=risk_decision,
             regime_replay_report=replay_report,
+            strategy_layer_report=strategy_layer_report,
             control_status=self.get_control_status(refresh_if_missing=True),
             coding_status=self.coding_supervisor.status(),
             coding_tasks=self.store.list_coding_tasks(limit=100),

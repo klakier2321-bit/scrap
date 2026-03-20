@@ -105,6 +105,14 @@ class AppSettings(BaseSettings):
         return self.data_dir / "strategy_reports"
 
     @property
+    def strategy_signals_dir(self) -> Path:
+        return self.data_dir / "strategy_signals"
+
+    @property
+    def strategy_telemetry_dir(self) -> Path:
+        return self.data_dir / "strategy_telemetry"
+
+    @property
     def dry_run_snapshots_dir(self) -> Path:
         return self.data_dir / "dry_run_snapshots"
 

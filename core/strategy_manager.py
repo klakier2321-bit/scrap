@@ -24,6 +24,7 @@ class StrategyManager:
         user_data_dir: Path | None = None,
         reports_dir: Path | None = None,
         dry_run_snapshots_dir: Path | None = None,
+        strategy_signals_dir: Path | None = None,
     ) -> None:
         self.user_data_dir = user_data_dir or (
             Path(__file__).resolve().parents[1]
@@ -40,6 +41,9 @@ class StrategyManager:
         self.dry_run_snapshots_dir = dry_run_snapshots_dir or (
             self.reports_dir.parent / "dry_run_snapshots"
         )
+        self.strategy_signals_dir = strategy_signals_dir or (
+            self.reports_dir.parent / "strategy_signals"
+        )
         default_repo_root = self.user_data_dir.parents[2]
         workspace_root = Path("/workspace")
         if not (default_repo_root / "research").exists() and (workspace_root / "research").exists():
@@ -47,6 +51,7 @@ class StrategyManager:
         else:
             self.repo_root = default_repo_root
         self.research_dir = self.repo_root / "research"
+        self.strategy_manifests_dir = self.research_dir / "strategies" / "manifests"
 
     def list_data_files(self) -> list[str]:
         data_dir = self.user_data_dir / "data"
@@ -178,6 +183,43 @@ class StrategyManager:
             if manifest.get("strategy_id") == candidate_id:
                 return manifest
         return None
+
+    def list_strategy_manifests(self) -> list[dict[str, Any]]:
+        if not self.strategy_manifests_dir.exists():
+            return []
+        manifests: list[dict[str, Any]] = []
+        for path in sorted(self.strategy_manifests_dir.glob("*.yaml")):
+            payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            payload["manifest_path"] = str(path.relative_to(self.repo_root))
+            manifests.append(payload)
+        manifests.sort(key=lambda item: str(item.get("strategy_id", "")))
+        return manifests
+
+    def get_strategy_manifest(self, strategy_id: str) -> dict[str, Any] | None:
+        for manifest in self.list_strategy_manifests():
+            if manifest.get("strategy_id") == strategy_id:
+                return manifest
+        return None
+
+    def latest_strategy_layer_report(self, bot_id: str = "freqtrade_candidate") -> dict[str, Any] | None:
+        report_path = self.strategy_signals_dir / f"latest-{bot_id}.json"
+        if not report_path.exists():
+            return None
+        return json.loads(report_path.read_text(encoding="utf-8"))
+
+    def list_strategy_layer_reports(
+        self,
+        bot_id: str = "freqtrade_candidate",
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        if not self.strategy_signals_dir.exists():
+            return []
+        reports: list[dict[str, Any]] = []
+        for path in sorted(self.strategy_signals_dir.glob(f"{bot_id}-*.json"), reverse=True):
+            reports.append(json.loads(path.read_text(encoding="utf-8")))
+            if len(reports) >= limit:
+                break
+        return reports
 
     def build_candidate_assessment(
         self,

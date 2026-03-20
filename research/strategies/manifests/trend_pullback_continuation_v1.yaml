@@ -1,0 +1,38 @@
+strategy_id: trend_pullback_continuation_v1
+display_name: Trend Pullback Continuation
+version: "1.0.0"
+strategy_family: pullback_trend
+risk_profile: balanced
+execution_style: confirmation
+archetype: trend continuation after controlled retrace
+status: experimental
+supported_regimes: [trend_up, trend_down]
+supported_market_states: [trend, pullback]
+supported_market_phases: [pullback, mature_trend]
+supported_volatility_phases: [cooling, compression, expanding]
+supported_biases: [long, short]
+supported_event_contexts: []
+minimum_data_trust: limited_trust
+disallowed_conditions: [no_trade_zone, high_noise_environment, post_shock_cooldown]
+required_data_inputs: [regime_report, feature_snapshot, derivatives_state_global, market_consensus]
+optional_data_inputs: [btc_state, eth_state, regime_persistence]
+signal_contract:
+  required_fields: [strategy_id, signal_id, direction, setup_quality, entry_type, invalidation, exit_logic_template, aggressiveness_tag, regime_alignment]
+parameter_schema:
+  min_setup_quality: {type: float, min: 0.60, max: 0.90, step: 0.01, default: 0.72}
+  pullback_depth_max: {type: float, min: 0.15, max: 0.80, step: 0.05, default: 0.45}
+entry_semantics:
+  requires_confirmation: true
+  supports_limit_entry: true
+  supports_market_entry: true
+exit_semantics:
+  structure_exit: true
+  trailing_exit: true
+telemetry_requirements: [setup_detected, setup_rejected, signal_built, blocked_by_risk, blocked_by_execution, entry, exit, invalidation]
+backtest_priority: high
+steward_agent_role: Trend Pullback Steward
+owner_team: strategy_stewards
+dependencies: [regime_engine, risk_engine, execution_guard]
+implementation_status: implemented
+notes:
+  - Primary starter strategy for mature trend conditions.

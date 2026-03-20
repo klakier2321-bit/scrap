@@ -332,6 +332,7 @@ class ExecutiveReportService:
         derivatives_report: dict[str, Any] | None = None,
         risk_decision: dict[str, Any] | None = None,
         regime_replay_report: dict[str, Any] | None = None,
+        strategy_layer_report: dict[str, Any] | None = None,
         control_status: dict[str, Any] | None = None,
         coding_status: dict[str, Any] | None = None,
         coding_tasks: list[dict[str, Any]] | None = None,
@@ -356,6 +357,7 @@ class ExecutiveReportService:
         derivatives_report = dict(derivatives_report or {}) if derivatives_report else None
         risk_decision = dict(risk_decision or {}) if risk_decision else None
         regime_replay_report = dict(regime_replay_report or {}) if regime_replay_report else None
+        strategy_layer_report = dict(strategy_layer_report or {}) if strategy_layer_report else None
         control_status = dict(control_status or {}) if control_status else None
         dry_run_ready = bool(dry_run_health.get("ready"))
         control_layer_has_commits = any(
@@ -696,6 +698,12 @@ class ExecutiveReportService:
                 "candidate_dry_run": candidate_dry_run,
                 "factory_mode": "regime_first_freeze_build_keep_dry_run",
             },
+            "strategy_layer": {
+                "latest": strategy_layer_report,
+                "preferred_strategy_id": (strategy_layer_report or {}).get("preferred_strategy_id"),
+                "built_signals": (strategy_layer_report or {}).get("built_signals") or [],
+                "applicable_strategy_ids": (strategy_layer_report or {}).get("applicable_strategy_ids") or [],
+            },
             "regime": {
                 "latest": regime_report,
                 "derivatives": derivatives_report,
@@ -771,6 +779,9 @@ class ExecutiveReportService:
                 if (candidate_dry_run or {}).get("health", {}).get("ready")
                 else 0,
                 "selector_candidate_available": 1 if selector_candidate else 0,
+                "strategy_layer_available": 1 if strategy_layer_report else 0,
+                "strategy_layer_built_signals_total": len((strategy_layer_report or {}).get("built_signals") or []),
+                "strategy_layer_applicable_total": len((strategy_layer_report or {}).get("applicable_strategy_ids") or []),
                 "regime_available": 1 if regime_report else 0,
                 "derivatives_available": 1 if derivatives_report else 0,
                 "risk_decision_available": 1 if risk_decision else 0,
