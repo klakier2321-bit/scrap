@@ -408,7 +408,7 @@ class RiskEngineScenarioTests(unittest.TestCase):
                 "blocked_strategy_id": "breakout_short",
             },
             {
-                "name": "breakout_blocked_in_compression",
+                "name": "breakout_allowed_in_compression_pre_expansion",
                 "patch": {
                     "primary_regime": "trend_down",
                     "htf_bias": "short",
@@ -419,8 +419,8 @@ class RiskEngineScenarioTests(unittest.TestCase):
                 },
                 "expected_mode": "selective_offense",
                 "allowed_direction": "short",
-                "reason_code": "STRATEGY_BLOCKED_BY_FAMILY",
-                "blocked_strategy_id": "breakout_short",
+                "reason_code": None,
+                "allowed_strategy_id": "breakout_short",
             },
             {
                 "name": "mean_reversion_blocked_in_trend",
@@ -496,6 +496,8 @@ class RiskEngineScenarioTests(unittest.TestCase):
                     self.assertIn(case["reason_code"], decision["risk_reason_codes"])
                 if case.get("blocked_strategy_id") is not None:
                     self.assertIn(case["blocked_strategy_id"], decision["blocked_strategy_ids"])
+                if case.get("allowed_strategy_id") is not None:
+                    self.assertIn(case["allowed_strategy_id"], decision["allowed_strategy_ids"])
                 if case.get("force_reduce_only") is not None:
                     self.assertEqual(decision["force_reduce_only"], case["force_reduce_only"])
                 if case.get("execution_budget_multiplier") is not None:

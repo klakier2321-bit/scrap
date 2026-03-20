@@ -201,7 +201,7 @@ class StrategyManager:
                 return manifest
         return None
 
-    def latest_strategy_layer_report(self, bot_id: str = "freqtrade_candidate") -> dict[str, Any] | None:
+    def latest_strategy_layer_report(self, bot_id: str = "ft_trend_pullback_continuation_v1") -> dict[str, Any] | None:
         report_path = self.strategy_signals_dir / f"latest-{bot_id}.json"
         if not report_path.exists():
             return None
@@ -209,7 +209,7 @@ class StrategyManager:
 
     def list_strategy_layer_reports(
         self,
-        bot_id: str = "freqtrade_candidate",
+        bot_id: str = "ft_trend_pullback_continuation_v1",
         limit: int = 20,
     ) -> list[dict[str, Any]]:
         if not self.strategy_signals_dir.exists():

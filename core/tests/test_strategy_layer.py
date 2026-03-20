@@ -157,7 +157,9 @@ class StrategyLayerServiceTests(unittest.TestCase):
 
             self.assertEqual(report["status"], "ok")
             self.assertIn("trend_pullback_continuation_v1", report["applicable_strategy_ids"])
+            self.assertEqual(report["preferred_risk_admitted_strategy_id"], "trend_pullback_continuation_v1")
             self.assertEqual(report["preferred_strategy_id"], "trend_pullback_continuation_v1")
+            self.assertIn("trend_pullback_continuation_v1", report["risk_admitted_strategy_ids"])
             self.assertTrue(report["built_signals"])
             self.assertEqual(report["built_signals"][0]["direction"], "short")
             self.assertTrue((Path(tmpdir) / "signals" / "latest-candidate.json").exists())
@@ -178,9 +180,34 @@ class StrategyLayerServiceTests(unittest.TestCase):
             panic_signal = next(
                 signal for signal in report["built_signals"] if signal["strategy_id"] == "panic_reversal_v1"
             )
-            self.assertEqual(report["preferred_strategy_id"], "panic_reversal_v1")
+            self.assertEqual(report["preferred_risk_admitted_strategy_id"], "panic_reversal_v1")
             self.assertEqual(panic_signal["direction"], "long")
             self.assertTrue(panic_signal["risk_admissible"])
+
+    def test_required_data_inputs_block_applicability(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            service = StrategyLayerService(
+                manifests_dir=MANIFESTS_DIR,
+                output_dir=Path(tmpdir) / "signals",
+                telemetry_dir=Path(tmpdir) / "telemetry",
+            )
+            regime = _trend_pullback_regime()
+            regime.pop("market_consensus", None)
+            report = service.generate_report(
+                regime_report=regime,
+                risk_decision=_risk_decision(allowed_directions=["short"]),
+                bot_id="candidate",
+                strategy_filter_ids=["trend_pullback_continuation_v1"],
+            )
+
+            evaluation = report["strategy_evaluations"][0]
+            self.assertFalse(evaluation["applicable"])
+            self.assertIn(
+                "required_input_missing:market_consensus",
+                evaluation["applicability"]["reasons"],
+            )
+            self.assertEqual(report["risk_admitted_strategy_ids"], [])
+            self.assertEqual(report["preferred_risk_admitted_strategy_id"], None)
 
 
 class StrategyManagerStrategyLayerTests(unittest.TestCase):
@@ -211,8 +238,8 @@ class StrategyManagerStrategyLayerTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            (signals_dir / "latest-freqtrade_candidate.json").write_text(
-                '{"generated_at":"2026-03-20T00:00:00+00:00","bot_id":"freqtrade_candidate","status":"ok","manifests_total":1,"implemented_strategies_total":0,"applicable_strategy_ids":[],"blocked_strategy_ids":[],"advisory_strategy_ids":[],"strategy_evaluations":[],"built_signals":[],"preferred_strategy_id":null,"ranking":[]}',
+            (signals_dir / "latest-ft_trend_pullback_continuation_v1.json").write_text(
+                '{"generated_at":"2026-03-20T00:00:00+00:00","bot_id":"ft_trend_pullback_continuation_v1","status":"ok","manifests_total":1,"implemented_strategies_total":0,"applicable_strategy_ids":[],"blocked_strategy_ids":[],"risk_admitted_strategy_ids":[],"blocked_by_risk_strategy_ids":[],"advisory_strategy_ids":[],"strategy_evaluations":[],"built_signals":[],"preferred_strategy_id":null,"preferred_risk_admitted_strategy_id":null,"ranking":[]}',
                 encoding="utf-8",
             )
 

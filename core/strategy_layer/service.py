@@ -46,7 +46,7 @@ class StrategyLayerService:
             manifests.append(manifest.to_dict())
         return manifests
 
-    def latest_report(self, *, bot_id: str = "freqtrade_candidate") -> dict[str, Any] | None:
+    def latest_report(self, *, bot_id: str = "ft_trend_pullback_continuation_v1") -> dict[str, Any] | None:
         path = self.output_dir / f"latest-{bot_id}.json"
         if not path.exists():
             return None
@@ -57,10 +57,14 @@ class StrategyLayerService:
         *,
         regime_report: dict[str, Any] | None,
         risk_decision: dict[str, Any] | None,
-        bot_id: str = "freqtrade_candidate",
+        bot_id: str = "ft_trend_pullback_continuation_v1",
+        strategy_filter_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         generated_at = now_iso()
         manifests = self.list_manifests()
+        if strategy_filter_ids:
+            allowed_ids = set(strategy_filter_ids)
+            manifests = [manifest for manifest in manifests if str(manifest.get("strategy_id") or "") in allowed_ids]
         if not regime_report:
             report = {
                 "generated_at": generated_at,
@@ -71,8 +75,13 @@ class StrategyLayerService:
                 "strategy_evaluations": [],
                 "built_signals": [],
                 "preferred_strategy_id": None,
+                "preferred_risk_admitted_strategy_id": None,
                 "ranking": [],
                 "advisory_strategy_ids": [],
+                "risk_admitted_strategy_ids": [],
+                "blocked_by_risk_strategy_ids": [],
+                "applicable_strategy_ids": [],
+                "blocked_strategy_ids": [],
             }
             self._persist(bot_id, report)
             return report
@@ -87,6 +96,8 @@ class StrategyLayerService:
         built_signals: list[dict[str, Any]] = []
         ranking: list[dict[str, Any]] = []
         advisory_strategy_ids: list[str] = []
+        risk_admitted_strategy_ids: list[str] = []
+        blocked_by_risk_strategy_ids: list[str] = []
 
         for manifest_payload in manifests:
             manifest = self._validate_manifest(manifest_payload, None)
@@ -184,6 +195,12 @@ class StrategyLayerService:
                     }
                 )
                 evaluation["signal"] = signal_payload
+                if signal_payload["risk_admissible"]:
+                    risk_admitted_strategy_ids.append(manifest.strategy_id)
+                else:
+                    blocked_by_risk_strategy_ids.append(manifest.strategy_id)
+            elif applicability.applicable and not risk_gate["allowed"]:
+                blocked_by_risk_strategy_ids.append(manifest.strategy_id)
 
             evaluations.append(evaluation)
             self._emit_telemetry(
@@ -205,7 +222,10 @@ class StrategyLayerService:
             )
         )
         ranking.sort(key=lambda item: (-float(item["rank_score"]), item["strategy_id"]))
-        preferred_strategy_id = built_signals[0]["strategy_id"] if built_signals else None
+        preferred_risk_admitted_strategy_id = next(
+            (item["strategy_id"] for item in built_signals if item.get("risk_admissible")),
+            None,
+        )
 
         report = {
             "generated_at": generated_at,
@@ -222,10 +242,13 @@ class StrategyLayerService:
             "implemented_strategies_total": sum(1 for item in evaluations if item["implementation_status"] == "implemented"),
             "applicable_strategy_ids": [item["strategy_id"] for item in evaluations if item.get("applicable")],
             "blocked_strategy_ids": [item["strategy_id"] for item in evaluations if not item.get("applicable")],
+            "risk_admitted_strategy_ids": sorted(set(risk_admitted_strategy_ids)),
+            "blocked_by_risk_strategy_ids": sorted(set(blocked_by_risk_strategy_ids)),
             "advisory_strategy_ids": advisory_strategy_ids,
             "strategy_evaluations": evaluations,
             "built_signals": built_signals,
-            "preferred_strategy_id": preferred_strategy_id,
+            "preferred_strategy_id": preferred_risk_admitted_strategy_id,
+            "preferred_risk_admitted_strategy_id": preferred_risk_admitted_strategy_id,
             "ranking": ranking,
         }
         self._persist(bot_id, report)
@@ -289,6 +312,18 @@ class StrategyLayerService:
             reasons.append("no_trade_zone")
         if context.execution_constraints.get("post_shock_cooldown") and manifest.strategy_family not in {"defense_only", "panic_reversal"}:
             reasons.append("post_shock_cooldown")
+        allowed_ids = list(context.risk_decision.get("allowed_strategy_ids") or [])
+        blocked_ids = list(context.risk_decision.get("blocked_strategy_ids") or [])
+        allowed_families = list(context.risk_decision.get("allowed_strategy_families") or [])
+        blocked_families = list(context.risk_decision.get("blocked_strategy_families") or [])
+        if manifest.strategy_id in blocked_ids:
+            reasons.append("blocked_by_risk_decision")
+        if allowed_ids and manifest.strategy_id not in allowed_ids:
+            reasons.append("not_in_allowed_strategy_ids")
+        if manifest.strategy_family in blocked_families:
+            reasons.append("blocked_family_by_risk_decision")
+        if allowed_families and manifest.strategy_family not in allowed_families:
+            reasons.append("not_in_allowed_strategy_families")
         return {
             "allowed": not reasons,
             "reasons": reasons,
@@ -318,10 +353,38 @@ class StrategyLayerService:
             for name in manifest.supported_event_contexts
         ):
             reasons.append("required_event_context_missing")
+        reasons.extend(
+            f"required_input_missing:{input_name}"
+            for input_name in self._missing_required_inputs(manifest, context)
+        )
         for condition in manifest.disallowed_conditions:
             if bool(context.execution_constraints.get(condition)):
                 reasons.append(f"disallowed_condition:{condition}")
         return reasons
+
+    def _missing_required_inputs(
+        self,
+        manifest: StrategyManifest,
+        context: StrategyContext,
+    ) -> list[str]:
+        missing: list[str] = []
+        for input_name in manifest.required_data_inputs:
+            name = str(input_name or "")
+            if name == "regime_report" and not context.regime_report:
+                missing.append(name)
+            elif name == "risk_decision" and not context.risk_decision:
+                missing.append(name)
+            elif name == "feature_snapshot" and not context.symbol_features:
+                missing.append(name)
+            elif name in {"derivatives_state", "derivatives_state_global"} and not context.derivatives_state:
+                missing.append(name)
+            elif name == "market_consensus" and context.regime_report.get("market_consensus") is None:
+                missing.append(name)
+            elif name == "btc_state" and context.regime_report.get("btc_state") is None:
+                missing.append(name)
+            elif name == "eth_state" and context.regime_report.get("eth_state") is None:
+                missing.append(name)
+        return missing
 
     def _ranking_bonus(
         self,

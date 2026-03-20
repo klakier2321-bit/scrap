@@ -4,7 +4,7 @@
 
 `strategy_agent` jest strategy leadem pionu futures strategy factory.
 
-Domyslnie pracuje teraz w trybie `candidate-first`, nie `foundation-first`.
+Domyslnie pracuje teraz w trybie `regime-first` i `canonical-strategy-first`, nie `candidate-first`.
 
 Aktywny portfel kandydatow:
 

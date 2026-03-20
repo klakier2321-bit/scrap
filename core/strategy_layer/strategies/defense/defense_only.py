@@ -13,7 +13,8 @@ class DefenseOnlyStrategy(BaseStrategy):
         if (
             context.execution_constraints.get("no_trade_zone")
             or context.execution_constraints.get("high_noise_environment")
-            or context.primary_regime in {"low_vol", "stress_panic", "transition"}
+            or context.primary_regime in {"low_vol", "stress_panic", "range"}
+            or context.market_state in {"transition", "range"}
             or context.trading_mode in {"blocked", "capital_protection"}
         ):
             return ApplicabilityResult(applicable=True, reasons=[])

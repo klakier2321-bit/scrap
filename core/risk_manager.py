@@ -396,7 +396,7 @@ class RiskManager:
 
         risk_decision = self.evaluate_risk(
             regime_report=regime_report,
-            candidate_manifests=[],
+            strategy_manifests=[],
             portfolio_state=None,
             bot_id="runtime_compat",
         )
@@ -410,12 +410,14 @@ class RiskManager:
         self,
         *,
         regime_report: dict[str, Any] | None,
-        candidate_manifests: list[dict[str, Any]],
+        strategy_manifests: list[dict[str, Any]] | None = None,
+        candidate_manifests: list[dict[str, Any]] | None = None,
         portfolio_state: Any = None,
         bot_id: str = "runtime",
     ) -> dict[str, Any]:
         return self.engine.evaluate(
             regime_report=regime_report,
+            strategy_manifests=strategy_manifests,
             candidate_manifests=candidate_manifests,
             portfolio_state=portfolio_state,
             bot_id=bot_id,

@@ -52,6 +52,9 @@ class BotManager:
     def list_bots(self) -> list[dict[str, Any]]:
         return [self.get_bot_status(bot_id) for bot_id in self._bots]
 
+    def list_bot_configs(self) -> list[dict[str, Any]]:
+        return [dict(bot) for bot in self._bots.values()]
+
     def get_bot(self, bot_id: str) -> dict[str, Any]:
         if bot_id not in self._bots:
             raise KeyError(f"Unknown bot_id: {bot_id}")
@@ -68,12 +71,21 @@ class BotManager:
         if not runtime_config:
             return {}
 
-        config_path = Path(runtime_config)
+        config_path = self._resolve_runtime_config_path(str(runtime_config))
         if not config_path.exists():
             return {}
 
         with config_path.open("r", encoding="utf-8") as handle:
             return json.load(handle)
+
+    def _resolve_runtime_config_path(self, runtime_config: str) -> Path:
+        config_path = Path(runtime_config)
+        if config_path.exists():
+            return config_path
+        if runtime_config.startswith("/app/") and not Path("/app").exists():
+            repo_root = self.config_path.resolve().parents[2]
+            return repo_root / runtime_config.removeprefix("/app/")
+        return config_path
 
     def get_runtime_connection(self, bot_id: str) -> dict[str, Any]:
         bot = self.get_bot(bot_id)

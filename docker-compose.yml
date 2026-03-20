@@ -48,9 +48,9 @@ services:
       - --config
       - /freqtrade/user_data/config.json
 
-  freqtrade_candidate:
+  ft_trend_pullback_continuation_v1:
     image: freqtradeorg/freqtrade:stable
-    container_name: crypto_freqtrade_candidate
+    container_name: crypto_ft_trend_pullback_continuation_v1
     restart: "no"
     working_dir: /freqtrade
     volumes:
@@ -58,7 +58,55 @@ services:
     command:
       - trade
       - --config
-      - /freqtrade/user_data/config.dryrun.futures.baseline.json
+      - /freqtrade/user_data/config.dryrun.canonical.trend_pullback_continuation.json
+
+  ft_breakout_from_compression_v1:
+    image: freqtradeorg/freqtrade:stable
+    container_name: crypto_ft_breakout_from_compression_v1
+    restart: "no"
+    working_dir: /freqtrade
+    volumes:
+      - ./trading/freqtrade/user_data:/freqtrade/user_data
+    command:
+      - trade
+      - --config
+      - /freqtrade/user_data/config.dryrun.canonical.breakout_from_compression.json
+
+  ft_range_mean_reversion_v1:
+    image: freqtradeorg/freqtrade:stable
+    container_name: crypto_ft_range_mean_reversion_v1
+    restart: "no"
+    working_dir: /freqtrade
+    volumes:
+      - ./trading/freqtrade/user_data:/freqtrade/user_data
+    command:
+      - trade
+      - --config
+      - /freqtrade/user_data/config.dryrun.canonical.range_mean_reversion.json
+
+  ft_panic_reversal_v1:
+    image: freqtradeorg/freqtrade:stable
+    container_name: crypto_ft_panic_reversal_v1
+    restart: "no"
+    working_dir: /freqtrade
+    volumes:
+      - ./trading/freqtrade/user_data:/freqtrade/user_data
+    command:
+      - trade
+      - --config
+      - /freqtrade/user_data/config.dryrun.canonical.panic_reversal.json
+
+  ft_defense_only_v1:
+    image: freqtradeorg/freqtrade:stable
+    container_name: crypto_ft_defense_only_v1
+    restart: "no"
+    working_dir: /freqtrade
+    volumes:
+      - ./trading/freqtrade/user_data:/freqtrade/user_data
+    command:
+      - trade
+      - --config
+      - /freqtrade/user_data/config.dryrun.canonical.defense_only.json
 
   litellm:
     image: docker.litellm.ai/berriai/litellm:main-latest

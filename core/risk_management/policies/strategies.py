@@ -36,7 +36,7 @@ def _family_allowed(
         if market_state not in {"trend", "pullback"} or market_phase != "pullback":
             return False, rc.STRATEGY_BLOCKED_BY_FAMILY
     elif family == "breakout":
-        if market_phase == "compression" or block_breakouts or squeeze_risk in {"medium", "high"} or data_trust_level == "low_trust":
+        if block_breakouts or squeeze_risk in {"medium", "high"} or data_trust_level == "low_trust":
             return False, rc.STRATEGY_BLOCKED_BY_FAMILY
     elif family == "mean_reversion":
         if primary_regime not in {"range", "low_vol"}:
@@ -52,7 +52,7 @@ def _family_allowed(
 
 def evaluate_strategy_permissions(
     *,
-    candidate_manifests: list[dict[str, Any]],
+    strategy_manifests: list[dict[str, Any]],
     regime_report: dict[str, Any],
     allowed_directions: list[str],
     trading_mode: str,
@@ -73,20 +73,29 @@ def evaluate_strategy_permissions(
     allowed_families: set[str] = set()
     blocked_families: set[str] = set()
 
-    for manifest in candidate_manifests:
-        candidate_id = str(manifest.get("strategy_id") or "")
-        if not candidate_id:
+    for manifest in strategy_manifests:
+        strategy_id = str(manifest.get("strategy_id") or "")
+        if not strategy_id:
             continue
         family = str(manifest.get("strategy_family") or "trend_continuation")
-        allowed_sides = str(manifest.get("allowed_sides") or manifest.get("allowed_directions") or "both")
+        allowed_sides = str(
+            manifest.get("allowed_sides")
+            or (
+                (manifest.get("entry_semantics") or {}).get("allowed_directions")
+                if isinstance(manifest.get("entry_semantics"), dict)
+                else None
+            )
+            or manifest.get("allowed_directions")
+            or "both"
+        )
         risk_profile = str(manifest.get("risk_profile") or "balanced")
 
-        if candidate_id in blocked_from_regime:
-            blocked_ids.append(candidate_id)
+        if strategy_id in blocked_from_regime:
+            blocked_ids.append(strategy_id)
             blocked_families.add(family)
             continue
-        if eligible_from_regime and candidate_id not in eligible_from_regime:
-            blocked_ids.append(candidate_id)
+        if eligible_from_regime and strategy_id not in eligible_from_regime:
+            blocked_ids.append(strategy_id)
             blocked_families.add(family)
             continue
 
@@ -104,19 +113,19 @@ def evaluate_strategy_permissions(
             allowed_special_families=list(event_overrides.get("allowed_special_families") or []),
         )
         if not ok:
-            blocked_ids.append(candidate_id)
+            blocked_ids.append(strategy_id)
             blocked_families.add(family)
             if code:
                 reason_codes.append(code)
             continue
 
         if trading_mode in {"capital_protection", "reduced_risk"} and risk_profile == "aggressive":
-            blocked_ids.append(candidate_id)
+            blocked_ids.append(strategy_id)
             blocked_families.add(family)
             reason_codes.append(rc.STRATEGY_BLOCKED_BY_RISK_PROFILE)
             continue
 
-        allowed_ids.append(candidate_id)
+        allowed_ids.append(strategy_id)
         allowed_families.add(family)
         reason_codes.append(rc.STRATEGY_ALLOWED)
 

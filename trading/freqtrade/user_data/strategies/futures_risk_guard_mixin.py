@@ -1,34 +1,27 @@
 from __future__ import annotations
 
-import sys
-from pathlib import Path
 from typing import Any
 
-
-REPO_ROOT = Path(__file__).resolve().parents[4]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from core.risk_management.execution_guard import RiskExecutionGuard
+from runtime_risk_guard import LocalRuntimeRiskGuard
 
 
 class FuturesRiskGuardMixin:
-    risk_bot_id: str = "freqtrade_candidate"
+    risk_bot_id: str = "runtime"
     risk_strategy_id: str = "unknown_strategy"
     default_signal_profile: str = "aggressive"
 
-    def _risk_guard(self) -> RiskExecutionGuard:
-        guard = getattr(self, "_cached_risk_execution_guard", None)
+    def _risk_guard(self) -> LocalRuntimeRiskGuard:
+        guard = getattr(self, "_cached_runtime_risk_guard", None)
         if guard is None:
-            guard = RiskExecutionGuard(bot_id=str(self.risk_bot_id))
-            self._cached_risk_execution_guard = guard
+            guard = LocalRuntimeRiskGuard(bot_id=str(self.risk_bot_id))
+            self._cached_runtime_risk_guard = guard
         return guard
 
     def resolve_signal_profile(self, entry_tag: str | None) -> str:
         tag = str(entry_tag or "").lower()
         if any(marker in tag for marker in ("breakout", "breakdown", "reversal", "panic", "squeeze")):
             return "aggressive"
-        if any(marker in tag for marker in ("pullback", "continuation", "trend", "confirmation")):
+        if any(marker in tag for marker in ("pullback", "continuation", "trend", "confirmation", "range")):
             return "standard"
         return str(getattr(self, "default_signal_profile", "aggressive"))
 
@@ -65,7 +58,6 @@ class FuturesRiskGuardMixin:
             strategy_id=str(self.risk_strategy_id),
             pair=pair,
             side=side,
-            entry_tag=entry_tag,
             signal_profile=self.resolve_signal_profile(entry_tag),
         )
         return bool(outcome.get("entry_allowed"))

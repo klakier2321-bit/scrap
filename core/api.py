@@ -187,14 +187,14 @@ async def bot_logs(
 
 @app.get("/metrics", include_in_schema=False)
 async def metrics() -> PlainTextResponse:
-    latest_dry_run_snapshot = get_orchestrator().get_latest_dry_run_snapshot(
+    latest_dry_run_snapshot = get_orchestrator().get_futures_cluster_snapshot(
         refresh_if_stale=True
     )
     payload, content_type = render_metrics(
         get_orchestrator().list_bots(),
         get_orchestrator().get_latest_strategy_report_with_assessment(),
         get_orchestrator().list_strategy_report_history(limit=20),
-        get_orchestrator().get_dry_run_health(),
+        get_orchestrator().get_futures_cluster_health(),
         latest_dry_run_snapshot,
         get_orchestrator().get_executive_report(),
     )
@@ -263,7 +263,7 @@ async def ops_derivatives_generate() -> DerivativesStatusResponse:
     include_in_schema=False,
 )
 async def ops_risk_latest(
-    bot_id: str = Query(default="freqtrade_candidate"),
+    bot_id: str = Query(default="ft_trend_pullback_continuation_v1"),
     refresh: bool = Query(default=False),
 ) -> RiskDecisionResponse:
     report = (
@@ -282,7 +282,7 @@ async def ops_risk_latest(
     include_in_schema=False,
 )
 async def ops_risk_generate(
-    bot_id: str = Query(default="freqtrade_candidate"),
+    bot_id: str = Query(default="ft_trend_pullback_continuation_v1"),
 ) -> RiskDecisionResponse:
     return RiskDecisionResponse(**get_orchestrator().generate_risk_decision(bot_id=bot_id))
 
@@ -305,7 +305,7 @@ async def ops_strategy_manifests() -> list[StrategyManifestResponse]:
     include_in_schema=False,
 )
 async def ops_strategy_layer_latest(
-    bot_id: str = Query(default="freqtrade_candidate"),
+    bot_id: str = Query(default="ft_trend_pullback_continuation_v1"),
     refresh: bool = Query(default=False),
 ) -> StrategyLayerResponse:
     report = (
@@ -324,7 +324,7 @@ async def ops_strategy_layer_latest(
     include_in_schema=False,
 )
 async def ops_strategy_layer_generate(
-    bot_id: str = Query(default="freqtrade_candidate"),
+    bot_id: str = Query(default="ft_trend_pullback_continuation_v1"),
 ) -> StrategyLayerResponse:
     return StrategyLayerResponse(**get_orchestrator().generate_strategy_layer_report(bot_id=bot_id))
 

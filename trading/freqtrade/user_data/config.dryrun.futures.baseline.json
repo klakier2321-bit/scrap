@@ -60,11 +60,11 @@
     "listen_port": 8080,
     "verbosity": "error",
     "enable_openapi": false,
-    "jwt_secret_key": "bcb7d203b387ff9d5aae717cdc61d9f4800b7aefb5b795ad773166d097830a3d",
-    "ws_token": "o57EcB4gsQEM79bvgLzhzi1Kf9vpwbN3",
+    "jwt_secret_key": "change_me_local",
+    "ws_token": "change_me_local",
     "CORS_origins": [],
     "username": "freqtrader",
-    "password": "Nw39Q44z8BZWhMGABK0J0VHy"
+    "password": "change_me_local"
   },
   "bot_name": "structured-futures-baseline-dryrun",
   "strategy": "StructuredFuturesBaselineStrategy",

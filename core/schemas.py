@@ -205,10 +205,13 @@ class StrategyLayerResponse(BaseModel):
     implemented_strategies_total: int = 0
     applicable_strategy_ids: list[str] = Field(default_factory=list)
     blocked_strategy_ids: list[str] = Field(default_factory=list)
+    risk_admitted_strategy_ids: list[str] = Field(default_factory=list)
+    blocked_by_risk_strategy_ids: list[str] = Field(default_factory=list)
     advisory_strategy_ids: list[str] = Field(default_factory=list)
     strategy_evaluations: list[dict[str, Any]] = Field(default_factory=list)
     built_signals: list[dict[str, Any]] = Field(default_factory=list)
     preferred_strategy_id: str | None = None
+    preferred_risk_admitted_strategy_id: str | None = None
     ranking: list[dict[str, Any]] = Field(default_factory=list)
     reason: str | None = None
 

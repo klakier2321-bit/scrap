@@ -42,10 +42,12 @@ class RiskEngine:
         self,
         *,
         regime_report: dict[str, Any] | None,
-        candidate_manifests: list[dict[str, Any]],
+        strategy_manifests: list[dict[str, Any]] | None = None,
+        candidate_manifests: list[dict[str, Any]] | None = None,
         portfolio_state: PortfolioState | None = None,
         bot_id: str = "runtime",
     ) -> dict[str, Any]:
+        strategy_manifests = list(strategy_manifests or candidate_manifests or [])
         decision = empty_risk_decision()
         decision["generated_at"] = now_iso()
         decision["context"] = {"bot_id": bot_id}
@@ -125,7 +127,7 @@ class RiskEngine:
         self._trace(decision, "directional_permission_gate", direction_permissions)
 
         strategy_permissions = evaluate_strategy_permissions(
-            candidate_manifests=candidate_manifests,
+            strategy_manifests=strategy_manifests,
             regime_report=regime_report,
             allowed_directions=allowed_directions,
             trading_mode=decision["trading_mode"],

@@ -2,7 +2,7 @@
 
 - agent name: strategy_agent
 - purpose: pelni role strategy lead dla pionu futures strategy factory i zarzadza helperami strategii
-- default operating mode: candidate-first, nie foundation-first
+- default operating mode: regime-first i canonical-strategy-first, nie candidate-first
 - core rule: kazdy kandydat strategii przechodzi wspolny gate `backtest + RiskManager + dry_run`
 - ownership: lifecycle kandydatow, evidence bundle, recommendation `iterate/reject/promote`
 - active candidate portfolio:

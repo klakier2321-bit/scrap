@@ -39,6 +39,14 @@ from .metrics import (
 )
 from .regime_detector import RegimeDetector
 from .risk_manager import RiskManager
+from .runtime_artifacts import (
+    aggregate_portfolio_snapshots,
+    aggregate_strategy_layer_reports,
+    publish_global_portfolio,
+    publish_risk_decision as publish_runtime_risk_decision,
+    publish_strategy_report as publish_runtime_strategy_report,
+    strategy_id_from_bot_id,
+)
 from .storage import RunStore
 from .strategy_layer import StrategyLayerService
 from .strategy_manager import StrategyManager
@@ -167,6 +175,72 @@ class Orchestrator:
             smoke_dir=self.settings.dry_run_smoke_dir,
             stale_after_seconds=self.settings.dry_run_snapshot_stale_seconds,
         )
+
+    def _canonical_futures_bot_configs(self) -> list[dict[str, Any]]:
+        return [
+            bot
+            for bot in self.bot_manager.list_bot_configs()
+            if str(bot.get("runtime_group") or "") == "futures_canonical"
+        ]
+
+    def _canonical_futures_bot_ids(self) -> list[str]:
+        return [str(bot.get("bot_id")) for bot in self._canonical_futures_bot_configs() if bot.get("bot_id")]
+
+    def _is_canonical_futures_bot(self, bot_id: str) -> bool:
+        return bot_id in set(self._canonical_futures_bot_ids())
+
+    def _strategy_filter_for_bot(self, bot_id: str) -> list[str] | None:
+        strategy_id = strategy_id_from_bot_id(bot_id)
+        if strategy_id:
+            return [strategy_id]
+        return None
+
+    def get_futures_cluster_health(self) -> dict[str, Any]:
+        bot_ids = self._canonical_futures_bot_ids()
+        healths = [self.get_dry_run_health(bot_id=bot_id) for bot_id in bot_ids]
+        if not healths:
+            return {}
+        ready_all = all(bool(item.get("ready")) for item in healths)
+        warnings: list[str] = []
+        for item in healths:
+            warnings.extend(list(item.get("warnings") or []))
+        snapshot_ages = [
+            float(item.get("snapshot_age_seconds"))
+            for item in healths
+            if item.get("snapshot_age_seconds") is not None
+        ]
+        return {
+            "bot_id": "futures_canonical_cluster",
+            "runtime_group": "futures_canonical",
+            "member_bot_ids": bot_ids,
+            "bot_state": "running" if ready_all else "degraded",
+            "dry_run": True,
+            "runtime_mode": "futures_cluster",
+            "bridge_status": "ok" if ready_all else "degraded",
+            "api_authenticated": all(bool(item.get("api_authenticated")) for item in healths),
+            "ready": ready_all,
+            "blocking_reason": None if ready_all else "cluster_member_not_ready",
+            "snapshot_available": all(bool(item.get("snapshot_available")) for item in healths),
+            "snapshot_age_seconds": max(snapshot_ages) if snapshot_ages else None,
+            "last_snapshot_at": None,
+            "last_smoke_status": "pass" if all(item.get("last_smoke_status") == "pass" for item in healths) else "degraded",
+            "last_smoke_at": None,
+            "warnings": list(dict.fromkeys(warnings))[:10],
+            "members": healths,
+        }
+
+    def get_futures_cluster_snapshot(self, *, refresh_if_stale: bool = False) -> dict[str, Any] | None:
+        bot_ids = self._canonical_futures_bot_ids()
+        snapshots: list[dict[str, Any]] = []
+        for bot_id in bot_ids:
+            snapshot = self.get_latest_dry_run_snapshot(bot_id=bot_id, refresh_if_stale=refresh_if_stale)
+            if snapshot is not None:
+                snapshots.append(snapshot)
+        if not snapshots:
+            return None
+        aggregated = aggregate_portfolio_snapshots(snapshots, bot_ids=bot_ids)
+        publish_global_portfolio(self.settings.futures_runtime_artifacts_dir, aggregated)
+        return aggregated
 
     def get_dry_run_health(self, bot_id: str = "freqtrade") -> dict[str, Any]:
         bot_status = self.bot_manager.get_bot_status(bot_id)
@@ -347,27 +421,58 @@ class Orchestrator:
     def generate_derivatives_report(self) -> dict[str, Any]:
         return self.derivatives_feed.generate_report()
 
-    def get_latest_risk_decision(self, bot_id: str = "freqtrade_candidate") -> dict[str, Any] | None:
-        return self.risk_manager.latest_risk_decision(bot_id=bot_id)
+    def get_latest_risk_decision(self, bot_id: str = "ft_trend_pullback_continuation_v1") -> dict[str, Any] | None:
+        decision = self.risk_manager.latest_risk_decision(bot_id=bot_id)
+        if decision is None:
+            return None
+        if self._is_canonical_futures_bot(bot_id):
+            enforcement_path = self.settings.futures_runtime_artifacts_dir / bot_id / "risk" / "enforcement-latest.json"
+            if enforcement_path.exists():
+                try:
+                    enforcement = json.loads(enforcement_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    enforcement = {}
+                for key in (
+                    "hard_enforcement_enabled",
+                    "enforced_by",
+                    "last_enforcement_status",
+                    "last_blocked_order_reason_codes",
+                    "last_strategy_id",
+                    "last_pair",
+                    "last_side",
+                    "last_final_stake",
+                    "last_final_leverage",
+                    "enforcement_counters",
+                ):
+                    if key in enforcement:
+                        decision[key] = enforcement[key]
+        return decision
 
-    def generate_risk_decision(self, bot_id: str = "freqtrade_candidate") -> dict[str, Any]:
+    def generate_risk_decision(self, bot_id: str = "ft_trend_pullback_continuation_v1") -> dict[str, Any]:
         regime_report = self.get_latest_regime_report()
         if regime_report is None:
             regime_report = self.generate_regime_report()
-        try:
-            dry_run_snapshot = self.get_latest_dry_run_snapshot(
-                bot_id=bot_id,
-                refresh_if_stale=True,
-            )
-        except KeyError:
-            dry_run_snapshot = None
+        dry_run_snapshot = None
+        if self._is_canonical_futures_bot(bot_id):
+            dry_run_snapshot = self.get_futures_cluster_snapshot(refresh_if_stale=True)
+        else:
+            try:
+                dry_run_snapshot = self.get_latest_dry_run_snapshot(
+                    bot_id=bot_id,
+                    refresh_if_stale=True,
+                )
+            except KeyError:
+                dry_run_snapshot = None
         portfolio_state = self.risk_manager.build_portfolio_state_from_snapshot(dry_run_snapshot)
-        return self.risk_manager.evaluate_risk(
+        decision = self.risk_manager.evaluate_risk(
             regime_report=regime_report,
-            candidate_manifests=self.strategy_manager.list_candidate_manifests(),
+            strategy_manifests=self.strategy_manager.list_strategy_manifests(),
             portfolio_state=portfolio_state,
             bot_id=bot_id,
         )
+        if self._is_canonical_futures_bot(bot_id):
+            publish_runtime_risk_decision(self.settings.futures_runtime_artifacts_dir, bot_id, decision)
+        return decision
 
     def get_latest_regime_replay(self) -> dict[str, Any] | None:
         return self.regime_detector.latest_replay_report()
@@ -396,13 +501,25 @@ class Orchestrator:
 
     def get_latest_strategy_layer_report(
         self,
-        bot_id: str = "freqtrade_candidate",
+        bot_id: str = "ft_trend_pullback_continuation_v1",
     ) -> dict[str, Any] | None:
         return self.strategy_manager.latest_strategy_layer_report(bot_id=bot_id)
 
+    def get_latest_futures_cluster_strategy_layer_report(self) -> dict[str, Any] | None:
+        bot_ids = self._canonical_futures_bot_ids()
+        reports = [
+            report
+            for bot_id in bot_ids
+            for report in [self.get_latest_strategy_layer_report(bot_id=bot_id)]
+            if report is not None
+        ]
+        if not reports:
+            return None
+        return aggregate_strategy_layer_reports(reports, bot_ids=bot_ids)
+
     def generate_strategy_layer_report(
         self,
-        bot_id: str = "freqtrade_candidate",
+        bot_id: str = "ft_trend_pullback_continuation_v1",
     ) -> dict[str, Any]:
         regime_report = self.get_latest_regime_report()
         if regime_report is None:
@@ -410,11 +527,15 @@ class Orchestrator:
         risk_decision = self.get_latest_risk_decision(bot_id=bot_id)
         if risk_decision is None:
             risk_decision = self.generate_risk_decision(bot_id=bot_id)
-        return self.strategy_layer.generate_report(
+        report = self.strategy_layer.generate_report(
             regime_report=regime_report,
             risk_decision=risk_decision,
             bot_id=bot_id,
+            strategy_filter_ids=self._strategy_filter_for_bot(bot_id),
         )
+        if self._is_canonical_futures_bot(bot_id):
+            publish_runtime_strategy_report(self.settings.futures_runtime_artifacts_dir, bot_id, report)
+        return report
 
     def list_agents(self) -> list[dict[str, Any]]:
         return self.agent_runtime.list_agents()
@@ -500,9 +621,17 @@ class Orchestrator:
         }
 
     def get_executive_report(self) -> dict[str, Any]:
-        latest_snapshot = self.get_latest_dry_run_snapshot(refresh_if_stale=True)
-        dry_run_health = self.get_dry_run_health()
-        candidate_assessments = self.list_candidate_assessments()
+        latest_snapshot = self.get_futures_cluster_snapshot(refresh_if_stale=True)
+        dry_run_health = self.get_futures_cluster_health()
+        dry_run_smoke = {
+            "bot_id": "futures_canonical_cluster",
+            "status": "pass" if dry_run_health.get("ready") else "fail",
+            "members": [
+                self.get_latest_dry_run_smoke(bot_id=bot_id)
+                for bot_id in self._canonical_futures_bot_ids()
+            ],
+        }
+        candidate_assessments: list[dict[str, Any]] = []
         regime_report = self.get_latest_regime_report()
         if regime_report is None:
             try:
@@ -516,44 +645,33 @@ class Orchestrator:
             except Exception:
                 derivatives_report = None
         replay_report = self.get_latest_regime_replay()
-        strategy_layer_report = self.get_latest_strategy_layer_report(bot_id="freqtrade_candidate")
+        strategy_layer_report = self.get_latest_futures_cluster_strategy_layer_report()
         if strategy_layer_report is None:
             try:
-                strategy_layer_report = self.generate_strategy_layer_report(
-                    bot_id="freqtrade_candidate"
+                strategy_layer_report = aggregate_strategy_layer_reports(
+                    [
+                        self.generate_strategy_layer_report(bot_id=bot_id)
+                        for bot_id in self._canonical_futures_bot_ids()
+                    ],
+                    bot_ids=self._canonical_futures_bot_ids(),
                 )
             except Exception:
                 strategy_layer_report = None
-        risk_decision = self.get_latest_risk_decision(bot_id="freqtrade_candidate")
+        representative_bot_id = next(iter(self._canonical_futures_bot_ids()), "ft_trend_pullback_continuation_v1")
+        risk_decision = self.get_latest_risk_decision(bot_id=representative_bot_id)
         if risk_decision is None:
             try:
-                risk_decision = self.generate_risk_decision(bot_id="freqtrade_candidate")
+                risk_decision = self.generate_risk_decision(bot_id=representative_bot_id)
             except Exception:
                 risk_decision = None
-        shipping_candidate = next(
-            (
-                candidate
-                for candidate in candidate_assessments
-                if candidate.get("lifecycle_status") in {"limited_dry_run_candidate", "frozen_pending_regime_engine"}
-                and candidate.get("candidate_bot_id")
-            ),
-            None,
-        )
-        try:
-            candidate_dry_run = (
-                self.get_candidate_dry_run(str(shipping_candidate["candidate_id"]))
-                if shipping_candidate
-                else None
-            )
-        except KeyError:
-            candidate_dry_run = None
+        candidate_dry_run = None
         return self.executive_report.build_report(
             runs=self.store.list_runs(limit=200),
             autopilot_status=self.autopilot.status(),
             strategy_report=self.get_latest_strategy_report_with_assessment(),
             dry_run_health=dry_run_health,
             dry_run_snapshot=latest_snapshot,
-            dry_run_smoke=self.get_latest_dry_run_smoke(),
+            dry_run_smoke=dry_run_smoke,
             candidate_assessments=candidate_assessments,
             candidate_dry_run=candidate_dry_run,
             regime_report=regime_report,

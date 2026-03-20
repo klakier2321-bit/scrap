@@ -98,7 +98,11 @@ class RiskExecutionGuard:
             blocked_reason_codes.append(rc.EXECUTION_COOLDOWN_ACTIVE)
         if side not in list(decision.get("allowed_directions") or []):
             blocked_reason_codes.append(rc.EXECUTION_BLOCKED_DIRECTION)
-        if strategy_id not in list(decision.get("allowed_strategy_ids") or []):
+        allowed_strategy_ids = list(decision.get("allowed_strategy_ids") or [])
+        blocked_strategy_ids = list(decision.get("blocked_strategy_ids") or [])
+        if strategy_id in blocked_strategy_ids:
+            blocked_reason_codes.append(rc.EXECUTION_BLOCKED_STRATEGY)
+        elif allowed_strategy_ids and strategy_id not in allowed_strategy_ids:
             blocked_reason_codes.append(rc.EXECUTION_BLOCKED_STRATEGY)
 
         protective = dict(decision.get("protective_overrides") or {})

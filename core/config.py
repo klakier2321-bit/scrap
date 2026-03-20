@@ -113,6 +113,18 @@ class AppSettings(BaseSettings):
         return self.data_dir / "strategy_telemetry"
 
     @property
+    def runtime_artifacts_dir(self) -> Path:
+        return self.freqtrade_user_data_path / "runtime_artifacts"
+
+    @property
+    def futures_runtime_artifacts_dir(self) -> Path:
+        return self.runtime_artifacts_dir / "futures"
+
+    @property
+    def futures_runtime_global_dir(self) -> Path:
+        return self.futures_runtime_artifacts_dir / "global"
+
+    @property
     def dry_run_snapshots_dir(self) -> Path:
         return self.data_dir / "dry_run_snapshots"
 

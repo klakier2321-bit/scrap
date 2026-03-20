@@ -701,8 +701,11 @@ class ExecutiveReportService:
             "strategy_layer": {
                 "latest": strategy_layer_report,
                 "preferred_strategy_id": (strategy_layer_report or {}).get("preferred_strategy_id"),
+                "preferred_risk_admitted_strategy_id": (strategy_layer_report or {}).get("preferred_risk_admitted_strategy_id"),
                 "built_signals": (strategy_layer_report or {}).get("built_signals") or [],
                 "applicable_strategy_ids": (strategy_layer_report or {}).get("applicable_strategy_ids") or [],
+                "risk_admitted_strategy_ids": (strategy_layer_report or {}).get("risk_admitted_strategy_ids") or [],
+                "blocked_by_risk_strategy_ids": (strategy_layer_report or {}).get("blocked_by_risk_strategy_ids") or [],
             },
             "regime": {
                 "latest": regime_report,
@@ -782,6 +785,7 @@ class ExecutiveReportService:
                 "strategy_layer_available": 1 if strategy_layer_report else 0,
                 "strategy_layer_built_signals_total": len((strategy_layer_report or {}).get("built_signals") or []),
                 "strategy_layer_applicable_total": len((strategy_layer_report or {}).get("applicable_strategy_ids") or []),
+                "strategy_layer_risk_admitted_total": len((strategy_layer_report or {}).get("risk_admitted_strategy_ids") or []),
                 "regime_available": 1 if regime_report else 0,
                 "derivatives_available": 1 if derivatives_report else 0,
                 "risk_decision_available": 1 if risk_decision else 0,
