@@ -132,7 +132,13 @@ class ExecutiveReportService:
         for risk in normalized:
             risk_id = risk.get("id")
             if risk_id == "autopilot_fallback":
-                if autopilot_status.get("running") and not autopilot_attention_needed and recent_mock_fallbacks == 0:
+                if autopilot_status.get("agents_status") == "agents_disabled":
+                    risk["status"] = "Ograniczone"
+                    risk["mitigation"] = (
+                        "Autopilot jest celowo wylaczony albo zamrozony operatorsko. To nie jest aktywny blocker runtime, "
+                        "dopoki futures paper-ready path pozostaje stabilny bez agentow."
+                    )
+                elif autopilot_status.get("running") and not autopilot_attention_needed and recent_mock_fallbacks == 0:
                     risk["status"] = "Monitorowane"
                     risk["mitigation"] = (
                         "W ostatnich runach nie widać mock fallback. Utrzymać obserwację jakości structured output "
@@ -458,9 +464,12 @@ class ExecutiveReportService:
             module["coding_current_status"] = latest_coding_task.get("status") if latest_coding_task else ""
             module["coding_current_owner"] = latest_coding_task.get("owner_agent") if latest_coding_task else ""
 
+        agent_runtime_status = str(autopilot_status.get("agents_status") or "agents_guarded")
         autopilot_last_started = self._parse_iso(autopilot_status.get("last_started_at"))
         autopilot_attention_needed = False
-        if not autopilot_status.get("running"):
+        if agent_runtime_status == "agents_disabled":
+            autopilot_attention_needed = False
+        elif not autopilot_status.get("running"):
             autopilot_attention_needed = True
         elif autopilot_last_started is not None:
             stale_after = autopilot_status.get("poll_interval_seconds", 300) + 60
@@ -690,13 +699,12 @@ class ExecutiveReportService:
                 "latest_smoke": dry_run_smoke,
             },
             "candidate_factory": {
-                "shipping_candidate_id": (
-                    shipping_candidate.get("candidate_id") if shipping_candidate else None
-                ),
+                "shipping_candidate_id": None,
                 "selector": selector_decision,
                 "candidate_assessments": candidate_assessments,
                 "candidate_dry_run": candidate_dry_run,
-                "factory_mode": "regime_first_freeze_build_keep_dry_run",
+                "factory_mode": "archive_only",
+                "runtime_scope": "futures_canonical_only",
             },
             "strategy_layer": {
                 "latest": strategy_layer_report,
@@ -770,6 +778,9 @@ class ExecutiveReportService:
                 ),
                 "blockers_total": len(blockers),
                 "autopilot_attention_needed": 1 if autopilot_attention_needed else 0,
+                "agents_disabled": 1 if agent_runtime_status == "agents_disabled" else 0,
+                "agents_guarded": 1 if agent_runtime_status == "agents_guarded" else 0,
+                "agents_active_limited": 1 if agent_runtime_status == "agents_active_limited" else 0,
                 "dry_run_ready": 1 if dry_run_ready else 0,
                 "candidate_assessments_total": len(candidate_assessments),
                 "candidate_shipping_ready_total": sum(

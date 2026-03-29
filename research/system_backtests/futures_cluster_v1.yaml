@@ -17,4 +17,5 @@ enabled_strategy_ids:
 output_root: backtests/system
 user_data_dir: trading/freqtrade/user_data
 research_dir: research
+write_detailed_reports: false
 scenario_overrides: {}

@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from core.system_backtest import run as replay_cli
 from core.system_backtest.execution_simulator import ExecutionSimulator
 from core.system_backtest.loop import SystemReplayLoop
 from core.system_backtest.market_replay import HistoricalMarketReplayProvider
@@ -110,6 +111,20 @@ class ExecutionSimulatorTests(unittest.TestCase):
 
 
 class SystemReplayLoopTests(unittest.TestCase):
+    def test_cli_parser_supports_diagnostic_mode_override(self) -> None:
+        parser = replay_cli.build_parser()
+        parsed = parser.parse_args(
+            [
+                "--config",
+                "research/system_backtests/futures_cluster_v1.yaml",
+                "--timerange",
+                "2026-02-15:2026-02-16",
+                "--diagnostic-mode",
+                "fast",
+            ]
+        )
+        self.assertEqual(parsed.diagnostic_mode, "fast")
+
     def test_loop_generates_system_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             config = _config(Path(tmpdir) / "backtests" / "system", max_bars=18)
@@ -132,6 +147,21 @@ class SystemReplayLoopTests(unittest.TestCase):
             self.assertIn("blocked_reason_breakdown", summary)
             self.assertIn("strategy_breakdown", summary)
             self.assertIn("regime_breakdown", summary)
+
+    def test_fast_mode_skips_detailed_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = _config(Path(tmpdir) / "backtests" / "system", max_bars=10)
+            config.write_detailed_reports = False
+            loop = SystemReplayLoop(config=config)
+
+            result = loop.run(timerange="2026-02-15:2026-02-16")
+
+            run_dir = Path(result["run_dir"])
+            self.assertTrue((run_dir / "summary.json").exists())
+            self.assertEqual(list((run_dir / "regime_reports").glob("*.json")), [])
+            self.assertEqual(list((run_dir / "risk_decisions").glob("*.json")), [])
+            strategy_files = list((run_dir / "strategy_reports").rglob("*.json"))
+            self.assertEqual(strategy_files, [])
 
 
 if __name__ == "__main__":

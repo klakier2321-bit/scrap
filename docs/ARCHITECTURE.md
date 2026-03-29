@@ -2,227 +2,238 @@
 
 ## Cel systemu
 
-`crypto-system` nie jest projektem "bota z jednym sygnalem", tylko platforma do budowy kontrolowanego systemu tradingowego crypto.
+`crypto-system` nie jest jednym botem z pojedyncza strategia. To kontrolowany system futures, w ktorym:
 
-Architektura ma realizowac jeden nadrzedny model:
+- `regime` opisuje rynek
+- `risk` decyduje, co wolno
+- `strategy layer` proponuje edge
+- `execution` tylko egzekwuje
+- `system replay` jest kanonicznym testem calego runtime
+- agenci AI wspieraja rozwoj, ale nie steruja krytyczna sciezka execution
 
-- `control layer` steruje,
-- `Freqtrade` wykonuje,
-- `research layer` buduje edge,
-- `AI` wspiera rozwoj i raportowanie, ale nie handluje bezposrednio.
+Kanoniczny tor futures jest jeden:
 
-To rozdzielenie ma chronic projekt przed chaosem architektonicznym i przed zbyt szybkim przejsciem z eksperymentu do ryzykownego runtime.
+- `market data -> regime -> risk -> strategy layer -> execution guard -> dry-run/paper runtime -> telemetry -> system replay`
 
-## Główne warstwy repo
+## Glówne warstwy repo
 
-- `trading/` - execution engine, strategie, backtesty i `dry_run`
-- `core/` - control layer, czyli warstwa sterujaca i operatorska
-- `research/` - foundation pod futures strategy factory: artefakty danych, cech, ryzyka i kandydatow
-- `ai_agents/` - role, prompty, ownership i runtime pracy agentow
-- `monitoring/` - raportowanie operacyjne, artefakty statusu i obserwowalnosc
-- `scripts/` - proste skrypty operatorskie
-- `infrastructure/` - Grafana, Prometheus, Tempo i pomocnicza infrastruktura
-- `data/` - snapshoty `dry_run`, raporty strategii i artefakty runtime/read-only
+- `core/` - control plane: regime, risk, strategy layer, executive, replay, operator API
+- `trading/` - execution runtime Freqtrade, wrappery futures i lokalne artifacts `user_data`
+- `research/` - manifests strategii, dane, eksperymenty i archive-only research assets
+- `ai_agents/` - role, prompty, workflow agentow i supervised coding
+- `monitoring/` - raporty operatorskie i obserwowalnosc
+- `backtests/` - wyniki replay i inne artefakty testowe
+- `telemetry/` - telemetry strategii i replay
 
-## Co już istnieje
+## Stan kanoniczny
 
-- Docker dla uslug operatorskich i tradingowych
-- lokalny runtime Freqtrade w trybie `dry_run`
-- read-only bridge do runtime Freqtrade oraz snapshoty `dry_run`
-- `core/` jako realna warstwa operatorska: raportowanie, API operatorskie, gating, dry-run smoke i supervised coding flow
-- aktywny model agentowy z leadem systemowym, review i izolowanymi worktree
-- foundation pionu strategii futures: `strategy_agent` jako lead oraz helperzy od danych, ryzyka, reżimow i ewaluacji
-- dokumentacja kanoniczna i roadmapa executive
-- branch-first workflow agentow kodujacych: commit najpierw trafia na branch worktree, a nie automatycznie do `main`
+Obecny stan docelowy dla futures jest nastepujacy:
 
-## Co jest planowane
-
-- dalsze domykanie control layer jako mozgu systemu
-- dalsze porzadkowanie executive reporting i monitoringu operatorskiego
-- futures-aware strategy factory oparta na artefaktach, lifecycle i promotion gate
-- dalsze rozszerzanie research layer bez naruszania bezpieczenstwa runtime
-- dopiero pozniej: dalsza automatyzacja selekcji kandydatow strategii i gotowosc do kolejnych gate'ow
-
-## Najwazniejsze decyzje architektoniczne
-
-Na tym etapie obowiazuja nas ponizsze decyzje:
-
-- `control layer` jest jedynym miejscem, gdzie ma dojrzewac logika sterowania systemem
-- `Freqtrade` pozostaje execution engine, zrodlem backtestu i `dry_run`, ale nie staje sie mozgiem platformy
-- `research/` sluzy do budowy edge futures, nie do wykonywania zlecen
-- `strategy_agent` nie jest juz pojedynczym autorem strategii, tylko leadem pionu futures strategy factory
-- helperzy strategii dostarczaja artefakty evidence-first, a nie "luzne pomysly"
-- wszystko, co dotyczy runtime, sekretow, krytycznych kontraktow lub live tradingu, pozostaje pod review czlowieka
+- `canonical strategy layer` jest jedynym source of truth dla futures runtime
+- `research/candidates/*` jest archive-only i nie steruje juz execution futures
+- 5 kanonicznych botow futures wspoldzieli jeden logiczny portfel `futures_canonical`
+- `risk_decision` jest jedynym zrodlem caps i uprawnien runtime
+- `execution guard` dziala w modelu `user_data only`
+- `system replay` w `core/system_backtest/` jest prawda systemowa dla backtestu calego runtime
 
 ## Rola Freqtrade
 
-Freqtrade jest execution engine i narzedziem do:
+Freqtrade pozostaje execution engine. Odpowiada za:
 
-- backtestow,
-- `dry_run`,
-- pobierania stanu runtime,
-- wykonywania tego, co zostalo dopuszczone przez warstwy wyzej.
+- dry-run / paper runtime
+- stan runtime i snapshoty
+- wykonanie wejsc i wyjsc dopuszczonych przez warstwy wyzej
 
-Freqtrade nie jest glownym mozgiem systemu.
-Nie powinno sie do niego przenosic odpowiedzialnosci za:
+Freqtrade nie odpowiada za:
 
-- governance,
-- gating ryzyka,
-- executive visibility,
-- lifecycle kandydatow strategii,
-- polityke pracy agentow.
+- governance systemu
+- portfolio risk policy
+- leverage policy
+- selekcje strategii
+- executive control
+
+Wrapper futures ma czytac tylko lokalne artefakty z `trading/freqtrade/user_data/runtime_artifacts/...`.
+Nie importuje `core` przez repo root.
 
 ## Rola core/
 
-`core/` jest warstwa sterujaca i operatorska.
-To tutaj maja byc spinane:
+`core/` jest mozgiem systemu futures. Tu spinane sa:
 
-- sygnaly strategii,
-- gating ryzyka,
-- polityki systemowe,
-- stan runtime,
-- executive reporting,
-- operatorskie API,
-- bezpieczne workflow agentowe.
+- `RegimeDetector`
+- `RiskManager` / `RiskEngine`
+- `StrategyLayerService`
+- `runtime_artifacts`
+- executive report i operator API
+- `system replay`
 
-Na dzis:
+To w `core/` obowiazuje kanoniczny przeplyw:
 
-- istnieje offline'owy slice `core/control_layer/`
-- dziala read-only bridge do `dry_run`
-- dziala smoke test i snapshot pipeline
-- dziala supervised coding workflow agentow
+1. `RegimeDetector` buduje `regime_report`
+2. `RiskEngine` buduje `risk_decision`
+3. `StrategyLayerService` ocenia strategie i buduje `strategy signals`
+4. execution dostaje tylko to, co przeszlo przez risk
+5. runtime albo replay wykonuje dopuszczone akcje
 
-To nie jest jeszcze finalny mozg systemu, ale to juz nie jest sam szkielet.
+## Rola research/
 
-## Rola ai_agents/
+`research/` jest warstwa budowy edge i kontraktow strategii.
 
-`ai_agents/` opisuje i uruchamia kontrolowane srodowisko pracy agentow AI.
+Tu znajduja sie:
 
-Agenci:
+- manifests kanonicznych strategii
+- eksperymenty i dane replay/backtest
+- archive-only `candidates`
+- roadmapy i evidence dla stewardow
 
-- planuja,
-- raportuja,
-- koduja w waskim ownership,
-- rozwijaja dokumentacje, monitoring, API, GUI, control layer i pion strategii futures.
+Wazna zasada:
 
-Agenci nie:
+- `research/candidates/*` moze sluzyc do porownan historycznych i archiwum
+- nie wolno juz z niego czytac runtime policy dla kanonicznego futures execution
 
-- wykonują live tradingu,
-- nie omijaja `RiskManager`,
-- nie czytaja sekretow,
-- nie dostaja bezposredniego dostepu do REST API Freqtrade,
-- nie podejmuja high-risk decyzji bez review.
+## Rola strategy layer
 
-W aktywowanym pionie strategii futures obowiązuje też dodatkowa hierarchia:
+`strategy layer` wykrywa edge, ale nie zarzadza portfelowym ryzykiem.
 
-- `system_lead_agent` zarządza całym systemem,
-- `strategy_agent` działa jako strategy lead,
-- helperzy strategii (`alpha_research_agent`, `feature_engineering_agent`, `regime_model_agent`, `risk_research_agent`, `experiment_evaluation_agent`) produkują tylko własne artefakty badawcze,
-- tylko `strategy_agent` scala evidence i pilnuje lifecycle kandydatów.
+Odpowiada za:
 
-Docelowo obok `core/` i `trading/` istnieje też warstwa `research/`, w której powstają:
+- sprawdzenie, czy strategia jest aplikowalna w danym regime
+- ocene setupu
+- budowe `strategy signal contract`
+- invalidation i exit template
+- telemetry setup-to-signal
 
-- datasety futures-aware,
-- feature manifests,
-- definicje reżimów,
-- candidate manifests,
-- eksperymenty,
-- promotion evidence.
+Nie odpowiada za:
 
-## Read-only most danych runtime
+- `allow_trading`
+- `allowed_directions`
+- `allowed_strategy_ids`
+- size / exposure / leverage caps
+- cooldown i reduce-only
 
-Docelowy przepływ danych runtime dla agentów jest następujący:
+Zasada:
 
-1. `Freqtrade` działa w prawdziwym `dry_run`
-2. wewnętrzne API Freqtrade jest dostępne tylko dla control layer
-3. `core/` pobiera read-only dane runtime przez dedykowany bridge
-4. control layer zapisuje znormalizowany `dry_run snapshot`
-5. operator i agenci analityczni czytają snapshoty, nie surowe API
+- `strategy proposes, risk permits, execution enforces`
 
-Minimalny kontrakt snapshotu obejmuje:
+## Rola risk
 
-- status `dry_run` i `runmode`
-- aktywną strategię i podstawowe ustawienia runtime
-- podsumowanie salda
-- liczbę otwartych pozycji i ich skrót
-- profit i performance summary
-- status świeżości snapshotu
-- ostrzeżenia runtime
+`risk_decision` jest jedynym kanonicznym kontraktem dopuszczenia runtime.
 
-Bridge ma zwracać czytelne stany błędów:
+Musi pozostac zrodlem prawdy dla:
 
-- `webserver_only`
-- `auth_failed`
-- `runtime_unavailable`
-- `snapshot_stale`
-- `dry_run_disabled`
+- `allow_trading`
+- `new_entries_allowed`
+- `allowed_directions`
+- `allowed_strategy_ids`
+- `max_position_size_pct`
+- `max_total_exposure_pct`
+- `max_positions_total`
+- `max_positions_per_symbol`
+- `max_correlated_positions`
+- `leverage_cap`
+- `force_reduce_only`
+- `cooldown_active`
+- `protective_overrides`
 
-To rozdzielenie jest ważne:
+`risk` nie projektuje edge. `strategy` nie omija risk.
 
-- control layer może czytać runtime Freqtrade
-- agenci AI nie mogą czytać sekretów ani configów runtime
-- agenci AI nie mogą wykonywać write akcji na trading runtime
-- jedynym źródłem danych runtime dla agentów są snapshoty i raporty
+## Rola execution
 
-## Podstawowy przeplyw sterowania
+Execution jest tylko warstwa egzekwujaca.
 
-Docelowy przeplyw jest nastepujacy:
+Odpowiada za:
 
-1. dane i artefakty research trafiaja do warstwy strategii
-2. strategia lub kandydat strategii generuje hipoteze albo sygnal
-3. warstwa ryzyka ocenia, czy kandydat lub sygnal moze przejsc dalej
-4. control layer podejmuje decyzje systemowa
-5. Freqtrade wykonuje tylko zatwierdzona akcje
-6. monitoring, snapshoty i raporty wracaja do ludzi oraz agentow jako feedback
+- admission check
+- stake clamp
+- leverage clamp
+- safe-block przy braku lub starych artefaktach
+- wykonanie zlecenia tylko w granicach `risk_decision`
 
-## Podstawowy przeplyw rozwoju edge
+Execution nie interpretuje rynku i nie zmienia polityki risk.
 
-Rownolegle do przeplywu wykonawczego istnieje przeplyw budowy edge:
+## Runtime artifacts
 
-1. `research/` buduje datasety, cechy i artefakty hipotez futures
-2. helperzy strategii produkuja evidence dla kandydata
-3. `strategy_agent` scala evidence w candidate bundle
-4. kandydat przechodzi gate `backtest + risk + dry_run`
-5. dopiero wtedy moze stac sie `reviewed_candidate` lub `promoted_candidate`
+Kanoniczne artefakty runtime futures:
 
-To oznacza, ze strategia jest rozwijana jak produkt inwestycyjny, a nie jak jednorazowy eksperyment.
+- `.../<bot_id>/risk/latest.json`
+- `.../<bot_id>/signals/latest.json`
+- `.../global/portfolio/latest.json`
 
-## Jak czytac postep implementacji
+Jesli artefakt nie istnieje albo jest nieaktualny:
 
-W tym projekcie nie wolno mieszac trzech roznych znaczen postepu:
+- wrapper przechodzi w `safe-block`
+- nie probuje zgadywac stanu runtime
 
-- `committed_on_task_branch` - agent dowiozl zmiane na branchu worktree; to jest postep review/coding flow, ale jeszcze nie domkniecie platformy
-- `merged_to_main` - zmiana jest juz w glownym repo i dopiero wtedy moze byc liczona jako domkniety przyrost architektury lub platformy
-- `runtime_active` - dzialajaca usluga lub pipeline widoczny w biezacym runtime, np. `dry_run`, snapshot bridge, autopilot lub coding supervisor
+## Globalny futures cluster
 
-Na etapie v1 agentowego workflow domyslna interpretacja jest taka:
+5 botow futures to jeden logiczny portfel:
 
-- `committed` task kodujacy oznacza branch-first progress
-- merge do `main` pozostaje poza agentami i wymaga osobnego kroku nadzoru
-- executive reporting nie powinien sprzedawac branchowego commita jako rownoznacznego z domknieciem platformy
+- wspolne `starting_equity`
+- wspolne caps portfelowe
+- wspolne `max_positions_total`
+- wspolne `max_positions_per_symbol`
+- wspolne `max_correlated_positions`
+- wspolne `max_total_exposure_pct`
 
-## Co znaczy, ze architektura jest "domknieta" na ten etap
+Per-bot runtime nie ma prawa luzowac globalnych limitow.
 
-Na obecnym etapie "domknieta architektura" nie znaczy "wszystko zrobione".
-Znaczy:
+## System replay
 
-- granice warstw sa jasne
-- ownership agentow jest jasny
-- runtime tradingowy jest odseparowany od AI
-- `dry_run` jest bezpiecznym zrodlem danych
-- pion strategii futures ma leada, helperow i evidence-first model pracy
-- executive reporting umie pokazac postep i ryzyka prostym jezykiem
+`core/system_backtest/` jest kanonicznym backtestem calego systemu.
 
-Nie znaczy jeszcze:
+Replay:
+
+- dziala bar-by-bar
+- odpala `regime -> risk -> strategy -> execution`
+- pracuje na jednym wspolnym futures portfelu
+- zapisuje artefakty do `backtests/system/...`
+- nie nadpisuje live `runtime_artifacts`
+
+Dwa tryby replay:
+
+- `fast` - summary, equity, trades, bar log, execution events
+- `full-diagnostic` - dodatkowo per-bar `regime_reports`, `risk_decisions`, `strategy_reports`
+
+Freqtrade backtester pozostaje narzedziem pomocniczym do pojedynczych strategii, a nie prawda systemowa.
+
+## Rola agentow
+
+Agenci AI nie sa elementem krytycznej sciezki execution.
+
+Po fazie domkniecia runtime moga wspierac:
+
+- replay review
+- telemetry review
+- tuning parametrow
+- backtesty strategii
+- changelog i stewarding strategii
+
+Nie wolno im:
+
+- zmieniac centralnego risk desk bez decyzji architektonicznej
+- obchodzic execution guard
+- wykonywac write actions na live/paper runtime
+- czytac sekretow
+
+Status operatorski agentow jest jawny:
+
+- `agents_disabled`
+- `agents_guarded`
+- `agents_active_limited`
+
+To jest kontrola operatorska, a nie ukryty stan.
+
+## Co znaczy paper-ready
+
+Na tym etapie `paper-ready` znaczy:
+
+- futures runtime dziala tylko na torze kanonicznym
+- risk, strategy i execution maja twarde kontrakty
+- `system replay` przechodzi w sensownym czasie bez OOM
+- executive futures view nie miesza spot i futures
+- agenci moga pozostac wylaczeni bez psucia runtime
+
+Nie znaczy to jeszcze:
 
 - gotowosci do live tradingu
-- gotowej, zarabiajacej strategii
-- pelnej automatyzacji strategy factory
-- zamkniecia wszystkich prac operatorskich
-- ze kazdy task `committed` przez agenta jest juz zmergowany do `main`
-
-## Ograniczenie bezpieczenstwa
-
-AI nie wykonuje bezposrednio live trade.
-Zmiany dotyczace runtime, sekretow, live tradingu i konfiguracji krytycznej wymagaja kontroli czlowieka.
-Read-only most `dry_run` nie zmienia tej zasady: daje wglad w dane runtime, ale nie daje agentom prawa do sterowania execution engine.
+- gotowej, stabilnie zarabiajacej strategii
+- pelnej automatyzacji przez agentow

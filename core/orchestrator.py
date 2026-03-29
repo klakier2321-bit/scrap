@@ -133,13 +133,54 @@ class Orchestrator:
             )
 
     def health(self) -> dict[str, Any]:
+        agent_runtime = self.agent_runtime_status()
         return {
             "status": "ok",
             "agent_mode": self.settings.agent_mode,
             "mock_llm": self.settings.agent_use_mock_llm,
             "litellm_url": self.settings.agent_litellm_base_url,
             "kill_switch": self.settings.agent_kill_switch,
+            "runtime_freeze": self.settings.agent_runtime_freeze,
             "docker_available": self.bot_manager.docker_available(),
+            "agents_status": agent_runtime["agents_status"],
+            "agents_reason": agent_runtime.get("agents_reason"),
+        }
+
+    def _has_valid_llm_key(self) -> bool:
+        key = str(self.settings.agent_litellm_api_key or "").strip()
+        if not key:
+            return False
+        lowered = key.lower()
+        if lowered in {"change_me", "disabled", "none", "null"}:
+            return False
+        if key.startswith("DISABLED_TEMP_"):
+            return False
+        return True
+
+    def agent_runtime_status(self) -> dict[str, Any]:
+        if self.settings.agent_kill_switch:
+            return {
+                "agents_status": "agents_disabled",
+                "agents_reason": "kill_switch_enabled",
+            }
+        if self.settings.agent_runtime_freeze:
+            return {
+                "agents_status": "agents_disabled",
+                "agents_reason": "runtime_freeze_enabled",
+            }
+        if not self.settings.agent_use_mock_llm and not self._has_valid_llm_key():
+            return {
+                "agents_status": "agents_disabled",
+                "agents_reason": "missing_valid_api_key",
+            }
+        if self.settings.agent_use_mock_llm or not self.settings.agent_autopilot_enabled:
+            return {
+                "agents_status": "agents_guarded",
+                "agents_reason": "manual_or_mock_mode",
+            }
+        return {
+            "agents_status": "agents_active_limited",
+            "agents_reason": "budget_guarded_runtime",
         }
 
     def list_bots(self) -> list[dict[str, Any]]:
@@ -704,9 +745,18 @@ class Orchestrator:
         return report
 
     def autopilot_status(self) -> dict[str, Any]:
-        return self.autopilot.status()
+        return {
+            **self.autopilot.status(),
+            **self.agent_runtime_status(),
+            "runtime_freeze": self.settings.agent_runtime_freeze,
+        }
 
     def start_autopilot(self) -> dict[str, Any]:
+        runtime_status = self.agent_runtime_status()
+        if runtime_status["agents_status"] == "agents_disabled":
+            raise RuntimeError(
+                f"Autopilot cannot start while agents are disabled: {runtime_status.get('agents_reason') or 'unknown'}."
+            )
         return self.autopilot.start()
 
     def stop_autopilot(self) -> dict[str, Any]:

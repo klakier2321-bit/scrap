@@ -44,6 +44,7 @@ class LocalRuntimeRiskGuardTests(unittest.TestCase):
         path.write_text(json.dumps(payload), encoding="utf-8")
 
     def _write_decision(self, payload: dict) -> None:
+        payload = {"generated_at": self.module._now_iso(), **payload}
         self._write_json(self.guard.risk_decision_path(), payload)
 
     def _write_portfolio(self, payload: dict) -> None:
@@ -129,6 +130,34 @@ class LocalRuntimeRiskGuardTests(unittest.TestCase):
 
         self.assertFalse(result["entry_allowed"])
         self.assertIn(self.module.EXECUTION_BLOCKED_STRATEGY, result["blocked_reason_codes"])
+
+    def test_stale_risk_artifact_blocks_entry(self) -> None:
+        self._write_decision(
+            {
+                "generated_at": "2026-03-20T00:00:00+00:00",
+                "allow_trading": True,
+                "new_entries_allowed": True,
+                "allowed_directions": ["long"],
+                "allowed_strategy_ids": ["trend_pullback_continuation_v1"],
+                "blocked_strategy_ids": [],
+                "max_positions_total": 2,
+                "max_positions_per_symbol": 1,
+                "max_correlated_positions": 1,
+                "force_reduce_only": False,
+                "cooldown_active": False,
+                "protective_overrides": {},
+            }
+        )
+
+        result = self.guard.enforce_entry(
+            strategy_id="trend_pullback_continuation_v1",
+            pair="BTC/USDT:USDT",
+            side="long",
+            signal_profile="standard",
+        )
+
+        self.assertFalse(result["entry_allowed"])
+        self.assertIn(self.module.EXECUTION_RISK_ARTIFACT_STALE, result["blocked_reason_codes"])
 
     def test_stake_and_leverage_are_clamped_from_local_artifacts(self) -> None:
         self._write_decision(

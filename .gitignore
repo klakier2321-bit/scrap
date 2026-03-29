@@ -14,6 +14,14 @@ trading/freqtrade/user_data/strategies/*
 !trading/freqtrade/user_data/strategies/structured_futures_baseline_strategy.py
 !trading/freqtrade/user_data/strategies/structured_futures_short_breakdown_strategy.py
 !trading/freqtrade/user_data/strategies/structured_futures_long_continuation_strategy.py
+!trading/freqtrade/user_data/strategies/canonical_runtime_base.py
+!trading/freqtrade/user_data/strategies/futures_risk_guard_mixin.py
+!trading/freqtrade/user_data/strategies/runtime_risk_guard.py
+!trading/freqtrade/user_data/strategies/trend_pullback_continuation_runtime_strategy.py
+!trading/freqtrade/user_data/strategies/breakout_from_compression_runtime_strategy.py
+!trading/freqtrade/user_data/strategies/range_mean_reversion_runtime_strategy.py
+!trading/freqtrade/user_data/strategies/panic_reversal_runtime_strategy.py
+!trading/freqtrade/user_data/strategies/defense_only_runtime_strategy.py
 !trading/freqtrade/user_data/config.backtest.futures.baseline.json
 !trading/freqtrade/user_data/config.dryrun.futures.baseline.json
 trading/freqtrade/user_data/config.json

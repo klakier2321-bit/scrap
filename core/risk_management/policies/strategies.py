@@ -59,8 +59,16 @@ def evaluate_strategy_permissions(
     data_trust_level: str,
     event_overrides: dict[str, Any],
 ) -> dict[str, Any]:
-    eligible_from_regime = set(regime_report.get("eligible_candidate_ids") or [])
-    blocked_from_regime = set(regime_report.get("blocked_candidate_ids") or [])
+    eligible_from_regime = set(
+        regime_report.get("eligible_strategy_ids")
+        or regime_report.get("eligible_candidate_ids")
+        or []
+    )
+    blocked_from_regime = set(
+        regime_report.get("blocked_strategy_ids")
+        or regime_report.get("blocked_candidate_ids")
+        or []
+    )
     primary_regime = str(regime_report.get("primary_regime") or "unknown")
     market_state = regime_report.get("market_state")
     market_phase = regime_report.get("market_phase")

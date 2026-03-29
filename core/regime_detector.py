@@ -181,6 +181,7 @@ class RegimeDetector:
         self.output_dir = output_dir
         self.replay_dir = replay_dir
         self.research_dir = research_dir
+        self.strategy_manifests_dir = research_dir / "strategies" / "manifests"
         self.definition_path = definition_path or (
             research_dir / "regimes" / "regime_definition_v1.yaml"
         )
@@ -220,7 +221,7 @@ class RegimeDetector:
     def generate_report(self, *, derivatives_report: dict[str, Any] | None = None) -> dict[str, Any]:
         definition = self._load_definition()
         previous_report = self.latest_report()
-        candidate_manifests = self._load_candidate_manifests()
+        strategy_manifests = self._load_strategy_manifests()
         symbol_features = self._build_symbol_features(definition)
         feature_snapshot = self._aggregate_features(symbol_features, definition)
         feature_snapshot = self._merge_derivatives_context(
@@ -340,21 +341,22 @@ class RegimeDetector:
         )
         lead_symbol, lag_confirmation = self._derive_market_leadership(symbol_features, consensus)
         outcome_tracking_status = "replay_backfilled" if self.latest_replay_report() else "not_started"
-        eligible, blocked = self._candidate_eligibility(
-            candidate_manifests,
+        eligible, blocked = self._strategy_eligibility(
+            strategy_manifests,
             primary_regime=stabilized["primary_regime"],
             htf_bias=htf_bias,
             market_state=market_state,
             market_phase=market_phase,
             execution_constraints=execution_constraints,
         )
-        strategy_priority_order = self._rank_candidates(
-            manifests=candidate_manifests,
-            eligible_candidate_ids=eligible,
+        strategy_priority_order = self._rank_strategies(
+            manifests=strategy_manifests,
+            eligible_strategy_ids=eligible,
             bias=bias,
             primary_regime=stabilized["primary_regime"],
             market_state=market_state,
             market_phase=market_phase,
+            execution_constraints=execution_constraints,
         )
 
         report = {
@@ -370,6 +372,8 @@ class RegimeDetector:
             "derivatives_state": feature_snapshot["derivatives_state"],
             "feature_snapshot": feature_snapshot,
             "reasons": stabilized["reasons"][:DEFAULT_REASONS_LIMIT],
+            "eligible_strategy_ids": eligible,
+            "blocked_strategy_ids": blocked,
             "eligible_candidate_ids": eligible,
             "blocked_candidate_ids": blocked,
             "candidate_freeze_mode": definition.get("freeze_build_mode", "freeze_build_keep_dry_run"),
@@ -551,9 +555,9 @@ class RegimeDetector:
     def _load_definition(self) -> dict[str, Any]:
         return yaml.safe_load(self.definition_path.read_text(encoding="utf-8")) or {}
 
-    def _load_candidate_manifests(self) -> list[dict[str, Any]]:
+    def _load_strategy_manifests(self) -> list[dict[str, Any]]:
         manifests: list[dict[str, Any]] = []
-        for path in sorted((self.research_dir / "candidates").glob("*/strategy_manifest.yaml")):
+        for path in sorted(self.strategy_manifests_dir.glob("*.yaml")):
             payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             manifests.append(payload)
         return manifests
@@ -1916,7 +1920,7 @@ class RegimeDetector:
             lag_confirmation = "divergent"
         return lead_symbol, lag_confirmation
 
-    def _candidate_eligibility(
+    def _strategy_eligibility(
         self,
         manifests: list[dict[str, Any]],
         *,
@@ -1929,53 +1933,50 @@ class RegimeDetector:
         eligible: list[str] = []
         blocked: list[str] = []
         for manifest in manifests:
-            candidate_id = str(manifest.get("strategy_id") or "")
-            if not candidate_id:
+            strategy_id = str(manifest.get("strategy_id") or "")
+            if not strategy_id:
                 continue
-            allowed_regimes = list(manifest.get("allowed_primary_regimes") or [])
-            blocked_regimes = list(manifest.get("blocked_primary_regimes") or [])
-            allowed_biases = list(manifest.get("allowed_htf_biases") or [])
-            allowed_states = list(manifest.get("allowed_market_states") or [])
-            blocked_states = list(manifest.get("blocked_market_states") or [])
-            blocked_phases = list(manifest.get("blocked_market_phases") or [])
-            policy = manifest.get("execution_constraints_policy") or {}
+            status = str(manifest.get("status") or "proposed")
+            if status not in {"experimental", "shadow", "active", "restricted"}:
+                blocked.append(strategy_id)
+                continue
+            supported_regimes = list(manifest.get("supported_regimes") or [])
+            supported_biases = list(manifest.get("supported_biases") or [])
+            supported_states = list(manifest.get("supported_market_states") or [])
+            supported_phases = list(manifest.get("supported_market_phases") or [])
+            disallowed_conditions = set(str(item) for item in list(manifest.get("disallowed_conditions") or []))
 
-            if primary_regime in blocked_regimes:
-                blocked.append(candidate_id)
+            if supported_regimes and primary_regime not in supported_regimes:
+                blocked.append(strategy_id)
                 continue
-            if allowed_regimes and primary_regime not in allowed_regimes:
-                blocked.append(candidate_id)
+            if supported_biases and htf_bias not in supported_biases:
+                blocked.append(strategy_id)
                 continue
-            if allowed_biases and htf_bias not in allowed_biases:
-                blocked.append(candidate_id)
+            if supported_states and market_state not in supported_states:
+                blocked.append(strategy_id)
                 continue
-            if market_state in blocked_states:
-                blocked.append(candidate_id)
+            if supported_phases and market_phase not in supported_phases:
+                blocked.append(strategy_id)
                 continue
-            if allowed_states and market_state not in allowed_states:
-                blocked.append(candidate_id)
+            if execution_constraints["no_trade_zone"] and "no_trade_zone" in disallowed_conditions:
+                blocked.append(strategy_id)
                 continue
-            if market_phase in blocked_phases:
-                blocked.append(candidate_id)
+            if execution_constraints["post_shock_cooldown"] and "post_shock_cooldown" in disallowed_conditions:
+                blocked.append(strategy_id)
                 continue
-            if execution_constraints["no_trade_zone"] and policy.get("no_trade_zone") == "block":
-                blocked.append(candidate_id)
-                continue
-            if execution_constraints["post_shock_cooldown"] and policy.get("post_shock_cooldown") == "block":
-                blocked.append(candidate_id)
-                continue
-            eligible.append(candidate_id)
+            eligible.append(strategy_id)
         return eligible, blocked
 
-    def _rank_candidates(
+    def _rank_strategies(
         self,
         *,
         manifests: list[dict[str, Any]],
-        eligible_candidate_ids: list[str],
+        eligible_strategy_ids: list[str],
         bias: str,
         primary_regime: str,
         market_state: str,
         market_phase: str,
+        execution_constraints: dict[str, bool],
     ) -> list[str]:
         scored: list[tuple[float, str]] = []
         manifests_by_id = {
@@ -1983,26 +1984,33 @@ class RegimeDetector:
             for manifest in manifests
             if manifest.get("strategy_id")
         }
-        for candidate_id in eligible_candidate_ids:
-            manifest = manifests_by_id.get(candidate_id, {})
+        for strategy_id in eligible_strategy_ids:
+            manifest = manifests_by_id.get(strategy_id, {})
             score = 0.0
-            if primary_regime in list(manifest.get("allowed_primary_regimes") or []):
+            if primary_regime in list(manifest.get("supported_regimes") or []):
                 score += 3.0
-            if bias in list(manifest.get("allowed_htf_biases") or []):
+            if bias in list(manifest.get("supported_biases") or []):
                 score += 1.5
-            if market_state in list(manifest.get("allowed_market_states") or []):
+            if market_state in list(manifest.get("supported_market_states") or []):
                 score += 1.5
-            if market_phase in list(manifest.get("preferred_market_phases") or []):
+            if market_phase in list(manifest.get("supported_market_phases") or []):
                 score += 1.0
-            if candidate_id.endswith("short_breakdown_v1") and bias == "short":
-                score += 1.5
-            if candidate_id.endswith("long_continuation_v1") and bias == "long":
-                score += 1.5
-            if candidate_id.endswith("baseline_v1"):
-                score += 0.5
-            scored.append((score, candidate_id))
+            family = str(manifest.get("strategy_family") or "")
+            if family == "pullback_trend" and market_phase == "pullback":
+                score += 1.25
+            if family == "breakout" and market_phase == "compression":
+                score += 1.1
+            if family == "mean_reversion" and primary_regime in {"range", "low_vol"}:
+                score += 0.8
+            if family == "panic_reversal" and primary_regime == "stress_panic":
+                score += 1.75
+            if family == "defense_only" and (
+                execution_constraints.get("no_trade_zone") or execution_constraints.get("post_shock_cooldown")
+            ):
+                score += 0.9
+            scored.append((score, strategy_id))
         scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
-        return [candidate_id for _, candidate_id in scored]
+        return [strategy_id for _, strategy_id in scored]
 
     def _summarize_replay_reports(
         self,

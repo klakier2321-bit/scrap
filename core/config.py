@@ -28,6 +28,7 @@ class AppSettings(BaseSettings):
     agent_global_per_run_budget_usd: float = 0.5
     agent_allow_mock_fallback: bool = True
     agent_kill_switch: bool = False
+    agent_runtime_freeze: bool = False
     agent_autopilot_enabled: bool = False
     agent_autopilot_poll_interval_seconds: int = 300
     agent_autopilot_max_cycles: int = 0

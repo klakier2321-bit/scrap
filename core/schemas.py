@@ -50,7 +50,10 @@ class HealthResponse(BaseModel):
     mock_llm: bool
     litellm_url: str
     kill_switch: bool
+    runtime_freeze: bool
     docker_available: bool
+    agents_status: str
+    agents_reason: str | None = None
 
 
 class AgentRunRequest(BaseModel):
@@ -267,6 +270,8 @@ class RegimeStatusResponse(BaseModel):
     derivatives_state: dict[str, Any] = Field(default_factory=dict)
     feature_snapshot: dict[str, Any] = Field(default_factory=dict)
     reasons: list[str] = Field(default_factory=list)
+    eligible_strategy_ids: list[str] = Field(default_factory=list)
+    blocked_strategy_ids: list[str] = Field(default_factory=list)
     eligible_candidate_ids: list[str] = Field(default_factory=list)
     blocked_candidate_ids: list[str] = Field(default_factory=list)
     candidate_freeze_mode: str | None = None
@@ -473,6 +478,9 @@ class AutopilotStatusResponse(BaseModel):
     task_names: list[str] = Field(default_factory=list)
     next_task_name: str | None = None
     config_path: str
+    agents_status: str
+    agents_reason: str | None = None
+    runtime_freeze: bool = False
 
 
 class CodingTaskCreateRequest(BaseModel):

@@ -381,8 +381,9 @@ executive_dashboard:
 
             self.assertEqual(
                 report["candidate_factory"]["shipping_candidate_id"],
-                "structured_futures_baseline_v1",
+                None,
             )
+            self.assertEqual(report["candidate_factory"]["factory_mode"], "archive_only")
             self.assertEqual(report["summary"]["candidate_assessments_total"], 1)
             self.assertEqual(report["summary"]["candidate_dry_run_ready"], 1)
 
@@ -484,7 +485,7 @@ executive_dashboard:
 
             self.assertEqual(
                 report["candidate_factory"]["factory_mode"],
-                "regime_first_freeze_build_keep_dry_run",
+                "archive_only",
             )
             self.assertEqual(report["summary"]["regime_available"], 1)
             self.assertEqual(report["summary"]["derivatives_available"], 1)
@@ -492,3 +493,31 @@ executive_dashboard:
             self.assertEqual(report["regime"]["latest"]["primary_regime"], "trend_up")
             self.assertEqual(report["regime"]["derivatives_runtime_quality"]["source"], "binance_futures_public_api")
             self.assertEqual(report["summary"]["derivatives_proxy_share"], 0.0)
+
+    def test_disabled_agents_do_not_raise_autopilot_attention_blocker(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            _write_exec_config(repo_root)
+            service = ExecutiveReportService(repo_root)
+
+            report = service.build_report(
+                runs=[],
+                autopilot_status={
+                    "running": False,
+                    "poll_interval_seconds": 300,
+                    "agents_status": "agents_disabled",
+                    "agents_reason": "runtime_freeze_enabled",
+                },
+                strategy_report=None,
+                dry_run_health={"ready": True, "runtime_mode": "futures_cluster"},
+                dry_run_snapshot=None,
+                dry_run_smoke=None,
+                control_status=None,
+                coding_status={"running": False, "enabled": True, "attention_needed": False},
+                coding_tasks=[],
+                coding_workspaces=[],
+            )
+
+            blocker_ids = {blocker["blocker_id"] for blocker in report["blockers"]}
+            self.assertNotIn("autopilot:attention", blocker_ids)
+            self.assertEqual(report["summary"]["agents_disabled"], 1)

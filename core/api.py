@@ -61,7 +61,13 @@ async def lifespan(_: FastAPI):
         suppress_crewai_trace_console()
     setup_tracing(app, settings)
     if settings.agent_autopilot_enabled:
-        get_orchestrator().start_autopilot()
+        try:
+            get_orchestrator().start_autopilot()
+        except RuntimeError:
+            logging.getLogger("crypto_system.control_api").warning(
+                "Autopilot auto-start skipped because agents are disabled.",
+                extra={"event": "autopilot_autostart_skipped"},
+            )
     if settings.agent_coding_enabled and settings.agent_coding_auto_start:
         get_orchestrator().start_coding_supervisor()
     yield
@@ -483,7 +489,10 @@ async def ops_autopilot_status() -> AutopilotStatusResponse:
     include_in_schema=False,
 )
 async def ops_autopilot_start() -> AutopilotStatusResponse:
-    return AutopilotStatusResponse(**get_orchestrator().start_autopilot())
+    try:
+        return AutopilotStatusResponse(**get_orchestrator().start_autopilot())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.post(
