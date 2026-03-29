@@ -35,15 +35,19 @@ class StrategyLayerService:
         self.manifests_dir = manifests_dir
         self.output_dir = output_dir
         self.telemetry_dir = telemetry_dir
+        self._manifest_cache: list[dict[str, Any]] | None = None
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.telemetry_dir.mkdir(parents=True, exist_ok=True)
 
     def list_manifests(self) -> list[dict[str, Any]]:
+        if self._manifest_cache is not None:
+            return [dict(item) for item in self._manifest_cache]
         manifests: list[dict[str, Any]] = []
         for path in sorted(self.manifests_dir.glob("*.yaml")):
             payload = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             manifest = self._validate_manifest(payload, path)
             manifests.append(manifest.to_dict())
+        self._manifest_cache = [dict(item) for item in manifests]
         return manifests
 
     def latest_report(self, *, bot_id: str = "ft_trend_pullback_continuation_v1") -> dict[str, Any] | None:
@@ -59,6 +63,8 @@ class StrategyLayerService:
         risk_decision: dict[str, Any] | None,
         bot_id: str = "ft_trend_pullback_continuation_v1",
         strategy_filter_ids: list[str] | None = None,
+        persist: bool = True,
+        emit_telemetry: bool = True,
     ) -> dict[str, Any]:
         generated_at = now_iso()
         manifests = self.list_manifests()
@@ -83,7 +89,8 @@ class StrategyLayerService:
                 "applicable_strategy_ids": [],
                 "blocked_strategy_ids": [],
             }
-            self._persist(bot_id, report)
+            if persist:
+                self._persist(bot_id, report)
             return report
 
         context = self._build_context(
@@ -114,16 +121,17 @@ class StrategyLayerService:
                 blocked["applicability"]["reasons"] = manifest_mismatch_reasons
                 blocked["risk_gate"] = {"allowed": False, "reasons": manifest_mismatch_reasons}
                 evaluations.append(blocked)
-                self._emit_telemetry(
-                    manifest.strategy_id,
-                    {
-                        "generated_at": generated_at,
-                        "event_type": "setup_rejected",
-                        "strategy_id": manifest.strategy_id,
-                        "reasons": manifest_mismatch_reasons,
-                        "risk_gate": blocked["risk_gate"],
-                    },
-                )
+                if emit_telemetry:
+                    self._emit_telemetry(
+                        manifest.strategy_id,
+                        {
+                            "generated_at": generated_at,
+                            "event_type": "setup_rejected",
+                            "strategy_id": manifest.strategy_id,
+                            "reasons": manifest_mismatch_reasons,
+                            "risk_gate": blocked["risk_gate"],
+                        },
+                    )
                 continue
 
             strategy_cls = STRATEGY_REGISTRY.get(manifest.strategy_id)
@@ -149,16 +157,17 @@ class StrategyLayerService:
 
             if not applicability.applicable:
                 evaluations.append(evaluation)
-                self._emit_telemetry(
-                    manifest.strategy_id,
-                    {
-                        "generated_at": generated_at,
-                        "event_type": "setup_rejected",
-                        "strategy_id": manifest.strategy_id,
-                        "reasons": applicability.reasons,
-                        "risk_gate": risk_gate,
-                    },
-                )
+                if emit_telemetry:
+                    self._emit_telemetry(
+                        manifest.strategy_id,
+                        {
+                            "generated_at": generated_at,
+                            "event_type": "setup_rejected",
+                            "strategy_id": manifest.strategy_id,
+                            "reasons": applicability.reasons,
+                            "risk_gate": risk_gate,
+                        },
+                    )
                 continue
 
             setup = strategy.evaluate_setup(context)
@@ -203,16 +212,17 @@ class StrategyLayerService:
                 blocked_by_risk_strategy_ids.append(manifest.strategy_id)
 
             evaluations.append(evaluation)
-            self._emit_telemetry(
-                manifest.strategy_id,
-                {
-                    "generated_at": generated_at,
-                    "event_type": "signal_built" if signal else "setup_evaluated",
-                    "strategy_id": manifest.strategy_id,
-                    "telemetry_snapshot": telemetry_snapshot,
-                    "risk_gate": risk_gate,
-                },
-            )
+            if emit_telemetry:
+                self._emit_telemetry(
+                    manifest.strategy_id,
+                    {
+                        "generated_at": generated_at,
+                        "event_type": "signal_built" if signal else "setup_evaluated",
+                        "strategy_id": manifest.strategy_id,
+                        "telemetry_snapshot": telemetry_snapshot,
+                        "risk_gate": risk_gate,
+                    },
+                )
 
         built_signals.sort(
             key=lambda item: (
@@ -251,7 +261,8 @@ class StrategyLayerService:
             "preferred_risk_admitted_strategy_id": preferred_risk_admitted_strategy_id,
             "ranking": ranking,
         }
-        self._persist(bot_id, report)
+        if persist:
+            self._persist(bot_id, report)
         return report
 
     def _build_context(

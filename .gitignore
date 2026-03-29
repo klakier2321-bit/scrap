@@ -26,4 +26,5 @@ monitoring/logs/*
 !monitoring/logs/.gitkeep
 monitoring/reports/*
 !monitoring/reports/README.md
+backtests/system/*
 .DS_Store

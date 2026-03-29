@@ -54,6 +54,11 @@ def evaluate_data_quality(derivatives_state: dict[str, Any] | None) -> DataQuali
         notes.append("Feed derivatives jest stary, wiec eventy pozostaja tylko sygnalem defensywnym.")
     elif feed_status == "ok" and vendor_available and age is not None and age <= 300 and reliability in {"medium", "high"}:
         trust_level = "full_trust"
+    elif source == "replay_proxy" and feed_status == "replay_proxy" and not is_stale:
+        trust_level = "limited_trust"
+        validation_status = "valid_with_degradation"
+        degradation_flags["event_decisions_limited"] = True
+        notes.append("Replay proxy dostarcza spojny kontekst derivatives do backtestu systemowego, ale bez pelnego trustu eventowego.")
     elif source in {"binance_futures_public_api", "local_vendor_snapshot"} and age is not None and age <= 900:
         trust_level = "limited_trust"
         validation_status = "valid_with_degradation"

@@ -414,6 +414,7 @@ class RiskManager:
         candidate_manifests: list[dict[str, Any]] | None = None,
         portfolio_state: Any = None,
         bot_id: str = "runtime",
+        persist: bool = True,
     ) -> dict[str, Any]:
         return self.engine.evaluate(
             regime_report=regime_report,
@@ -421,6 +422,7 @@ class RiskManager:
             candidate_manifests=candidate_manifests,
             portfolio_state=portfolio_state,
             bot_id=bot_id,
+            persist=persist,
         )
 
     def latest_risk_decision(self, *, bot_id: str = "runtime") -> dict[str, Any] | None:

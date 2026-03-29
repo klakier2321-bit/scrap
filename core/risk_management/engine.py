@@ -46,6 +46,7 @@ class RiskEngine:
         candidate_manifests: list[dict[str, Any]] | None = None,
         portfolio_state: PortfolioState | None = None,
         bot_id: str = "runtime",
+        persist: bool = True,
     ) -> dict[str, Any]:
         strategy_manifests = list(strategy_manifests or candidate_manifests or [])
         decision = empty_risk_decision()
@@ -55,8 +56,13 @@ class RiskEngine:
         if not regime_report:
             decision["risk_reason_codes"].append("REGIME_REPORT_MISSING")
             decision["risk_notes"].append("Brakuje regime_report, wiec risk engine przechodzi w tryb blocked.")
-            self._persist(bot_id, decision)
+            if persist:
+                self._persist(bot_id, decision)
             return decision
+
+        # Reset protective defaults inherited from the empty blocked decision.
+        # From this point onward, these flags must reflect the evaluated runtime state.
+        decision["force_reduce_only"] = False
 
         derivatives_state = dict(regime_report.get("derivatives_state") or regime_report.get("derivatives_state_global") or {})
         data_quality = evaluate_data_quality(derivatives_state)
@@ -226,7 +232,8 @@ class RiskEngine:
 
         self._dedupe_lists(decision)
         decision = self._merge_enforcement_status(bot_id, decision)
-        self._persist(bot_id, decision)
+        if persist:
+            self._persist(bot_id, decision)
         return decision
 
     @staticmethod

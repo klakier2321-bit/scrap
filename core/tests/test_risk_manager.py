@@ -207,6 +207,7 @@ class RiskManagerStrategyReadinessTests(unittest.TestCase):
         self.assertGreater(decision["max_total_exposure_pct"], 0.0)
         self.assertLessEqual(decision["leverage_cap"], 2.0)
         self.assertIn("short_candidate", decision["allowed_strategy_ids"])
+        self.assertFalse(decision["force_reduce_only"])
 
     def test_evaluate_risk_blocks_no_trade_zone(self) -> None:
         decision = self.manager.evaluate_risk(
@@ -378,6 +379,61 @@ class RiskManagerStrategyReadinessTests(unittest.TestCase):
             "PORTFOLIO_POSITION_LIMIT_REACHED",
             decision["risk_reason_codes"],
         )
+
+    def test_evaluate_risk_treats_replay_proxy_as_limited_trust(self) -> None:
+        decision = self.manager.evaluate_risk(
+            regime_report={
+                "primary_regime": "trend_up",
+                "confidence": 0.78,
+                "risk_level": "low",
+                "risk_regime": "normal",
+                "regime_quality": 0.74,
+                "htf_bias": "long",
+                "market_state": "trend",
+                "market_phase": "pullback",
+                "volatility_phase": "cooling",
+                "execution_constraints": {
+                    "no_trade_zone": False,
+                    "reduced_exposure_only": False,
+                    "high_noise_environment": False,
+                    "post_shock_cooldown": False,
+                },
+                "position_size_multiplier": 1.0,
+                "entry_aggressiveness": "moderate",
+                "market_consensus": "strong_bullish",
+                "consensus_strength": 0.72,
+                "eligible_candidate_ids": ["candidate_v1"],
+                "blocked_candidate_ids": [],
+                "active_event_flags": {},
+                "actionable_event_flags": {},
+                "active_event_flags_reliability": "low",
+                "derivatives_state": {
+                    "feed_status": "replay_proxy",
+                    "source": "replay_proxy",
+                    "vendor_available": False,
+                    "event_reliability": "low",
+                    "liquidation_event_confidence": "low",
+                    "age_seconds": 0,
+                    "is_stale": False,
+                    "squeeze_risk": "low",
+                    "positioning_state": "long_build",
+                    "oi_price_agreement": "long_build",
+                },
+            },
+            candidate_manifests=[
+                {
+                    "strategy_id": "candidate_v1",
+                    "strategy_family": "pullback_trend",
+                    "risk_profile": "balanced",
+                    "allowed_sides": "long",
+                }
+            ],
+            portfolio_state=None,
+        )
+
+        self.assertEqual(decision["data_trust_level"], "limited_trust")
+        self.assertEqual(decision["data_validation_status"], "valid_with_degradation")
+        self.assertIn("LOW_EVENT_RELIABILITY", decision["risk_reason_codes"])
 
     def test_build_candidate_runtime_policy_blocks_strategy_filtered_by_risk_engine(self) -> None:
         policy = self.manager.build_candidate_runtime_policy(

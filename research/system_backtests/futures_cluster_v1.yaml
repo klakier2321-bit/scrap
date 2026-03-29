@@ -1,0 +1,20 @@
+universe:
+  - BTC/USDT:USDT
+  - ETH/USDT:USDT
+base_timeframe: 5m
+htf_timeframe: 1h
+starting_equity: 10000.0
+fee_rate: 0.0004
+slippage_rate: 0.0002
+replay_warmup_bars: 288
+replay_warmup_1h_bars: 72
+enabled_strategy_ids:
+  - trend_pullback_continuation_v1
+  - breakout_from_compression_v1
+  - range_mean_reversion_v1
+  - panic_reversal_v1
+  - defense_only_v1
+output_root: backtests/system
+user_data_dir: trading/freqtrade/user_data
+research_dir: research
+scenario_overrides: {}
