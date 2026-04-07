@@ -1926,6 +1926,56 @@ class RegimeDetector:
             lag_confirmation = "divergent"
         return lead_symbol, lag_confirmation
 
+    @staticmethod
+    def _translate_legacy_candidate_manifest(candidate_manifest: dict[str, Any]) -> dict[str, Any]:
+        disallowed_conditions = list(candidate_manifest.get("disallowed_conditions") or [])
+        execution_constraints_policy = dict(candidate_manifest.get("execution_constraints_policy") or {})
+        for constraint_name, policy in execution_constraints_policy.items():
+            policy_text = str(policy or "").strip().lower()
+            if policy is True or policy_text == "block":
+                disallowed_conditions.append(str(constraint_name))
+
+        supported_market_phases = list(candidate_manifest.get("supported_market_phases") or [])
+        preferred_market_phases = list(candidate_manifest.get("preferred_market_phases") or [])
+        if not supported_market_phases and preferred_market_phases:
+            supported_market_phases = preferred_market_phases
+
+        return {
+            "strategy_id": candidate_manifest.get("strategy_id"),
+            "status": candidate_manifest.get("status") or "active",
+            "strategy_family": candidate_manifest.get("strategy_family"),
+            "risk_profile": candidate_manifest.get("risk_profile"),
+            "execution_style": candidate_manifest.get("execution_style"),
+            "supported_regimes": list(candidate_manifest.get("supported_regimes") or candidate_manifest.get("allowed_primary_regimes") or []),
+            "supported_market_states": list(candidate_manifest.get("supported_market_states") or candidate_manifest.get("allowed_market_states") or []),
+            "supported_market_phases": supported_market_phases,
+            "supported_biases": list(candidate_manifest.get("supported_biases") or candidate_manifest.get("allowed_htf_biases") or []),
+            "disallowed_conditions": sorted({str(item) for item in disallowed_conditions if str(item).strip()}),
+        }
+
+    def _candidate_eligibility(
+        self,
+        candidate_manifests: list[dict[str, Any]],
+        *,
+        primary_regime: str,
+        htf_bias: str,
+        market_state: str,
+        market_phase: str,
+        execution_constraints: dict[str, bool],
+    ) -> tuple[list[str], list[str]]:
+        translated_manifests = [
+            self._translate_legacy_candidate_manifest(candidate_manifest)
+            for candidate_manifest in candidate_manifests
+        ]
+        return self._strategy_eligibility(
+            translated_manifests,
+            primary_regime=primary_regime,
+            htf_bias=htf_bias,
+            market_state=market_state,
+            market_phase=market_phase,
+            execution_constraints=execution_constraints,
+        )
+
     def _strategy_eligibility(
         self,
         manifests: list[dict[str, Any]],
@@ -1972,6 +2022,30 @@ class RegimeDetector:
                 continue
             eligible.append(strategy_id)
         return eligible, blocked
+
+    def _rank_candidates(
+        self,
+        *,
+        manifests: list[dict[str, Any]],
+        eligible_candidate_ids: list[str],
+        bias: str,
+        primary_regime: str,
+        market_state: str,
+        market_phase: str,
+    ) -> list[str]:
+        translated_manifests = [
+            self._translate_legacy_candidate_manifest(candidate_manifest)
+            for candidate_manifest in manifests
+        ]
+        return self._rank_strategies(
+            manifests=translated_manifests,
+            eligible_strategy_ids=eligible_candidate_ids,
+            bias=bias,
+            primary_regime=primary_regime,
+            market_state=market_state,
+            market_phase=market_phase,
+            execution_constraints={},
+        )
 
     def _rank_strategies(
         self,

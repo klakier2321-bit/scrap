@@ -459,6 +459,35 @@ class RegimeDetectorTests(unittest.TestCase):
         self.assertEqual(sorted(eligible), ["baseline", "short_breakdown"])
         self.assertEqual(sorted(blocked), ["range_candidate"])
 
+    def test_candidate_eligibility_translates_no_trade_policy_to_disallowed_condition(self) -> None:
+        eligible, blocked = self.detector._candidate_eligibility(
+            [
+                {
+                    "strategy_id": "breakout_candidate",
+                    "allowed_primary_regimes": ["low_vol"],
+                    "allowed_market_states": ["range"],
+                    "execution_constraints_policy": {"no_trade_zone": "block"},
+                },
+                {
+                    "strategy_id": "defense_candidate",
+                    "allowed_primary_regimes": ["low_vol"],
+                    "allowed_market_states": ["range"],
+                },
+            ],
+            primary_regime="low_vol",
+            htf_bias="neutral",
+            market_state="range",
+            market_phase="compression",
+            execution_constraints={
+                "no_trade_zone": True,
+                "reduced_exposure_only": False,
+                "high_noise_environment": True,
+                "post_shock_cooldown": False,
+            },
+        )
+        self.assertEqual(eligible, ["defense_candidate"])
+        self.assertEqual(blocked, ["breakout_candidate"])
+
     def test_rank_candidates_prefers_short_candidate_in_bearish_pullback(self) -> None:
         ranked = self.detector._rank_candidates(
             manifests=[

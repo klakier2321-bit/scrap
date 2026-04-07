@@ -135,6 +135,25 @@ Nowe pola V1.5:
 - `lag_confirmation`
 - `outcome_tracking_status`
 
+Kanoniczne pola selekcji strategii to:
+
+- `eligible_strategy_ids`
+- `blocked_strategy_ids`
+
+Backward-compatible aliasy dla legacy konsumentów to:
+
+- `eligible_candidate_ids`
+- `blocked_candidate_ids`
+
+W samym `RegimeDetector` istnieją tez legacy shim wrappers:
+
+- `_candidate_eligibility(...)`
+- `_rank_candidates(...)`
+
+Sa one utrzymywane tylko dla kompatybilnosci ze starszymi testami i modulami.
+Zrodlem prawdy pozostaje model strategy-first (`_strategy_eligibility`, `_rank_strategies`).
+Migracja do strict strategy-first bedzie osobnym etapem i nie jest czescia tej naprawy.
+
 `derivatives_state` jest teraz obiektem, a nie prostym stringiem. Ma opisywać:
 
 - status feedu
