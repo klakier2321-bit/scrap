@@ -90,7 +90,10 @@ class DerivativesFeed:
         path = self.output_dir / "latest.json"
         if not path.exists():
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
 
     def list_reports(self, limit: int = 20) -> list[dict[str, Any]]:
         if not self.output_dir.exists():

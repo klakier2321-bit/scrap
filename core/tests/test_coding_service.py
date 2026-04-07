@@ -390,3 +390,42 @@ coding_runtime:
         self.assertFalse(status["attention_needed"])
         self.assertTrue(status["active_worker_alive"])
         self.assertEqual(status["active_task_id"], task["task_id"])
+
+    def test_resource_guard_blocks_queue_refresh_and_dispatch(self) -> None:
+        service = CodingSupervisorService(
+            settings=self.settings,
+            store=self.store,
+            agent_runtime=FakeAgentRuntime(),
+            executive_report_provider=lambda: {
+                "strategic_goal": "Protect the host.",
+                "modules": [{"id": "control_layer_runtime", "name": "Control layer"}],
+                "recent_changes": [],
+                "blockers": [],
+            },
+            resource_guard_provider=lambda: {
+                "enabled": True,
+                "allow_new_runs": False,
+                "allow_coding_dispatch": False,
+                "primary_reason": "low_available_memory",
+                "blocked_reasons": ["low_available_memory"],
+                "operator_message": "Available memory is low and coding dispatch is paused for safety.",
+                "notes": ["Available memory dropped below the configured threshold."],
+                "resources": {},
+            },
+        )
+
+        service._refresh_lead_queue()
+        self.assertEqual(service.list_coding_tasks(limit=5), [])
+
+        task = service.create_manual_task(module_id="control_layer_runtime")
+        service._dispatch_ready_task()
+
+        updated = service.get_coding_task(task["task_id"])
+        status = service.status()
+        self.assertEqual(updated["status"], "ready")
+        self.assertTrue(status["attention_needed"])
+        self.assertEqual(
+            status["resource_guard"]["primary_reason"],
+            "low_available_memory",
+        )
+        self.assertIn("paused for safety", (status["last_error"] or "").lower())

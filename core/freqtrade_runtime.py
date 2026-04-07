@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import socket
 from typing import Any
 from urllib import error, request
 
@@ -75,6 +76,11 @@ class FreqtradeRuntimeClient:
             raise FreqtradeRuntimeError(
                 "runtime_unavailable",
                 f"Freqtrade runtime API is unavailable: {reason}",
+            ) from exc
+        except (TimeoutError, socket.timeout, OSError) as exc:
+            raise FreqtradeRuntimeError(
+                "runtime_unavailable",
+                f"Freqtrade runtime API timed out or became unavailable: {exc}",
             ) from exc
 
         try:

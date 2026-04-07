@@ -214,6 +214,20 @@ class AutopilotService:
         while time.time() < deadline and not self._stop_event.is_set():
             time.sleep(1)
 
+    def _runtime_blocker_reason(self) -> str | None:
+        if hasattr(self.orchestrator, "effective_kill_switch_enabled"):
+            if bool(self.orchestrator.effective_kill_switch_enabled()):
+                return "Agent kill switch is enabled."
+        elif bool(getattr(self.orchestrator.settings, "agent_kill_switch", False)):
+            return "Agent kill switch is enabled."
+
+        if hasattr(self.orchestrator, "effective_runtime_freeze_enabled"):
+            if bool(self.orchestrator.effective_runtime_freeze_enabled()):
+                return "Agent runtime freeze is enabled."
+        elif bool(getattr(self.orchestrator.settings, "agent_runtime_freeze", False)):
+            return "Agent runtime freeze is enabled."
+        return None
+
     def _run_loop(self) -> None:
         while not self._stop_event.is_set():
             config = self._loaded_config
@@ -233,8 +247,9 @@ class AutopilotService:
                 self._stop_event.set()
                 break
 
-            if self.orchestrator.settings.agent_kill_switch:
-                self._last_error = "Agent kill switch is enabled."
+            blocker_reason = self._runtime_blocker_reason()
+            if blocker_reason:
+                self._last_error = blocker_reason
                 self._sleep_until_next_cycle(config.get("poll_interval_seconds", 60))
                 continue
 

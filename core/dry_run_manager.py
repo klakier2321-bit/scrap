@@ -35,21 +35,35 @@ class DryRunManager:
         self.smoke_dir.mkdir(parents=True, exist_ok=True)
 
     def health(self, *, bot_status: dict[str, Any], logs: list[str]) -> dict[str, Any]:
+        return self._health(bot_status=bot_status, logs=logs, refresh_runtime=True)
+
+    def cached_health(self, *, bot_status: dict[str, Any], logs: list[str]) -> dict[str, Any]:
+        return self._health(bot_status=bot_status, logs=logs, refresh_runtime=False)
+
+    def _health(
+        self,
+        *,
+        bot_status: dict[str, Any],
+        logs: list[str],
+        refresh_runtime: bool,
+    ) -> dict[str, Any]:
         with tracer.start_as_current_span("DryRunManager.health"):
             latest_snapshot = self.latest_snapshot(bot_id=bot_status["bot_id"])
             latest_smoke = self.latest_smoke(bot_id=bot_status["bot_id"])
             warnings = self._extract_runtime_warnings(logs)
 
-            bridge_status = "ok"
+            bridge_status = "cached_ok" if not refresh_runtime else "ok"
             blocking_reason = None
-            runtime_mode = None
-            dry_run_enabled = bool(bot_status.get("dry_run", False))
-            api_authenticated = False
+            runtime_mode = str((latest_snapshot or {}).get("runmode") or "").strip() or None
+            dry_run_enabled = bool(
+                (latest_snapshot or {}).get("dry_run", bot_status.get("dry_run", False))
+            )
+            api_authenticated = not refresh_runtime and latest_snapshot is not None
 
             if bot_status.get("state") != "running":
                 bridge_status = "runtime_unavailable"
                 blocking_reason = "bot_not_running"
-            else:
+            elif refresh_runtime:
                 try:
                     self.client.ping()
                     config = self.client.show_config()
@@ -66,6 +80,9 @@ class DryRunManager:
                     bridge_status = exc.code
                     blocking_reason = exc.code
                     warnings.append(exc.message)
+            elif latest_snapshot is None:
+                bridge_status = "runtime_cached_only"
+                blocking_reason = "snapshot_missing"
 
             snapshot_available = latest_snapshot is not None
             snapshot_age_seconds = self._snapshot_age_seconds(latest_snapshot)
@@ -76,7 +93,7 @@ class DryRunManager:
 
             ready = (
                 bot_status.get("state") == "running"
-                and bridge_status == "ok"
+                and bridge_status in {"ok", "cached_ok"}
                 and dry_run_enabled
                 and runtime_mode not in {None, "webserver"}
                 and snapshot_available
@@ -176,7 +193,10 @@ class DryRunManager:
         path = self.snapshots_dir / (f"latest-{bot_id}.json" if bot_id else "latest.json")
         if not path.exists():
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
 
     def list_snapshots(
         self,
@@ -198,7 +218,10 @@ class DryRunManager:
         path = self.smoke_dir / (f"latest-{bot_id}.json" if bot_id else "latest.json")
         if not path.exists():
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
 
     def run_smoke_test(
         self,

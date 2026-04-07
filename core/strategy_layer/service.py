@@ -54,7 +54,10 @@ class StrategyLayerService:
         path = self.output_dir / f"latest-{bot_id}.json"
         if not path.exists():
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
 
     def generate_report(
         self,

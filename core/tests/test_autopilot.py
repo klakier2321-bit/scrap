@@ -9,15 +9,29 @@ class _FakeSettings:
     def __init__(self, agent_max_parallel_runs: int = 3) -> None:
         self.agent_max_parallel_runs = agent_max_parallel_runs
         self.agent_kill_switch = False
+        self.agent_runtime_freeze = False
 
 
 class _FakeOrchestrator:
-    def __init__(self, runs: list[dict] | None = None, *, max_parallel_runs: int = 3) -> None:
+    def __init__(
+        self,
+        runs: list[dict] | None = None,
+        *,
+        max_parallel_runs: int = 3,
+        runtime_freeze: bool = False,
+    ) -> None:
         self._runs = runs or []
         self.settings = _FakeSettings(agent_max_parallel_runs=max_parallel_runs)
+        self.settings.agent_runtime_freeze = runtime_freeze
 
     def list_runs(self, limit: int = 50) -> list[dict]:
         return list(self._runs)[:limit]
+
+    def effective_kill_switch_enabled(self) -> bool:
+        return bool(self.settings.agent_kill_switch)
+
+    def effective_runtime_freeze_enabled(self) -> bool:
+        return bool(self.settings.agent_runtime_freeze)
 
 
 class TestAutopilotParallelSelection(unittest.TestCase):
@@ -134,6 +148,17 @@ autopilot:
             max_parallel_runs=3,
         )
         self.assertIsNone(selection)
+
+    def test_runtime_blocker_reason_reports_runtime_freeze(self) -> None:
+        service = AutopilotService(
+            orchestrator=_FakeOrchestrator(runtime_freeze=True),
+            config_path=self.config_path,
+            poll_interval_seconds=300,
+        )
+        self.assertEqual(
+            service._runtime_blocker_reason(),
+            "Agent runtime freeze is enabled.",
+        )
 
 
 if __name__ == "__main__":

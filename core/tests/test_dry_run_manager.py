@@ -80,6 +80,14 @@ class FakeRuntimeClient:
         return self._status_trades
 
 
+class FailingRuntimeClient(FakeRuntimeClient):
+    def ping(self) -> dict:
+        raise FreqtradeRuntimeError("runtime_unavailable", "bridge timeout")
+
+    def show_config(self) -> dict:
+        raise FreqtradeRuntimeError("runtime_unavailable", "bridge timeout")
+
+
 class DryRunManagerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -203,6 +211,22 @@ class DryRunManagerTests(unittest.TestCase):
         self.assertEqual(health["bridge_status"], "webserver_only")
         self.assertEqual(health["blocking_reason"], "webserver_only")
 
+    def test_cached_health_uses_latest_snapshot_without_live_runtime_calls(self) -> None:
+        manager = DryRunManager(
+            client=FakeRuntimeClient(),
+            snapshots_dir=Path(self.temp_dir.name) / "snapshots-cached-health",
+            smoke_dir=Path(self.temp_dir.name) / "smoke-cached-health",
+            stale_after_seconds=180,
+        )
+        manager.create_snapshot(bot_status=self.bot_status, logs=self.logs)
+        manager.client = FailingRuntimeClient()
+
+        health = manager.cached_health(bot_status=self.bot_status, logs=self.logs)
+
+        self.assertTrue(health["ready"])
+        self.assertEqual(health["bridge_status"], "cached_ok")
+        self.assertEqual(health["runtime_mode"], "dry_run")
+
     def test_smoke_test_passes_when_runtime_and_snapshot_are_available(self) -> None:
         result = self.manager.run_smoke_test(bot_status=self.bot_status, logs=self.logs)
 
@@ -274,3 +298,17 @@ class FreqtradeRuntimeClientTests(unittest.TestCase):
             client.show_config()
 
         self.assertEqual(ctx.exception.code, "bridge_misconfigured")
+
+    def test_timeout_maps_to_runtime_unavailable(self) -> None:
+        client = FreqtradeRuntimeClient(
+            base_url="http://freqtrade:8080/api/v1",
+            username="user",
+            password="pass",
+        )
+
+        with patch("core.freqtrade_runtime.request.urlopen") as mocked_urlopen:
+            mocked_urlopen.side_effect = TimeoutError("timed out")
+            with self.assertRaises(FreqtradeRuntimeError) as ctx:
+                client.show_config()
+
+        self.assertEqual(ctx.exception.code, "runtime_unavailable")

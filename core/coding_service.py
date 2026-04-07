@@ -10,7 +10,12 @@ import threading
 import time
 import uuid
 from typing import TYPE_CHECKING, Any
+from typing import Callable
 
+from ai_agents.runtime.context_packets import (
+    build_executive_packet,
+    build_module_packet,
+)
 from ai_agents.runtime.config import CodingModuleProfile, load_coding_runtime_config
 
 from .storage import RunStore
@@ -36,11 +41,13 @@ class CodingSupervisorService:
         store: RunStore,
         agent_runtime: "AgentRuntimeService",
         executive_report_provider: Any,
+        resource_guard_provider: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self.settings = settings
         self.store = store
         self.agent_runtime = agent_runtime
         self.executive_report_provider = executive_report_provider
+        self.resource_guard_provider = resource_guard_provider
         self.scope_manifest = self.agent_runtime.scope_manifest
         self.runtime_config, modules = load_coding_runtime_config(settings.coding_modules_config_path)
         self.modules_by_id = {module.module_id: module for module in modules if module.enabled}
@@ -59,6 +66,39 @@ class CodingSupervisorService:
         self._last_queue_refresh_at: str | None = None
         self._last_dispatch_at: str | None = None
         self._last_error: str | None = None
+
+    def _resource_guard_snapshot(self) -> dict[str, Any]:
+        if self.resource_guard_provider is None:
+            return {
+                "enabled": False,
+                "allow_new_runs": True,
+                "allow_coding_dispatch": True,
+                "primary_reason": None,
+                "blocked_reasons": [],
+                "operator_message": "Host resource guard is disabled.",
+                "notes": [],
+                "resources": {},
+            }
+        try:
+            snapshot = self.resource_guard_provider()
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "Resource guard provider failed. Blocking coding dispatch for safety."
+            )
+            return {
+                "enabled": True,
+                "allow_new_runs": False,
+                "allow_coding_dispatch": False,
+                "primary_reason": "resource_guard_unavailable",
+                "blocked_reasons": ["resource_guard_unavailable"],
+                "operator_message": "Host resource guard is unavailable and coding dispatch is paused for safety.",
+                "notes": [
+                    "Host resource guard could not produce a snapshot.",
+                    "Coding dispatch remains blocked until resource visibility returns.",
+                ],
+                "resources": {},
+            }
+        return dict(snapshot or {})
 
     def start(self) -> dict[str, Any]:
         with self._lock:
@@ -89,6 +129,13 @@ class CodingSupervisorService:
     def status(self) -> dict[str, Any]:
         tasks = self.store.list_coding_tasks(limit=100)
         active_task = self.store.get_active_coding_task()
+        resource_guard = self._resource_guard_snapshot()
+        runtime_last_error = self._last_error
+        if not bool(resource_guard.get("allow_coding_dispatch", True)):
+            runtime_last_error = str(
+                resource_guard.get("operator_message")
+                or "Coding dispatch paused by host resource guard."
+            )
         task_timeout_seconds = self._coding_task_timeout_seconds()
         active_task_age_seconds = self._task_age_seconds(active_task)
         active_worker_alive = bool(self._worker_thread and self._worker_thread.is_alive())
@@ -101,6 +148,8 @@ class CodingSupervisorService:
                 attention_needed = True
             elif not active_worker_alive:
                 attention_needed = True
+        if not bool(resource_guard.get("allow_coding_dispatch", True)):
+            attention_needed = True
         return {
             "running": bool(self._thread and self._thread.is_alive()),
             "enabled": bool(self.settings.agent_coding_enabled),
@@ -115,7 +164,7 @@ class CodingSupervisorService:
             "max_active_tasks": int(self.runtime_config.get("max_active_tasks", 1)),
             "last_queue_refresh_at": self._last_queue_refresh_at,
             "last_dispatch_at": self._last_dispatch_at,
-            "last_error": self._last_error,
+            "last_error": runtime_last_error,
             "attention_needed": attention_needed,
             "task_timeout_seconds": task_timeout_seconds,
             "active_task_id": active_task["task_id"] if active_task else None,
@@ -125,6 +174,7 @@ class CodingSupervisorService:
             "review_tasks": sum(1 for task in tasks if task.get("status") == "review"),
             "committed_tasks": sum(1 for task in tasks if task.get("status") == "committed"),
             "modules": [asdict(module) for module in self.modules_by_id.values()],
+            "resource_guard": resource_guard,
         }
 
     def list_coding_tasks(self, limit: int = 50) -> list[dict[str, Any]]:
@@ -302,6 +352,9 @@ class CodingSupervisorService:
 
     def _refresh_lead_queue(self) -> None:
         self._last_queue_refresh_at = self._now()
+        resource_guard = self._resource_guard_snapshot()
+        if not bool(resource_guard.get("allow_coding_dispatch", True)):
+            return
         open_tasks = self.store.list_coding_tasks_by_status(
             ["proposed", "ready", "dispatched", "coding", "review", "approved"]
         )
@@ -327,6 +380,9 @@ class CodingSupervisorService:
 
     def _dispatch_ready_task(self) -> None:
         self._last_dispatch_at = self._now()
+        resource_guard = self._resource_guard_snapshot()
+        if not bool(resource_guard.get("allow_coding_dispatch", True)):
+            return
         if self._worker_thread and self._worker_thread.is_alive():
             return
         if self.store.get_active_coding_task() is not None:
@@ -357,9 +413,35 @@ class CodingSupervisorService:
             "recent_changes": executive.get("recent_changes", [])[:3],
             "blockers": executive.get("blockers", [])[:3],
         }
+        module_packet = build_module_packet(module_context)
+        executive_packet = build_executive_packet(
+            {
+                "strategic_goal": executive.get("strategic_goal"),
+                "recent_changes": executive.get("recent_changes", []),
+                "blockers": executive.get("blockers", []),
+                "summary": executive.get("summary", {}),
+                "autopilot": executive.get("autopilot", {}),
+                "coding": executive.get("coding", {}),
+            }
+        )
+        packet_store = getattr(self.agent_runtime, "context_packet_store", None)
+        if packet_store is not None:
+            packet_store.write_packet(
+                packet_type="coding",
+                packet_name=f"{module.module_id}_module",
+                payload=module_packet,
+            )
+            packet_store.write_packet(
+                packet_type="coding",
+                packet_name=f"{module.module_id}_executive",
+                payload=executive_packet,
+            )
         packet, usage = self.agent_runtime.generate_coding_task_packet(
-            module_context=module_context,
-            executive_context=executive_context,
+            module_context=module_packet,
+            executive_context={
+                **executive_packet,
+                "module_summary": executive_context["module_summary"],
+            },
         )
         validated = self._validate_task_packet(module=module, packet=packet)
         return validated, usage

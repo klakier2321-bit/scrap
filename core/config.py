@@ -29,6 +29,12 @@ class AppSettings(BaseSettings):
     agent_allow_mock_fallback: bool = True
     agent_kill_switch: bool = False
     agent_runtime_freeze: bool = False
+    agent_resource_guard_enabled: bool = True
+    agent_resource_guard_min_available_memory_mb: int = 1536
+    agent_resource_guard_min_available_memory_pct: float = 0.18
+    agent_resource_guard_max_load_per_cpu: float = 1.5
+    agent_resource_guard_cache_seconds: int = 5
+    agent_resource_guard_block_backtests: bool = True
     agent_autopilot_enabled: bool = False
     agent_autopilot_poll_interval_seconds: int = 300
     agent_autopilot_max_cycles: int = 0
@@ -75,23 +81,39 @@ class AppSettings(BaseSettings):
             return checkout_path
         return self.repo_root
 
+    def _resolve_app_relative_path(self, raw_path: str, *, fallback_relative: str) -> Path:
+        path = Path(raw_path)
+        if raw_path.startswith("/app/"):
+            workspace_candidate = Path("/workspace") / path.relative_to("/app")
+            if workspace_candidate.exists() or workspace_candidate.parent.exists():
+                return workspace_candidate
+            if not Path("/app").exists():
+                return self.repo_root / fallback_relative
+        return path
+
     @property
     def log_dir(self) -> Path:
-        if self.control_api_log_dir.startswith("/app/") and not Path("/app").exists():
-            return self.repo_root / "monitoring" / "logs"
+        if self.control_api_log_dir.startswith("/app/"):
+            path = Path(self.control_api_log_dir)
+            if path.exists() or path.parent.exists():
+                return path
+            if not Path("/app").exists():
+                return self.repo_root / "monitoring" / "logs"
         return Path(self.control_api_log_dir)
 
     @property
     def data_dir(self) -> Path:
-        if self.control_api_data_dir.startswith("/app/") and not Path("/app").exists():
-            return self.repo_root / "data" / "ai_control"
-        return Path(self.control_api_data_dir)
+        return self._resolve_app_relative_path(
+            self.control_api_data_dir,
+            fallback_relative="data/ai_control",
+        )
 
     @property
     def freqtrade_user_data_path(self) -> Path:
-        if self.freqtrade_user_data_dir.startswith("/app/") and not Path("/app").exists():
-            return self.repo_root / "trading" / "freqtrade" / "user_data"
-        return Path(self.freqtrade_user_data_dir)
+        return self._resolve_app_relative_path(
+            self.freqtrade_user_data_dir,
+            fallback_relative="trading/freqtrade/user_data",
+        )
 
     @property
     def log_file(self) -> Path:
@@ -152,6 +174,34 @@ class AppSettings(BaseSettings):
     @property
     def regime_replay_dir(self) -> Path:
         return self.data_dir / "regime_replay"
+
+    @property
+    def agent_context_packets_dir(self) -> Path:
+        return self.data_dir / "agent_context" / "packets"
+
+    @property
+    def agent_runtime_overrides_path(self) -> Path:
+        return self.data_dir / "agent_runtime_overrides.json"
+
+    @property
+    def runtime_flags_path(self) -> Path:
+        return self.data_dir / "runtime_flags.json"
+
+    @property
+    def observability_dir(self) -> Path:
+        return self.data_dir / "observability"
+
+    @property
+    def observability_latest_path(self) -> Path:
+        return self.observability_dir / "combined_dashboard.latest.json"
+
+    @property
+    def observability_history_path(self) -> Path:
+        return self.observability_dir / "combined_dashboard.history.jsonl"
+
+    @property
+    def observability_log_path(self) -> Path:
+        return self.log_dir / "observability_summary.log"
 
     @property
     def autopilot_config_path(self) -> Path:

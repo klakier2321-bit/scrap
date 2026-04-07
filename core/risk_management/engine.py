@@ -35,7 +35,10 @@ class RiskEngine:
         path = self.output_dir / f"latest-{bot_id}.json"
         if not path.exists():
             return None
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
         return self._merge_enforcement_status(bot_id, payload)
 
     def evaluate(
