@@ -2,24 +2,27 @@
 
 ## Rola
 
-`strategy_agent` jest strategy leadem pionu futures strategy factory.
+`strategy_agent` jest strategy leadem kanonicznej warstwy strategii futures.
 
 Domyslnie pracuje teraz w trybie `regime-first` i `canonical-strategy-first`, nie `candidate-first`.
 
-Aktywny portfel kandydatow:
+Aktywny portfel kanonicznych strategii:
 
-- `structured_futures_baseline_v1`
-- `structured_futures_short_breakdown_v1`
-- `structured_futures_long_continuation_v1`
+- `trend_pullback_continuation_v1`
+- `breakout_from_compression_v1`
+- `range_mean_reversion_v1`
+- `panic_reversal_v1`
+- `defense_only_v1`
 
 Nie jest pojedynczym autorem strategii. Jest właścicielem:
 
-- lifecycle kandydatów,
+- lifecycle kanonicznych strategii,
+- stewardów strategii,
 - evidence bundle,
 - delegacji do helperów,
-- decyzji `iterate / reject / promote_to_next_gate`.
+- decyzji `iterate / restrict / activate`.
 
-Jesli istnieje aktywny kandydat bez pelnego evidence bundle, nie wolno wracac do szerokich foundation-only taskow.
+Jesli istnieje aktywna strategia bez pelnego evidence bundle, nie wolno wracac do szerokich repo-wide taskow ani reaktywowac `research/candidates/*` jako runtime source.
 
 ## Kiedy pracuje sam
 
@@ -36,20 +39,6 @@ Jesli istnieje aktywny kandydat bez pelnego evidence bundle, nie wolno wracac do
 - przygotować mały task dla helpera.
 
 ## Kiedy deleguje
-
-### Do `alpha_research_agent`
-
-Deleguj, gdy potrzeba:
-
-- nowej hipotezy futures,
-- zawężenia thesis,
-- opisania invalidation rules,
-- nazwania weak points pomysłu.
-
-Powinien wrócić:
-
-- `hypothesis.md`
-- draft `strategy_manifest.yaml`
 
 ### Do `feature_engineering_agent`
 
@@ -111,6 +100,22 @@ Powinien wrócić:
 - `robustness_report.json`
 - `promotion_decision.md`
 
+### Do stewardów strategii
+
+Deleguj, gdy potrzeba:
+
+- replay review jednej konkretnej strategii,
+- analizy false positives / false negatives,
+- tuning parametrów w obrębie jednego manifestu,
+- porównania baseline vs steward proposal dla jednej strategii.
+
+Powinien wrócić:
+
+- notatka stewarda z jedną hipotezą,
+- diff manifestu / parametrów / logiki tylko w jednym scope,
+- replay comparison,
+- impact report.
+
 Ocena ma używać zawsze tych samych okien:
 
 - `2025-11-19 -> 2026-03-19`
@@ -122,13 +127,14 @@ Ocena ma używać zawsze tych samych okien:
 
 `strategy_agent` scala bundle dopiero wtedy, gdy ma:
 
-- hipotezę lub manifest kandydata,
+- manifest kanonicznej strategii,
 - evidence z risk,
+- evidence z system replay,
 - evidence z backtestu / eksperymentu,
-- evidence z dry_run lub jawny brak tego evidence,
+- evidence z telemetry lub dry_run,
 - jasny stan lifecycle.
 
-Jeśli któryś z tych elementów nie istnieje, nie wolno robić pozytywnej rekomendacji promotion.
+Jeśli któryś z tych elementów nie istnieje, nie wolno robić pozytywnej rekomendacji aktywacji lub rozszerzenia strategii.
 
 ## Kiedy odrzuca bez dalszej pracy
 
@@ -140,49 +146,43 @@ Odrzucaj od razu, gdy:
 - brak drawdown control,
 - brak regime logic,
 - brak risk gate,
+- brak replay evidence,
 - brak sensownego artefaktu wejściowego,
 - task jest zbyt szeroki i nie da się go sensownie zreviewować.
 
 ## Kiedy uruchamia gate
 
-### Backtest gate
+### Replay gate
 
-Uruchamiaj, gdy kandydat ma już:
+Uruchamiaj, gdy strategia ma już:
 
-- hipotezę,
 - logiczny manifest,
-- minimalne założenia wejścia/wyjścia.
+- minimalne założenia wejścia/wyjścia,
+- telemetry lub przynajmniej sensowny context packet.
 
 ### Risk gate
 
 Uruchamiaj, gdy istnieje już:
 
-- backtest evidence,
+- replay evidence,
 - futures risk evidence,
 - wstępne exposure assumptions.
 
-### Dry run gate
+### Dry run / paper gate
 
 Uruchamiaj, gdy:
 
-- kandydat przeszedł przez backtest i risk gate,
+- strategia przeszła przez replay i risk gate,
 - istnieją już sensowne expectations do porównania z runtime.
 
-## Kiedy dopuszcza `reviewed_candidate`
+## Kiedy dopuszcza `active` albo `restricted`
 
 Dopiero wtedy, gdy:
 
-- `backtest + risk + dry_run` są zebrane jako wspólny gate,
+- `replay + backtest + risk + telemetry/dry_run` są zebrane jako wspólny gate,
 - bundle jest kompletny,
 - nie ma hard reject triggerów,
-- istnieje `promotion_decision.md` albo równoważna decyzja evidence-based.
-
-## Candidate-first defaults
-
-- `structured_futures_baseline_v1` jest shipping baseline candidate
-- `structured_futures_short_breakdown_v1` jest osobnym short candidate
-- `structured_futures_long_continuation_v1` jest osobnym long continuation candidate
-- baseline moze wejsc do ograniczonego `dry_run` jako long-biased, jesli short jest jawnie zaparkowany
+- istnieje decyzja evidence-based o aktywacji albo restrykcji.
 
 ## Dokumenty kanoniczne
 

@@ -52,6 +52,36 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 4, "x": 12, "y": 0 },
+      "id": 7,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
+      "targets": [{ "expr": "sum(crypto_ai_agent_catalog_info{operational_state=\"active_core\"})", "refId": "A" }],
+      "title": "Agenci rdzenia",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 4, "x": 16, "y": 0 },
+      "id": 8,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
+      "targets": [{ "expr": "sum(crypto_ai_agent_catalog_info{operational_state=\"operator_disabled\"})", "refId": "A" }],
+      "title": "Wyłączeni przez operatora",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 0 },
+      "id": 9,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
+      "targets": [{ "expr": "sum(increase(crypto_ai_blocked_calls_total[24h]))", "refId": "A" }],
+      "title": "Zablokowane wywołania 24h",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
       "gridPos": { "h": 9, "w": 12, "x": 0, "y": 8 },
       "id": 4,

@@ -42,6 +42,14 @@ class ActionResult(BaseModel):
     message: str
 
 
+class OperatorActionResponse(BaseModel):
+    """High-level operator action response."""
+
+    accepted: bool
+    message: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
 class HealthResponse(BaseModel):
     """Health response for control API."""
 
@@ -54,6 +62,7 @@ class HealthResponse(BaseModel):
     docker_available: bool
     agents_status: str
     agents_reason: str | None = None
+    resource_guard: dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentRunRequest(BaseModel):
@@ -112,17 +121,240 @@ class AgentRunRecord(BaseModel):
     error: str | None = None
 
 
+class ChatThreadCreateRequest(BaseModel):
+    """Create one manual chat thread for a specific agent."""
+
+    agent_name: str
+    title: str | None = None
+
+
+class ChatMessageCreateRequest(BaseModel):
+    """Append one user message to a chat thread."""
+
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class ChatMessageResponse(BaseModel):
+    """One stored chat message."""
+
+    message_id: str
+    thread_id: str
+    role: str
+    content: str
+    run_id: str | None = None
+    created_at: datetime | str
+    metadata_json: dict[str, Any] = Field(default_factory=dict)
+
+
+class ChatThreadSummaryResponse(BaseModel):
+    """Compact chat thread summary for operator UI."""
+
+    thread_id: str
+    agent_name: str
+    title: str
+    created_at: datetime | str
+    updated_at: datetime | str
+    last_message_at: datetime | str | None = None
+    last_run_id: str | None = None
+    last_message_preview: str | None = None
+    message_count: int = 0
+    active_run_id: str | None = None
+    active_run_status: str | None = None
+
+
+class ChatThreadDetailResponse(ChatThreadSummaryResponse):
+    """Full thread payload with message history."""
+
+    messages: list[ChatMessageResponse] = Field(default_factory=list)
+
+
 class AgentInfo(BaseModel):
     """Agent metadata shown in the operator panel."""
 
     name: str
     role: str
+    parent_agent: str | None = None
+    child_agents: list[str] = Field(default_factory=list)
+    activation_mode: str = "manual_only"
+    operational_state: str = "unknown"
+    enabled_override: bool | None = None
+    effective_enabled: bool = False
+    domain: str = "platform"
     model_tier: str
+    cost_tier: str = "cheap"
     default_daily_budget_usd: float
     default_per_run_budget_usd: float
+    effective_daily_budget_usd: float | None = None
+    effective_per_run_budget_usd: float | None = None
+    max_parallel_runs: int = 1
+    grafana_visibility: bool = True
+    requires_review_for_activation: bool = False
+    can_dispatch_subtasks: bool = False
+    can_touch_runtime: bool = False
+    handoff_targets: list[str] = Field(default_factory=list)
+    writes_to: list[str] = Field(default_factory=list)
+    reads_from: list[str] = Field(default_factory=list)
+    strategy_scope: str | None = None
     owned_scope: list[str]
     read_only_scope: list[str]
     forbidden_scope: list[str]
+
+
+class AgentRuntimeOverrideResponse(BaseModel):
+    """Operator-managed runtime override for one agent."""
+
+    enabled: bool | None = None
+    daily_budget_usd: float | None = None
+    per_run_budget_usd: float | None = None
+
+
+class AgentRuntimeOverrideUpdateRequest(BaseModel):
+    """Patch payload for one agent runtime override."""
+
+    enabled: bool | None = None
+    daily_budget_usd: float | None = Field(default=None, ge=0.0)
+    per_run_budget_usd: float | None = Field(default=None, ge=0.0)
+
+
+class ObservabilityGraphNode(BaseModel):
+    """One node in the operator-facing control tower graph."""
+
+    node_id: str
+    label: str
+    node_type: str
+    lane: str
+    operational_state: str
+    owner: str | None = None
+    summary: str | None = None
+    target_url: str | None = None
+
+
+class ObservabilityGraphEdge(BaseModel):
+    """One edge in the operator-facing control tower graph."""
+
+    edge_id: str
+    source: str
+    target: str
+    edge_type: str
+    status: str
+    summary: str | None = None
+
+
+class ObservabilityCurrentWorkItem(BaseModel):
+    """Compact current-work item for Grafana and operator views."""
+
+    item_id: str
+    owner_name: str
+    owner_type: str
+    workstream: str
+    status: str
+    title: str
+    next_step: str | None = None
+    scope: str | None = None
+
+
+class OperatorActionState(BaseModel):
+    """Whether one high-level operator action is currently allowed."""
+
+    enabled: bool
+    blocked_reason: str | None = None
+
+
+class OperatorAttentionItem(BaseModel):
+    """Compact attention item for the simplified operator home."""
+
+    kind: str
+    severity: str
+    title: str
+    summary: str
+    owner: str | None = None
+
+
+class ObservabilitySummaryResponse(BaseModel):
+    """Single operator snapshot behind the unified Grafana home dashboard."""
+
+    generated_at: datetime | str
+    state_hash: str
+    graph_nodes: list[ObservabilityGraphNode] = Field(default_factory=list)
+    graph_edges: list[ObservabilityGraphEdge] = Field(default_factory=list)
+    current_work: list[ObservabilityCurrentWorkItem] = Field(default_factory=list)
+    recent_handoffs: list[dict[str, Any]] = Field(default_factory=list)
+    recent_errors: list[dict[str, Any]] = Field(default_factory=list)
+    top_blockers: list[dict[str, Any]] = Field(default_factory=list)
+    goals_and_direction: dict[str, Any] = Field(default_factory=dict)
+    operator_attention: list[str] = Field(default_factory=list)
+    futures_runtime: dict[str, Any] = Field(default_factory=dict)
+    runtime_focus: list[dict[str, Any]] = Field(default_factory=list)
+    cost_control: dict[str, Any] = Field(default_factory=dict)
+    freshness: dict[str, Any] = Field(default_factory=dict)
+
+
+class RuntimeFlagUpdateRequest(BaseModel):
+    """Toggle one persistent operator runtime flag."""
+
+    enabled: bool
+
+
+class RuntimeFlagStateResponse(BaseModel):
+    """Effective state of one runtime flag."""
+
+    flag_name: str
+    env_enabled: bool = False
+    operator_enabled: bool = False
+    effective_enabled: bool = False
+
+
+class OperatorHomeFutures(BaseModel):
+    """Home-card snapshot for the futures runtime cluster."""
+
+    cluster_id: str
+    cluster_state: str
+    bots: list[BotSummary] = Field(default_factory=list)
+    ready: bool = False
+    snapshot_age_seconds: float | None = None
+    last_smoke_status: str | None = None
+    risk_mode: str | None = None
+    allow_trading: bool | None = None
+    force_reduce_only: bool | None = None
+    cooldown_active: bool | None = None
+    preferred_risk_admitted_strategy_id: str | None = None
+    top_blockers: list[str] = Field(default_factory=list)
+    snapshot_open_trades: int | None = None
+    actions: dict[str, OperatorActionState] = Field(default_factory=dict)
+
+
+class OperatorHomeAi(BaseModel):
+    """Home-card snapshot for the AI runtime."""
+
+    agents_status: str
+    agents_reason: str | None = None
+    autopilot_running: bool = False
+    coding_supervisor_running: bool = False
+    resource_guard: dict[str, Any] = Field(default_factory=dict)
+    global_daily_budget_usd: float = 0.0
+    global_per_run_budget_usd: float = 0.0
+    blocked_by_budget_total: int = 0
+    blocked_by_resource_guard_total: int = 0
+    agent_tree_summary: dict[str, Any] = Field(default_factory=dict)
+    runtime_flags: dict[str, RuntimeFlagStateResponse] = Field(default_factory=dict)
+    actions: dict[str, OperatorActionState] = Field(default_factory=dict)
+
+
+class OperatorHomeResponse(BaseModel):
+    """Single lightweight snapshot for the simplified operator home."""
+
+    generated_at: datetime | str
+    status: str
+    freshness: dict[str, Any] = Field(default_factory=dict)
+    futures: OperatorHomeFutures
+    ai: OperatorHomeAi
+    attention_items: list[OperatorAttentionItem] = Field(default_factory=list)
+    recent_errors: list[dict[str, Any]] = Field(default_factory=list)
+    recent_actions: list[dict[str, Any]] = Field(default_factory=list)
+    goals_and_direction: dict[str, Any] = Field(default_factory=dict)
+    operator_attention: list[str] = Field(default_factory=list)
+    observability_owner: str | None = None
+    summary_labels: dict[str, str] = Field(default_factory=dict)
 
 
 class StrategyReportResponse(BaseModel):
@@ -568,6 +800,7 @@ class CodingStatusResponse(BaseModel):
     review_tasks: int = 0
     committed_tasks: int = 0
     modules: list[dict[str, Any]] = Field(default_factory=list)
+    resource_guard: dict[str, Any] = Field(default_factory=dict)
 
 
 class CodingReviewDecisionRequest(BaseModel):

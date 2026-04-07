@@ -29,6 +29,19 @@ class AgentProfile:
     model_tier: str
     max_iter: int
     max_retry_limit: int
+    parent_agent: str | None
+    activation_mode: str
+    domain: str
+    writes_to: tuple[str, ...]
+    reads_from: tuple[str, ...]
+    handoff_targets: tuple[str, ...]
+    max_parallel_runs: int
+    cost_tier: str
+    grafana_visibility: bool
+    requires_review_for_activation: bool
+    can_dispatch_subtasks: bool
+    can_touch_runtime: bool
+    strategy_scope: str | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +115,21 @@ def load_agent_profiles() -> dict[str, AgentProfile]:
             model_tier=config["model_tier"],
             max_iter=int(config["max_iter"]),
             max_retry_limit=int(config["max_retry_limit"]),
+            parent_agent=config.get("parent_agent"),
+            activation_mode=str(config.get("activation_mode", "manual_only")),
+            domain=str(config.get("domain", "platform")),
+            writes_to=tuple(config.get("writes_to", [])),
+            reads_from=tuple(config.get("reads_from", [])),
+            handoff_targets=tuple(config.get("handoff_targets", [])),
+            max_parallel_runs=int(config.get("max_parallel_runs", 1)),
+            cost_tier=str(config.get("cost_tier", "cheap")),
+            grafana_visibility=bool(config.get("grafana_visibility", True)),
+            requires_review_for_activation=bool(
+                config.get("requires_review_for_activation", False)
+            ),
+            can_dispatch_subtasks=bool(config.get("can_dispatch_subtasks", False)),
+            can_touch_runtime=bool(config.get("can_touch_runtime", False)),
+            strategy_scope=config.get("strategy_scope"),
         )
     return profiles
 

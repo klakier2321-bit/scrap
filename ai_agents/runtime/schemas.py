@@ -41,6 +41,17 @@ class StrategyAssessmentOutput(BaseModel):
     stage_candidate: bool = False
 
 
+class ChatReplyOutput(BaseModel):
+    """Structured conversational reply produced by an agent chat session."""
+
+    reply: str
+    current_focus: str
+    current_work: list[str] = Field(default_factory=list)
+    next_step: str | None = None
+    tactic_update: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+
+
 class StepUsage(BaseModel):
     """Usage metrics for a single runtime step."""
 

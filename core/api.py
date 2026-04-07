@@ -19,11 +19,17 @@ from .metrics import render_metrics
 from .orchestrator import Orchestrator
 from .schemas import (
     ActionResult,
+    AgentRuntimeOverrideResponse,
+    AgentRuntimeOverrideUpdateRequest,
     AutopilotStatusResponse,
     AgentRunRecord,
     AgentRunRequest,
     CandidateAssessmentResponse,
     CandidateDryRunResponse,
+    ChatMessageCreateRequest,
+    ChatThreadCreateRequest,
+    ChatThreadDetailResponse,
+    ChatThreadSummaryResponse,
     ControlStatusResponse,
     DerivativesStatusResponse,
     RegimeStatusResponse,
@@ -39,7 +45,12 @@ from .schemas import (
     DryRunSmokeResponse,
     DryRunSnapshotResponse,
     HealthResponse,
+    ObservabilitySummaryResponse,
+    OperatorActionResponse,
+    OperatorHomeResponse,
     RiskDecisionResponse,
+    RuntimeFlagStateResponse,
+    RuntimeFlagUpdateRequest,
     StrategyLayerResponse,
     StrategyManifestResponse,
     StrategyReportResponse,
@@ -134,6 +145,15 @@ async def health() -> HealthResponse:
     return HealthResponse(**get_orchestrator().health())
 
 
+@app.get(
+    "/ops/operator-home",
+    response_model=OperatorHomeResponse,
+    include_in_schema=False,
+)
+async def ops_operator_home() -> OperatorHomeResponse:
+    return OperatorHomeResponse(**get_orchestrator().get_operator_home())
+
+
 @app.get("/bots", response_model=list[BotSummary])
 async def list_bots() -> list[BotSummary]:
     return [BotSummary(**bot) for bot in get_orchestrator().list_bots()]
@@ -171,6 +191,42 @@ async def stop_bot(bot_id: str) -> ActionResult:
     )
 
 
+@app.post(
+    "/ops/futures-cluster/start",
+    response_model=OperatorActionResponse,
+    include_in_schema=False,
+)
+async def ops_futures_cluster_start() -> OperatorActionResponse:
+    return OperatorActionResponse(**get_orchestrator().start_futures_cluster())
+
+
+@app.post(
+    "/ops/futures-cluster/stop",
+    response_model=OperatorActionResponse,
+    include_in_schema=False,
+)
+async def ops_futures_cluster_stop() -> OperatorActionResponse:
+    return OperatorActionResponse(**get_orchestrator().stop_futures_cluster())
+
+
+@app.post(
+    "/ops/futures-cluster/smoke",
+    response_model=OperatorActionResponse,
+    include_in_schema=False,
+)
+async def ops_futures_cluster_smoke() -> OperatorActionResponse:
+    return OperatorActionResponse(**get_orchestrator().run_futures_cluster_smoke())
+
+
+@app.post(
+    "/ops/futures-cluster/snapshot",
+    response_model=OperatorActionResponse,
+    include_in_schema=False,
+)
+async def ops_futures_cluster_snapshot() -> OperatorActionResponse:
+    return OperatorActionResponse(**get_orchestrator().refresh_futures_cluster_snapshot())
+
+
 @app.get("/bots/{bot_id}/status", response_model=BotStatus)
 async def bot_status(bot_id: str) -> BotStatus:
     try:
@@ -193,16 +249,49 @@ async def bot_logs(
 
 @app.get("/metrics", include_in_schema=False)
 async def metrics() -> PlainTextResponse:
-    latest_dry_run_snapshot = get_orchestrator().get_futures_cluster_snapshot(
-        refresh_if_stale=True
-    )
+    orchestrator = get_orchestrator()
+    try:
+        latest_dry_run_snapshot = orchestrator.get_futures_cluster_snapshot(
+            refresh_if_stale=False
+        )
+    except Exception:
+        latest_dry_run_snapshot = None
+    try:
+        futures_cluster_health = orchestrator.get_futures_cluster_health(
+            refresh_runtime=False
+        )
+    except Exception:
+        futures_cluster_health = None
+    try:
+        strategy_report = orchestrator.get_latest_strategy_report_with_assessment(
+            refresh_runtime=False
+        )
+    except Exception:
+        strategy_report = None
+    try:
+        strategy_report_history = orchestrator.list_strategy_report_history(
+            limit=20,
+            refresh_runtime=False,
+        )
+    except Exception:
+        strategy_report_history = []
+    try:
+        executive_report = orchestrator.get_executive_report(refresh_runtime=False)
+    except Exception:
+        executive_report = {
+            "summary": {},
+            "autopilot": orchestrator.autopilot_status(),
+            "agent_runtime": {"tree": orchestrator.list_agents()},
+            "observability_summary": orchestrator.get_latest_observability_summary() or {},
+        }
     payload, content_type = render_metrics(
-        get_orchestrator().list_bots(),
-        get_orchestrator().get_latest_strategy_report_with_assessment(),
-        get_orchestrator().list_strategy_report_history(limit=20),
-        get_orchestrator().get_futures_cluster_health(),
+        orchestrator.list_bots(),
+        orchestrator.list_agents(),
+        strategy_report,
+        strategy_report_history,
+        futures_cluster_health,
         latest_dry_run_snapshot,
-        get_orchestrator().get_executive_report(),
+        executive_report,
     )
     return PlainTextResponse(payload.decode("utf-8"), media_type=content_type)
 
@@ -212,9 +301,109 @@ async def ops_agents() -> JSONResponse:
     return JSONResponse(get_orchestrator().list_agents())
 
 
+@app.get(
+    "/ops/agents/overrides",
+    include_in_schema=False,
+)
+async def ops_agent_overrides() -> JSONResponse:
+    return JSONResponse(get_orchestrator().get_agent_runtime_overrides())
+
+
+@app.post(
+    "/ops/runtime-flags/kill-switch",
+    response_model=RuntimeFlagStateResponse,
+    include_in_schema=False,
+)
+async def ops_runtime_flag_kill_switch(
+    request: RuntimeFlagUpdateRequest,
+) -> RuntimeFlagStateResponse:
+    payload = get_orchestrator().update_runtime_flags(kill_switch=request.enabled)
+    return RuntimeFlagStateResponse(
+        flag_name="kill_switch",
+        **dict(payload.get("kill_switch") or {}),
+    )
+
+
+@app.post(
+    "/ops/runtime-flags/runtime-freeze",
+    response_model=RuntimeFlagStateResponse,
+    include_in_schema=False,
+)
+async def ops_runtime_flag_runtime_freeze(
+    request: RuntimeFlagUpdateRequest,
+) -> RuntimeFlagStateResponse:
+    payload = get_orchestrator().update_runtime_flags(runtime_freeze=request.enabled)
+    return RuntimeFlagStateResponse(
+        flag_name="runtime_freeze",
+        **dict(payload.get("runtime_freeze") or {}),
+    )
+
+
+@app.post(
+    "/ops/agents/{agent_name}/override",
+    response_model=AgentRuntimeOverrideResponse,
+    include_in_schema=False,
+)
+async def ops_agent_override(
+    agent_name: str,
+    request: AgentRuntimeOverrideUpdateRequest,
+) -> AgentRuntimeOverrideResponse:
+    try:
+        payload = get_orchestrator().update_agent_runtime_override(
+            agent_name=agent_name,
+            enabled=request.enabled,
+            daily_budget_usd=request.daily_budget_usd,
+            per_run_budget_usd=request.per_run_budget_usd,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    override = dict((payload.get("agents") or {}).get(agent_name) or {})
+    return AgentRuntimeOverrideResponse(
+        enabled=override.get("enabled"),
+        daily_budget_usd=override.get("daily_budget_usd"),
+        per_run_budget_usd=override.get("per_run_budget_usd"),
+    )
+
+
 @app.get("/ops/executive/report", include_in_schema=False)
 async def ops_executive_report() -> JSONResponse:
     return JSONResponse(get_orchestrator().get_executive_report())
+
+
+@app.get(
+    "/ops/observability/summary/latest",
+    response_model=ObservabilitySummaryResponse,
+    include_in_schema=False,
+)
+async def ops_observability_summary_latest(
+    refresh: bool = Query(default=False),
+) -> ObservabilitySummaryResponse:
+    report = (
+        get_orchestrator().get_executive_report().get("observability_summary")
+        if refresh
+        else get_orchestrator().get_latest_observability_summary()
+    )
+    if report is None:
+        if refresh:
+            raise HTTPException(status_code=404, detail="Observability summary could not be generated.")
+        report = get_orchestrator().get_executive_report().get("observability_summary")
+    if report is None:
+        raise HTTPException(status_code=404, detail="No observability summary is available yet.")
+    return ObservabilitySummaryResponse(**report)
+
+
+@app.get(
+    "/ops/observability/summary/history",
+    response_model=list[ObservabilitySummaryResponse],
+    include_in_schema=False,
+)
+async def ops_observability_summary_history(
+    limit: int = Query(default=20, ge=1, le=200),
+) -> list[ObservabilitySummaryResponse]:
+    return [
+        ObservabilitySummaryResponse(**item)
+        for item in get_orchestrator().list_observability_summary_history(limit=limit)
+    ]
 
 
 @app.get(
@@ -472,6 +661,74 @@ async def ops_workspace_reset(task_id: str) -> CodingTaskRecord:
 @app.get("/ops/runs", include_in_schema=False)
 async def ops_runs(limit: int = Query(default=50, ge=1, le=200)) -> JSONResponse:
     return JSONResponse(get_orchestrator().list_runs(limit=limit))
+
+
+@app.get(
+    "/ops/chat/threads",
+    response_model=list[ChatThreadSummaryResponse],
+    include_in_schema=False,
+)
+async def ops_chat_threads(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[ChatThreadSummaryResponse]:
+    return [
+        ChatThreadSummaryResponse(**thread)
+        for thread in get_orchestrator().list_chat_threads(limit=limit)
+    ]
+
+
+@app.post(
+    "/ops/chat/threads",
+    response_model=ChatThreadDetailResponse,
+    include_in_schema=False,
+)
+async def ops_chat_create_thread(
+    request: ChatThreadCreateRequest,
+) -> ChatThreadDetailResponse:
+    try:
+        payload = get_orchestrator().create_chat_thread(
+            agent_name=request.agent_name,
+            title=request.title,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return ChatThreadDetailResponse(**payload)
+
+
+@app.get(
+    "/ops/chat/threads/{thread_id}",
+    response_model=ChatThreadDetailResponse,
+    include_in_schema=False,
+)
+async def ops_chat_thread(thread_id: str) -> ChatThreadDetailResponse:
+    try:
+        payload = get_orchestrator().get_chat_thread(thread_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return ChatThreadDetailResponse(**payload)
+
+
+@app.post(
+    "/ops/chat/threads/{thread_id}/messages",
+    response_model=ChatThreadDetailResponse,
+    include_in_schema=False,
+)
+async def ops_chat_send_message(
+    thread_id: str,
+    request: ChatMessageCreateRequest,
+) -> ChatThreadDetailResponse:
+    try:
+        payload = get_orchestrator().send_chat_message(
+            thread_id=thread_id,
+            content=request.content,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return ChatThreadDetailResponse(**payload)
 
 
 @app.get(

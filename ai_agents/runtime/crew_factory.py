@@ -10,6 +10,7 @@ from crewai import Agent, Crew, LLM, Process, Task
 
 from .config import AgentProfile, ModelProfile, load_prompt
 from .schemas import (
+    ChatReplyOutput,
     CodingChangeOutput,
     CodingTaskPacketOutput,
     PlanOutput,
@@ -271,6 +272,63 @@ class CrewAIExecutionEngine:
             model_profile,
         )
 
+    def run_chat_agent(
+        self,
+        request_payload: dict[str, Any],
+        run_context: dict[str, Any],
+    ) -> tuple[ChatReplyOutput, StepUsage]:
+        agent_profile = self.agent_profiles[request_payload["agent_name"]]
+        model_profile = self.model_profiles[run_context["selected_model_tier"]]
+        metadata = dict(request_payload.get("metadata") or {})
+        latest_user_message = str(metadata.get("chat_latest_user_message") or "").strip()
+        chat_history = list(metadata.get("chat_history") or [])[-8:]
+        chat_context = metadata.get("chat_context") or {}
+        agent = Agent(
+            role=agent_profile.role,
+            goal=agent_profile.goal,
+            backstory=f"{agent_profile.backstory}\n\n{load_prompt(agent_profile.prompt_file)}",
+            llm=self._make_llm(model_profile),
+            verbose=False,
+            allow_delegation=False,
+            max_iter=run_context["max_iterations"],
+            max_retry_limit=run_context["max_retry_limit"],
+        )
+        description = (
+            "You are speaking directly to the human operator in a manual agent chat.\n\n"
+            f"Latest operator message: {latest_user_message or 'No message provided.'}\n"
+            f"Recent chat history: {json.dumps(chat_history, ensure_ascii=False)}\n"
+            f"Current bounded context: {json.dumps(chat_context, ensure_ascii=False)}\n\n"
+            "Rules:\n"
+            "- Explain what you are currently focused on inside your own scope.\n"
+            "- If asked for details, answer concretely from the provided context.\n"
+            "- If asked to change tactic, propose an updated tactic and next step.\n"
+            "- Do not claim any code, runtime, risk, or strategy change happened unless the context explicitly says it already happened.\n"
+            "- Stay concise, concrete, and operator-facing.\n\n"
+            f"{self._build_json_output_instruction(ChatReplyOutput)}"
+        )
+        task = Task(
+            description=description,
+            expected_output="Strict JSON matching the requested chat reply schema.",
+            agent=agent,
+        )
+        crew = Crew(
+            name=f"{request_payload['agent_name']}_chat_crew",
+            agents=[agent],
+            tasks=[task],
+            process=Process.sequential,
+            verbose=False,
+            memory=False,
+            planning=False,
+            tracing=False,
+        )
+        crew_output = crew.kickoff()
+        chat_output = self._extract_structured_output(crew_output, ChatReplyOutput)
+        return chat_output, self._usage_from_output(
+            crew_output,
+            request_payload["agent_name"],
+            model_profile,
+        )
+
     def run_review_agent(
         self,
         request_payload: dict[str, Any],
@@ -350,17 +408,7 @@ class CrewAIExecutionEngine:
         )
         description = (
             "Assess the following strategy through one common gate: backtest evidence + risk gate + dry_run evidence.\n\n"
-            f"Strategy: {strategy_report['strategy_name']}\n"
-            f"Timeframe: {strategy_report.get('timeframe', 'unknown')}\n"
-            f"Profit ratio: {strategy_report.get('profit_pct', 0.0)}\n"
-            f"Absolute profit: {strategy_report.get('absolute_profit', 0.0)}\n"
-            f"Drawdown ratio: {strategy_report.get('drawdown_pct', 0.0)}\n"
-            f"Drawdown abs: {strategy_report.get('drawdown_abs', 0.0)}\n"
-            f"Total trades: {strategy_report.get('total_trades', 0)}\n"
-            f"Win rate: {strategy_report.get('win_rate', 0.0)}\n"
-            f"Stability score: {strategy_report.get('stability_score')}\n"
-            f"Current evaluation status: {strategy_report.get('evaluation_status')}\n"
-            f"Rejection reasons: {strategy_report.get('rejection_reasons', [])}\n"
+            f"Strategy packet: {json.dumps(strategy_report, ensure_ascii=False)}\n"
             f"Readiness gate: {json.dumps(readiness_gate or {}, ensure_ascii=False)}\n"
             f"Dry run summary: {json.dumps(dry_run_context or {}, ensure_ascii=False)}\n"
             "Respect the project rules: no live trading promotion without human review, "
@@ -416,8 +464,9 @@ class CrewAIExecutionEngine:
         )
         description = (
             "Create one small coding task packet for the next owned-scope implementation slice.\n\n"
-            f"Module context: {json.dumps(module_context, ensure_ascii=False)}\n"
-            f"Executive context: {json.dumps(executive_context, ensure_ascii=False)}\n"
+            "Use the provided lightweight packets instead of requesting broad repository context.\n"
+            f"Module packet: {json.dumps(module_context, ensure_ascii=False)}\n"
+            f"Executive packet: {json.dumps(executive_context, ensure_ascii=False)}\n"
             "Hard rules:\n"
             "- one module only\n"
             "- owned-scope only\n"

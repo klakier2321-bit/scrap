@@ -6,62 +6,84 @@
     <title>{{ title }}</title>
     <style>
       :root {
-        --bg: #f4f1e8;
-        --panel: #fffaf2;
-        --line: #d8cfbf;
-        --text: #1e241f;
-        --muted: #556155;
-        --accent: #1f6f5f;
-        --accent-soft: #d9efe8;
-        --warning: #b66a1e;
-        --danger: #8c2f39;
+        --bg: #f3efe6;
+        --panel: rgba(255, 251, 245, 0.94);
+        --line: #d9cfbe;
+        --text: #172019;
+        --muted: #5a655a;
+        --accent: #1f6c5e;
+        --accent-soft: #d8ede8;
+        --warning: #a15a12;
+        --warning-soft: #fff1de;
+        --danger: #8e3040;
+        --danger-soft: #fde9ed;
+        --shadow: 0 18px 48px rgba(46, 53, 48, 0.08);
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
         font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-        background:
-          radial-gradient(circle at top left, rgba(31,111,95,0.14), transparent 32%),
-          linear-gradient(180deg, #f8f5ee 0%, var(--bg) 100%);
         color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(31,108,94,0.14), transparent 30%),
+          linear-gradient(180deg, #faf7f0 0%, var(--bg) 100%);
+      }
+      code {
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 0.92em;
       }
       .layout {
-        max-width: 1360px;
+        max-width: 1380px;
         margin: 0 auto;
-        padding: 28px 20px 44px;
+        padding: 28px 18px 48px;
       }
       .hero {
         display: grid;
-        gap: 18px;
-        margin-bottom: 24px;
+        gap: 16px;
+        margin-bottom: 22px;
       }
       .hero h1 {
         margin: 0;
-        font-size: clamp(2rem, 4vw, 3.4rem);
-        letter-spacing: -0.04em;
+        font-size: clamp(2.2rem, 4vw, 3.6rem);
+        letter-spacing: -0.05em;
       }
       .hero p {
         margin: 0;
-        max-width: 850px;
+        max-width: 900px;
         color: var(--muted);
-        line-height: 1.5;
+        line-height: 1.55;
       }
-      .quick-links {
+      .quick-links,
+      .button-row {
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
       }
-      .quick-links a,
+      a.button,
+      button,
+      select,
+      input,
+      textarea {
+        font: inherit;
+      }
+      a.button,
       button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
         border: 1px solid var(--line);
         background: var(--panel);
         color: var(--text);
-        padding: 10px 14px;
         border-radius: 999px;
         text-decoration: none;
-        font: inherit;
+        padding: 10px 14px;
         cursor: pointer;
-        transition: transform 120ms ease, background 120ms ease;
+        transition: transform 120ms ease, background 120ms ease, opacity 120ms ease;
+      }
+      a.button:hover,
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
       }
       button.primary {
         background: var(--accent);
@@ -69,61 +91,207 @@
         color: #fff;
       }
       button.warn {
-        background: #fff2df;
-        border-color: #efc693;
+        background: var(--warning-soft);
+        border-color: #e6c08e;
         color: var(--warning);
       }
       button.danger {
-        background: #fde9ec;
-        border-color: #e1a9b0;
+        background: var(--danger-soft);
+        border-color: #e3aab5;
         color: var(--danger);
       }
-      .quick-links a:hover,
-      button:hover {
-        transform: translateY(-1px);
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.58;
+        transform: none;
       }
       .grid {
         display: grid;
-        grid-template-columns: repeat(12, 1fr);
         gap: 18px;
       }
+      .status-bar {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        margin-bottom: 18px;
+      }
+      .main-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-bottom: 18px;
+      }
+      .footer-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-bottom: 18px;
+      }
       .panel {
-        background: rgba(255, 250, 242, 0.95);
+        background: var(--panel);
         border: 1px solid var(--line);
-        border-radius: 22px;
-        padding: 18px 18px 16px;
-        box-shadow: 0 14px 50px rgba(49, 54, 47, 0.06);
+        border-radius: 24px;
+        padding: 18px;
+        box-shadow: var(--shadow);
+      }
+      .panel h2,
+      .panel h3 {
+        margin: 0 0 12px;
+        letter-spacing: -0.03em;
       }
       .panel h2 {
-        margin: 0 0 12px;
+        font-size: 1.2rem;
+      }
+      .panel h3 {
         font-size: 1rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
         color: var(--muted);
       }
-      .panel.large { grid-column: span 8; }
-      .panel.medium { grid-column: span 6; }
-      .panel.small { grid-column: span 4; }
-      .stats {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 12px;
+      .panel p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
       }
-      .stat {
+      .stat-card {
+        background: linear-gradient(180deg, #ffffff, #f8f3ea);
+        border: 1px solid #e7ddcf;
+        border-radius: 20px;
         padding: 14px;
-        border-radius: 18px;
-        background: linear-gradient(180deg, #ffffff, #f7f3eb);
-        border: 1px solid #e5dccb;
+        min-height: 98px;
       }
-      .stat span {
+      .stat-card span {
         display: block;
         color: var(--muted);
-        font-size: 0.85rem;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 6px;
+      }
+      .stat-card strong {
+        display: block;
+        font-size: 1.4rem;
+        letter-spacing: -0.04em;
+      }
+      .stat-card small {
+        display: block;
+        color: var(--muted);
+        margin-top: 8px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 4px 10px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 0.82rem;
+        font-weight: 600;
+      }
+      .pill.pending {
+        background: var(--warning-soft);
+        color: var(--warning);
+      }
+      .pill.danger {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+      .bot-grid,
+      .mini-stats {
+        display: grid;
+        gap: 10px;
+      }
+      .bot-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .mini-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .bot-tile,
+      .mini-tile {
+        border: 1px solid #eadfce;
+        border-radius: 18px;
+        padding: 12px;
+        background: #fffdf7;
+      }
+      .bot-tile strong,
+      .mini-tile strong {
+        display: block;
         margin-bottom: 4px;
       }
-      .stat strong {
-        font-size: 1.6rem;
-        letter-spacing: -0.03em;
+      .key-values {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 14px;
+      }
+      .key-values .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #ece2d4;
+      }
+      .key-values .row span:first-child {
+        color: var(--muted);
+      }
+      .list-box {
+        display: grid;
+        gap: 10px;
+      }
+      .list-item {
+        border: 1px solid #eadfce;
+        border-radius: 16px;
+        padding: 12px;
+        background: #fffdf8;
+      }
+      .list-item strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .list-item small {
+        display: block;
+        margin-top: 6px;
+        color: var(--muted);
+      }
+      .action-note {
+        min-height: 22px;
+        margin-top: 10px;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+      details.advanced {
+        background: rgba(255, 250, 243, 0.92);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      details.advanced summary {
+        cursor: pointer;
+        list-style: none;
+        padding: 18px 20px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      details.advanced summary::-webkit-details-marker {
+        display: none;
+      }
+      .advanced-body {
+        padding: 0 20px 20px;
+        display: grid;
+        gap: 18px;
+      }
+      .advanced-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+      .advanced-full {
+        grid-column: 1 / -1;
       }
       table {
         width: 100%;
@@ -131,353 +299,559 @@
         font-size: 0.95rem;
       }
       th, td {
-        padding: 10px 8px;
         text-align: left;
-        border-bottom: 1px solid #ece3d6;
         vertical-align: top;
+        padding: 10px 8px;
+        border-bottom: 1px solid #ebe0d2;
       }
       th {
-        color: var(--muted);
-        font-size: 0.82rem;
+        font-size: 0.78rem;
         text-transform: uppercase;
         letter-spacing: 0.08em;
+        color: var(--muted);
       }
-      .pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
-        border-radius: 999px;
-        background: var(--accent-soft);
-        color: var(--accent);
-        font-size: 0.82rem;
-        font-weight: 600;
-      }
-      .pill.pending { background: #fff1d9; color: var(--warning); }
-      .pill.danger { background: #fde9ec; color: var(--danger); }
-      .stack {
+      .form-grid {
         display: grid;
-        gap: 14px;
+        gap: 12px;
       }
-      .run-actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 11px 12px;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: #fffdf8;
       }
       .log-box {
-        min-height: 280px;
+        min-height: 220px;
         max-height: 420px;
         overflow: auto;
         padding: 14px;
-        background: #141916;
-        color: #d8f0de;
         border-radius: 18px;
+        background: #131816;
+        color: #d6f0de;
         font-family: "IBM Plex Mono", monospace;
         font-size: 0.82rem;
         line-height: 1.45;
         white-space: pre-wrap;
       }
-      .muted { color: var(--muted); }
-      .hidden { display: none; }
-      @media (max-width: 1100px) {
-        .panel.large,
-        .panel.medium,
-        .panel.small { grid-column: span 12; }
-        .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .chat-grid {
+        display: grid;
+        grid-template-columns: 320px minmax(0, 1fr);
+        gap: 18px;
+        margin-bottom: 18px;
       }
-      @media (max-width: 720px) {
-        .stats { grid-template-columns: 1fr; }
-        .layout { padding-left: 14px; padding-right: 14px; }
+      .chat-thread-list,
+      .chat-messages {
+        display: grid;
+        gap: 10px;
+      }
+      .chat-thread {
+        border: 1px solid #eadfce;
+        border-radius: 16px;
+        padding: 12px;
+        background: #fffdf8;
+        cursor: pointer;
+      }
+      .chat-thread.active {
+        border-color: var(--accent);
+        background: #f6fbf9;
+      }
+      .chat-thread strong,
+      .chat-bubble strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+      .chat-thread small,
+      .chat-bubble small {
+        color: var(--muted);
+      }
+      .chat-panel {
+        display: grid;
+        gap: 14px;
+      }
+      .chat-history {
+        min-height: 320px;
+        max-height: 560px;
+        overflow: auto;
+        display: grid;
+        gap: 10px;
+      }
+      .chat-bubble {
+        border: 1px solid #eadfce;
+        border-radius: 18px;
+        padding: 12px 14px;
+        background: #fffdf8;
+      }
+      .chat-bubble.user {
+        background: #eef6f4;
+        border-color: #c7dfd8;
+      }
+      .chat-bubble.assistant {
+        background: #fffaf0;
+      }
+      .chat-bubble.system {
+        background: #fff2f4;
+        border-color: #ecc3ca;
+      }
+      .chat-body {
+        white-space: pre-wrap;
+        line-height: 1.5;
+      }
+      .chat-meta {
+        display: grid;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      .chat-meta code {
+        white-space: pre-wrap;
+      }
+      .empty {
+        color: var(--muted);
+        padding: 12px 0;
+      }
+      @media (max-width: 1200px) {
+        .status-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        .footer-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 980px) {
+        .main-grid,
+        .chat-grid,
+        .advanced-grid,
+        .summary-grid,
+        .mini-stats,
+        .bot-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (max-width: 760px) {
+        .status-bar { grid-template-columns: 1fr 1fr; }
+        .layout { padding: 18px 12px 36px; }
       }
     </style>
   </head>
   <body>
     <div class="layout">
       <section class="hero">
-        <h1>Panel operatorski AI</h1>
+        <h1>Pulpit Operatora</h1>
         <p>
-          Lekki panel operacyjny dla warstwy agentowej. Pokazuje stan warstwy AI,
-          botów runtime, koszt i przebieg runów agentów oraz prowadzi człowieka
-          przez model <code>plan -&gt; review -&gt; write</code> bez zmieniania runtime
-          tradingowego.
+          Jeden codzienny widok dla <code>Futures Runtime</code> i <code>AI Runtime</code>.
+          Home pokazuje tylko stan, awarie i akcje wysokiego poziomu. Głębsze
+          narzędzia inżynierskie są dostępne w sekcji <strong>Zaawansowane</strong>.
         </p>
         <div class="quick-links">
-          <a href="/docs" target="_blank" rel="noreferrer">Dokumentacja API</a>
-          <a id="executive-dashboard-link" href="http://localhost:3000/d/crypto-executive-overview/pulpit-prezesa" target="_blank" rel="noreferrer">Pulpit Prezesa</a>
-          <a id="grafana-link" href="http://localhost:3000" target="_blank" rel="noreferrer">Grafana</a>
-          <a id="prometheus-link" href="http://localhost:9090" target="_blank" rel="noreferrer">Prometheus</a>
-          <a id="grafana-trace-link" href="http://localhost:3000/explore" target="_blank" rel="noreferrer">Trace</a>
-          <button id="refresh-all" class="primary">Odśwież wszystko</button>
+          <a class="button" id="executive-dashboard-link" href="http://localhost:3000/d/crypto-executive-overview/pulpit-prezesa" target="_blank" rel="noreferrer">Pulpit Prezesa</a>
+          <a class="button" id="grafana-link" href="http://localhost:3000" target="_blank" rel="noreferrer">Grafana</a>
+          <a class="button" id="prometheus-link" href="http://localhost:9090" target="_blank" rel="noreferrer">Prometheus</a>
+          <a class="button" href="/docs" target="_blank" rel="noreferrer">OpenAPI</a>
+          <button id="refresh-home" class="primary">Odśwież home</button>
         </div>
       </section>
 
-      <div class="grid">
-        <section class="panel large">
-          <h2>Stan warstwy AI</h2>
-          <div class="stats" id="health-stats">
-            <div class="stat"><span>Status</span><strong id="health-status">...</strong></div>
-            <div class="stat"><span>Tryb agentów</span><strong id="health-mode">...</strong></div>
-            <div class="stat"><span>Mock LLM</span><strong id="health-mock">...</strong></div>
-            <div class="stat"><span>Kill switch</span><strong id="health-kill">...</strong></div>
-            <div class="stat"><span>Aktywne runy</span><strong id="summary-active-runs">...</strong></div>
-            <div class="stat"><span>Zablokowane runy</span><strong id="summary-blocked-runs">...</strong></div>
-            <div class="stat"><span>Runy do review</span><strong id="summary-review-runs">...</strong></div>
-            <div class="stat"><span>Ostatni zablokowany run</span><strong id="summary-last-blocked">...</strong></div>
-            <div class="stat"><span>Ostatnia decyzja review</span><strong id="summary-last-review">...</strong></div>
-          </div>
-        </section>
+      <section class="grid status-bar">
+        <div class="stat-card">
+          <span>Cluster futures</span>
+          <strong id="top-futures-state">...</strong>
+          <small id="top-futures-detail">Ładowanie...</small>
+        </div>
+        <div class="stat-card">
+          <span>AI runtime</span>
+          <strong id="top-ai-state">...</strong>
+          <small id="top-ai-detail">Ładowanie...</small>
+        </div>
+        <div class="stat-card">
+          <span>Kill switch</span>
+          <strong id="top-kill-switch">...</strong>
+          <small id="top-kill-detail">Stan efektywny</small>
+        </div>
+        <div class="stat-card">
+          <span>Runtime freeze</span>
+          <strong id="top-runtime-freeze">...</strong>
+          <small id="top-freeze-detail">Stan efektywny</small>
+        </div>
+        <div class="stat-card">
+          <span>Resource guard</span>
+          <strong id="top-resource-guard">...</strong>
+          <small id="top-resource-detail">Ładowanie...</small>
+        </div>
+        <div class="stat-card">
+          <span>Freshness</span>
+          <strong id="top-freshness">...</strong>
+          <small id="top-freshness-detail">Źródła observability</small>
+        </div>
+      </section>
 
-        <section class="panel medium">
-          <h2>Autopilot agentów</h2>
-          <div class="stats" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px;">
-            <div class="stat"><span>Stan</span><strong id="autopilot-running">...</strong></div>
-            <div class="stat"><span>Następne zadanie</span><strong id="autopilot-next-task">...</strong></div>
-            <div class="stat"><span>Liczba cykli</span><strong id="autopilot-cycle-count">...</strong></div>
-          </div>
-          <div class="stack">
-            <div class="muted" id="autopilot-objective">Ładowanie celu autopilota...</div>
-            <div class="muted" id="autopilot-last-status">Ładowanie ostatniego wyniku...</div>
-            <div class="run-actions">
-              <button id="autopilot-start" class="primary">Uruchom autopilota</button>
-              <button id="autopilot-stop" class="danger">Zatrzymaj autopilota</button>
+      <section class="grid main-grid">
+        <section class="panel">
+          <h2>Futures Runtime</h2>
+          <p id="futures-summary">Ładowanie stanu klastra futures...</p>
+          <div class="summary-grid" style="margin-top: 14px;">
+            <div class="mini-tile">
+              <strong id="futures-risk-mode">...</strong>
+              <span class="muted">tryb risk</span>
+            </div>
+            <div class="mini-tile">
+              <strong id="futures-allow-trading">...</strong>
+              <span class="muted">allow_trading</span>
+            </div>
+            <div class="mini-tile">
+              <strong id="futures-preferred-strategy">...</strong>
+              <span class="muted">preferowana strategia</span>
+            </div>
+            <div class="mini-tile">
+              <strong id="futures-force-reduce">...</strong>
+              <span class="muted">force_reduce_only</span>
+            </div>
+            <div class="mini-tile">
+              <strong id="futures-cooldown">...</strong>
+              <span class="muted">cooldown</span>
+            </div>
+            <div class="mini-tile">
+              <strong id="futures-open-trades">...</strong>
+              <span class="muted">otwarte pozycje</span>
             </div>
           </div>
+          <div class="button-row">
+            <button id="futures-start" class="primary">Start cluster</button>
+            <button id="futures-stop" class="danger">Stop cluster</button>
+            <button id="futures-smoke" class="warn">Run smoke</button>
+            <button id="futures-snapshot">Refresh snapshot</button>
+          </div>
+          <div class="action-note" id="futures-action-note"></div>
+          <h3 style="margin-top: 16px;">Boty kanoniczne</h3>
+          <div class="bot-grid" id="futures-bots"></div>
+          <h3 style="margin-top: 16px;">Główne blokady tradingowe</h3>
+          <div class="list-box" id="futures-blockers"></div>
         </section>
 
-        <section class="panel small">
-          <h2>Nowy run agenta</h2>
-          <div class="stack">
-            <label>
-              <div class="muted">Agent</div>
-              <select id="agent-name"></select>
-            </label>
-            <label>
-              <div class="muted">Cel</div>
-              <textarea id="agent-goal" rows="5" style="width:100%;border-radius:14px;border:1px solid var(--line);padding:12px;font:inherit;">Przygotuj bezpieczny plan pracy w swoim scope.</textarea>
-            </label>
-            <label>
-              <div class="muted">Żądane ścieżki (po przecinku)</div>
-              <input id="requested-paths" type="text" style="width:100%;border-radius:14px;border:1px solid var(--line);padding:12px;font:inherit;" value="docs/" />
-            </label>
-            <div class="run-actions">
-              <button id="run-low" class="primary">Uruchom niski poziom ryzyka</button>
-              <button id="run-medium" class="warn">Uruchom średni poziom ryzyka</button>
+        <section class="panel">
+          <h2>AI Runtime</h2>
+          <p id="ai-summary">Ładowanie stanu runtime agentów...</p>
+          <div class="mini-stats" style="margin-top: 14px;">
+            <div class="mini-tile">
+              <strong id="ai-autopilot-state">...</strong>
+              <span class="muted">autopilot</span>
+            </div>
+            <div class="mini-tile">
+              <strong id="ai-coding-state">...</strong>
+              <span class="muted">coding supervisor</span>
+            </div>
+            <div class="mini-tile">
+              <strong id="ai-budget-daily">...</strong>
+              <span class="muted">budżet dzienny</span>
+            </div>
+            <div class="mini-tile">
+              <strong id="ai-budget-run">...</strong>
+              <span class="muted">budżet per run</span>
+            </div>
+            <div class="mini-tile">
+              <strong id="ai-budget-blocks">...</strong>
+              <span class="muted">blocked by budget</span>
+            </div>
+            <div class="mini-tile">
+              <strong id="ai-resource-blocks">...</strong>
+              <span class="muted">blocked by resource guard</span>
             </div>
           </div>
-        </section>
-
-        <section class="panel medium">
-          <h2>Boty runtime</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Bot</th>
-                <th>Stan</th>
-                <th>Dry run</th>
-                <th>Akcje</th>
-              </tr>
-            </thead>
-            <tbody id="bots-table"></tbody>
-          </table>
-        </section>
-
-        <section class="panel medium">
-          <h2>Agenci i budzety</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Agent</th>
-                <th>Profil modelu</th>
-                <th>Budżet dzienny</th>
-                <th>Budżet na run</th>
-              </tr>
-            </thead>
-            <tbody id="agents-table"></tbody>
-          </table>
-        </section>
-
-        <section class="panel medium">
-          <h2>Dry run i dane dla agentów</h2>
-          <div class="stats" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px;">
-            <div class="stat"><span>Gotowość</span><strong id="dry-run-ready">...</strong></div>
-            <div class="stat"><span>Tryb runtime</span><strong id="dry-run-mode">...</strong></div>
-            <div class="stat"><span>Most danych</span><strong id="dry-run-bridge">...</strong></div>
-            <div class="stat"><span>Wiek snapshotu</span><strong id="dry-run-snapshot-age">...</strong></div>
-            <div class="stat"><span>Otwarte pozycje</span><strong id="dry-run-open-trades">...</strong></div>
-            <div class="stat"><span>Ostatni smoke</span><strong id="dry-run-last-smoke">...</strong></div>
+          <div class="button-row">
+            <button id="autopilot-toggle" class="primary">Start autopilot</button>
+            <button id="coding-toggle">Start coding supervisor</button>
+            <button id="kill-toggle" class="danger">Enable kill switch</button>
+            <button id="freeze-toggle" class="warn">Enable runtime freeze</button>
           </div>
-          <div class="stack">
-            <div class="muted" id="dry-run-blocking">Ładowanie statusu dry run...</div>
-            <div class="muted" id="dry-run-warnings">Ładowanie ostrzeżeń runtime...</div>
-            <div class="run-actions">
-              <button id="dry-run-smoke" class="warn">Uruchom smoke test</button>
-              <button id="dry-run-snapshot" class="primary">Zbuduj snapshot</button>
+          <div class="action-note" id="ai-action-note"></div>
+          <h3 style="margin-top: 16px;">Drzewo agentów</h3>
+          <div class="key-values">
+            <div class="row"><span>Aktywny rdzeń</span><strong id="ai-active-core">...</strong></div>
+            <div class="row"><span>Manual only</span><strong id="ai-manual-only">...</strong></div>
+            <div class="row"><span>Disabled by default</span><strong id="ai-disabled-default">...</strong></div>
+            <div class="row"><span>Ręcznie włączone</span><strong id="ai-manual-enabled">...</strong></div>
+            <div class="row"><span>Główny powód guardu</span><strong id="ai-guard-reason">...</strong></div>
+          </div>
+          <h3>Co blokuje AI teraz</h3>
+          <div class="list-box" id="ai-guard-notes"></div>
+        </section>
+      </section>
+
+      <section class="grid footer-grid">
+        <section class="panel">
+          <h2>Co wymaga uwagi</h2>
+          <div class="list-box" id="attention-items"></div>
+        </section>
+        <section class="panel">
+          <h2>Ostatnie błędy</h2>
+          <div class="list-box" id="recent-errors"></div>
+        </section>
+        <section class="panel">
+          <h2>Ostatnie akcje operatora</h2>
+          <div class="list-box" id="recent-actions"></div>
+        </section>
+      </section>
+
+      <section class="panel">
+        <h2>Rozmowa z agentem</h2>
+        <p>
+          Manualny chat z wybranym agentem. Możesz zapytać, nad czym teraz pracuje,
+          poprosić o szczegóły albo zaproponować zmianę taktyki bez odpalania nowego
+          „zadania operatorskiego”.
+        </p>
+        <div class="chat-grid" style="margin-top: 16px;">
+          <section class="chat-panel">
+            <div class="form-grid">
+              <label>
+                <div class="muted">Nowy wątek z agentem</div>
+                <select id="chat-agent-name"></select>
+              </label>
+              <label>
+                <div class="muted">Tytuł wątku</div>
+                <input id="chat-thread-title" type="text" placeholder="Opcjonalny tytuł rozmowy" />
+              </label>
+              <div class="button-row">
+                <button id="chat-create-thread" class="primary">Nowy wątek</button>
+                <button id="chat-refresh">Odśwież chat</button>
+              </div>
             </div>
-          </div>
-        </section>
+            <h3 style="margin-top: 8px;">Twoje wątki</h3>
+            <div class="chat-thread-list" id="chat-thread-list"></div>
+          </section>
 
-        <section class="panel large">
-          <h2>Runy agentów</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Run</th>
-                <th>Agent</th>
-                <th>Status</th>
-                <th>Model</th>
-                <th>Koszt</th>
-                <th>Akcje</th>
-              </tr>
-            </thead>
-            <tbody id="runs-table"></tbody>
-          </table>
-        </section>
-
-        <section class="panel medium">
-          <h2>Supervisor kodujących agentów</h2>
-          <div class="stats" style="grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 14px;">
-            <div class="stat"><span>Stan</span><strong id="coding-running">...</strong></div>
-            <div class="stat"><span>Aktywny task</span><strong id="coding-active-task">...</strong></div>
-            <div class="stat"><span>Taski gotowe</span><strong id="coding-ready-tasks">...</strong></div>
-            <div class="stat"><span>Taski do review</span><strong id="coding-review-tasks">...</strong></div>
-            <div class="stat"><span>Zacommitowane</span><strong id="coding-committed-tasks">...</strong></div>
-            <div class="stat"><span>Ostatni błąd</span><strong id="coding-last-error">...</strong></div>
-          </div>
-          <div class="stack">
-            <label>
-              <div class="muted">Moduł do ręcznego taska</div>
-              <select id="coding-module"></select>
-            </label>
-            <label>
-              <div class="muted">Nadpisany cel taska</div>
-              <input id="coding-goal" type="text" style="width:100%;border-radius:14px;border:1px solid var(--line);padding:12px;font:inherit;" placeholder="Opcjonalny, mały przyrost w jednym module" />
-            </label>
-            <div class="run-actions">
-              <button id="coding-start" class="primary">Uruchom supervisor</button>
-              <button id="coding-stop" class="danger">Zatrzymaj supervisor</button>
-              <button id="coding-create-task" class="warn">Dodaj ręczny task</button>
+          <section class="chat-panel">
+            <div class="key-values">
+              <div class="row"><span>Aktywny agent</span><strong id="chat-active-agent">Wybierz wątek</strong></div>
+              <div class="row"><span>Status odpowiedzi</span><strong id="chat-active-status">Brak aktywnego wątku</strong></div>
             </div>
+            <div class="chat-history" id="chat-history">
+              <div class="empty">Wybierz wątek albo utwórz nową rozmowę.</div>
+            </div>
+            <div class="form-grid">
+              <label>
+                <div class="muted">Twoja wiadomość</div>
+                <textarea id="chat-message-input" rows="4" placeholder="Np. Nad czym teraz pracujesz i co blokuje Cię najbardziej?"></textarea>
+              </label>
+              <div class="button-row">
+                <button id="chat-send" class="primary">Wyślij</button>
+              </div>
+              <div class="action-note" id="chat-action-note"></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <details class="advanced" id="advanced-panel">
+        <summary>
+          <span>Zaawansowane</span>
+          <span class="muted">Ręczne runy, budżety, taski kodujące, diffy i logi</span>
+        </summary>
+        <div class="advanced-body">
+          <div class="button-row">
+            <button id="refresh-advanced">Odśwież zaawansowane</button>
           </div>
-        </section>
+          <div class="advanced-grid">
+            <section class="panel">
+              <h2>Nowy run agenta</h2>
+              <div class="form-grid">
+                <label>
+                  <div class="muted">Agent</div>
+                  <select id="agent-name"></select>
+                </label>
+                <label>
+                  <div class="muted">Cel</div>
+                  <textarea id="agent-goal" rows="4">Przygotuj bezpieczny plan pracy w swoim scope.</textarea>
+                </label>
+                <label>
+                  <div class="muted">Ścieżki (po przecinku)</div>
+                  <input id="requested-paths" type="text" value="docs/" />
+                </label>
+                <div class="button-row">
+                  <button id="run-low" class="primary">Run low</button>
+                  <button id="run-medium" class="warn">Run medium</button>
+                </div>
+              </div>
+            </section>
 
-        <section class="panel large">
-          <h2>Taski kodujące</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Task</th>
-                <th>Moduł</th>
-                <th>Agent</th>
-                <th>Status</th>
-                <th>Koszt</th>
-                <th>Review</th>
-                <th>Akcje</th>
-              </tr>
-            </thead>
-            <tbody id="coding-tasks-table"></tbody>
-          </table>
-        </section>
+            <section class="panel">
+              <h2>Supervisor kodujących</h2>
+              <div class="key-values">
+                <div class="row"><span>Stan</span><strong id="coding-running">...</strong></div>
+                <div class="row"><span>Aktywny task</span><strong id="coding-active-task">...</strong></div>
+                <div class="row"><span>Gotowe taski</span><strong id="coding-ready-tasks">...</strong></div>
+                <div class="row"><span>Taski do review</span><strong id="coding-review-tasks">...</strong></div>
+                <div class="row"><span>Zacommitowane</span><strong id="coding-committed-tasks">...</strong></div>
+                <div class="row"><span>Ostatni błąd</span><strong id="coding-last-error">...</strong></div>
+              </div>
+              <div class="form-grid">
+                <label>
+                  <div class="muted">Moduł</div>
+                  <select id="coding-module"></select>
+                </label>
+                <label>
+                  <div class="muted">Nadpisany cel taska</div>
+                  <input id="coding-goal" type="text" placeholder="Opcjonalny mały przyrost" />
+                </label>
+                <div class="button-row">
+                  <button id="coding-start" class="primary">Start supervisor</button>
+                  <button id="coding-stop" class="danger">Stop supervisor</button>
+                  <button id="coding-create-task" class="warn">Dodaj task</button>
+                </div>
+              </div>
+            </section>
 
-        <section class="panel medium">
-          <h2>Workspaces agentów</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Task</th>
-                <th>Branch</th>
-                <th>Zmiany</th>
-                <th>Akcje</th>
-              </tr>
-            </thead>
-            <tbody id="coding-workspaces-table"></tbody>
-          </table>
-        </section>
+            <section class="panel advanced-full">
+              <h2>Boty runtime</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Bot</th>
+                    <th>Stan</th>
+                    <th>Dry run</th>
+                    <th>Akcje</th>
+                  </tr>
+                </thead>
+                <tbody id="bots-table"></tbody>
+              </table>
+            </section>
 
-        <section class="panel medium">
-          <h2>Diff aktywnego worktree</h2>
-          <div class="log-box" id="workspace-diff-box">Wybierz task kodujący, aby zobaczyć diff.</div>
-        </section>
+            <section class="panel advanced-full">
+              <h2>Agenci i budżety</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Agent</th>
+                    <th>Drzewo</th>
+                    <th>Aktywacja</th>
+                    <th>Koszt</th>
+                    <th>Budżet dzienny</th>
+                    <th>Budżet run</th>
+                    <th>Override</th>
+                  </tr>
+                </thead>
+                <tbody id="agents-table"></tbody>
+              </table>
+            </section>
 
-        <section class="panel large">
-          <h2>Historia raportów strategii</h2>
-          <div class="run-actions" style="margin-bottom: 12px;">
-            <button id="refresh-strategy-report" class="warn">Odśwież assessment strategii</button>
+            <section class="panel advanced-full">
+              <h2>Runy agentów</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Run</th>
+                    <th>Agent</th>
+                    <th>Status</th>
+                    <th>Model</th>
+                    <th>Koszt</th>
+                    <th>Akcje</th>
+                  </tr>
+                </thead>
+                <tbody id="runs-table"></tbody>
+              </table>
+            </section>
+
+            <section class="panel advanced-full">
+              <h2>Taski kodujące</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Task</th>
+                    <th>Moduł</th>
+                    <th>Agent</th>
+                    <th>Status</th>
+                    <th>Koszt</th>
+                    <th>Review</th>
+                    <th>Akcje</th>
+                  </tr>
+                </thead>
+                <tbody id="coding-tasks-table"></tbody>
+              </table>
+            </section>
+
+            <section class="panel">
+              <h2>Workspaces</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Task</th>
+                    <th>Branch</th>
+                    <th>Zmiany</th>
+                    <th>Akcje</th>
+                  </tr>
+                </thead>
+                <tbody id="coding-workspaces-table"></tbody>
+              </table>
+            </section>
+
+            <section class="panel">
+              <h2>Diff worktree</h2>
+              <div class="log-box" id="workspace-diff-box">Wybierz task lub workspace, aby zobaczyć diff.</div>
+            </section>
+
+            <section class="panel advanced-full">
+              <h2>Historia raportów strategii</h2>
+              <div class="button-row" style="margin-bottom: 12px;">
+                <button id="refresh-strategy-report" class="warn">Odśwież assessment strategii</button>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Strategia</th>
+                    <th>Profit</th>
+                    <th>Drawdown</th>
+                    <th>Trade'y</th>
+                    <th>Status</th>
+                    <th>Rekomendacja</th>
+                  </tr>
+                </thead>
+                <tbody id="strategy-history-table"></tbody>
+              </table>
+            </section>
+
+            <section class="panel advanced-full">
+              <h2>Logi ai_control</h2>
+              <div class="log-box" id="control-logs">Ładowanie logów...</div>
+            </section>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Strategia</th>
-                <th>Profit</th>
-                <th>Drawdown</th>
-                <th>Trade'y</th>
-                <th>Status</th>
-                <th>Rekomendacja</th>
-              </tr>
-            </thead>
-            <tbody id="strategy-history-table"></tbody>
-          </table>
-        </section>
-
-        <section class="panel large">
-          <h2>Historia snapshotów dry run</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Czas</th>
-                <th>Tryb</th>
-                <th>Strategia</th>
-                <th>Otwarte pozycje</th>
-                <th>Stan snapshotu</th>
-                <th>Ostrzeżenia</th>
-              </tr>
-            </thead>
-            <tbody id="dry-run-history-table"></tbody>
-          </table>
-        </section>
-
-        <section class="panel large">
-          <h2>Logi ai_control</h2>
-          <div class="log-box" id="control-logs">Ładowanie logów...</div>
-        </section>
-      </div>
+        </div>
+      </details>
     </div>
 
     <script>
-      async function fetchJson(path, options) {
-        const response = await fetch(path, options);
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(text || `HTTP ${response.status}`);
-        }
-        return response.json();
-      }
+      let operatorHomeCache = null;
+      let advancedLoaded = false;
+      let chatThreadsCache = [];
+      let activeChatThreadId = null;
 
       function translateStatus(status) {
         const labels = {
-          queued: "W kolejce",
-          running: "W trakcie",
-          completed: "Zakończony",
-          blocked: "Zablokowany",
-          failed: "Nieudany",
+          running: "Aktywny",
           stopped: "Zatrzymany",
-          awaiting_approval: "Oczekuje na zatwierdzenie",
-          started: "Uruchomiony",
-          rejected: "Odrzucony",
-          proposed: "Proponowany",
-          ready: "Gotowy",
-          dispatched: "Przydzielony",
-          coding: "Kodowanie",
-          review: "Review",
-          approved: "Zatwierdzony do commita",
-          committed: "Zacommitowany",
-          needs_manual_review: "Wymaga decyzji",
-          candidate_for_next_stage: "Kandydat",
-          ok: "OK",
+          exited: "Exited",
+          missing: "Missing",
+          degraded: "Zdegradowany",
+          blocked: "Zablokowany",
+          fail: "Nieudany",
           pass: "Zdany",
-          fail: "Nieudany"
+          queued: "W kolejce",
+          completed: "Zakończony",
+          awaiting_approval: "Czeka na akceptację",
+          review: "Review",
+          committed: "Zacommitowany",
+          ready: "Gotowy",
+          coding: "Kodowanie",
+          dispatched: "Przydzielony",
+          approved: "Zatwierdzony",
+          active_core: "Aktywny rdzeń",
+          manual_only: "Manual only",
+          manual_enabled: "Ręcznie włączony",
+          disabled_by_default: "Wyłączony domyślnie",
+          operator_disabled: "Wyłączony operatorem",
+          agents_guarded: "Guarded",
+          agents_disabled: "Wyłączone",
+          agents_active_limited: "Aktywne limitowane",
+          true: "tak",
+          false: "nie"
         };
-        const lowered = (status || "").toLowerCase();
-        return labels[lowered] || status || "-";
+        const lowered = String(status || "").toLowerCase();
+        return labels[lowered] || status || "brak";
       }
 
       function translateReviewDecision(decision) {
@@ -490,11 +864,49 @@
       }
 
       function statusPill(status) {
-        const lowered = (status || "").toLowerCase();
+        const lowered = String(status || "").toLowerCase();
         let cls = "";
-        if (["blocked", "failed", "stopped", "fail"].includes(lowered)) cls = "danger";
-        else if (["awaiting_approval", "queued", "running", "ready", "coding", "review", "dispatched", "approved"].includes(lowered)) cls = "pending";
+        if (["blocked", "failed", "fail", "stopped", "operator_disabled", "disabled"].includes(lowered)) cls = "danger";
+        else if (["queued", "review", "ready", "coding", "dispatched", "awaiting_approval", "manual_only", "disabled_by_default", "degraded", "agents_guarded"].includes(lowered)) cls = "pending";
         return `<span class="pill ${cls}">${translateStatus(status)}</span>`;
+      }
+
+      function formatAge(seconds) {
+        if (seconds === null || seconds === undefined) return "brak";
+        const value = Number(seconds);
+        if (!Number.isFinite(value)) return "brak";
+        if (value < 60) return `${Math.round(value)} s`;
+        if (value < 3600) return `${Math.round(value / 60)} min`;
+        return `${(value / 3600).toFixed(1)} h`;
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      async function fetchJson(path, options) {
+        const response = await fetch(path, options);
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `HTTP ${response.status}`);
+        }
+        return response.json();
+      }
+
+      async function postJson(path, payload = null) {
+        const options = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        };
+        if (payload !== null) {
+          options.body = JSON.stringify(payload);
+        }
+        return fetchJson(path, options);
       }
 
       function configureExternalLinks() {
@@ -502,15 +914,182 @@
         const host = window.location.hostname || "localhost";
         document.getElementById("grafana-link").href = `${protocol}//${host}:3000`;
         document.getElementById("prometheus-link").href = `${protocol}//${host}:9090`;
-        document.getElementById("grafana-trace-link").href = `${protocol}//${host}:3000/explore?left=%5B%22now-1h%22,%22now%22,%22Tempo%22,%7B%22queryType%22:%22search%22%7D%5D`;
+        document.getElementById("executive-dashboard-link").href = `${protocol}//${host}:3000/d/crypto-executive-overview/pulpit-prezesa`;
       }
 
-      async function refreshHealth() {
-        const health = await fetchJson("/health");
-        document.getElementById("health-status").textContent = health.status;
-        document.getElementById("health-mode").textContent = health.agent_mode;
-        document.getElementById("health-mock").textContent = health.mock_llm ? "Tak" : "Nie";
-        document.getElementById("health-kill").textContent = health.kill_switch ? "Włączony" : "Wyłączony";
+      function setActionButton(buttonId, actionState, enabledLabel, disabledLabel = null) {
+        const button = document.getElementById(buttonId);
+        if (!button) return;
+        const state = actionState || { enabled: false, blocked_reason: "brak_danych" };
+        button.disabled = !state.enabled;
+        button.title = state.enabled ? "" : (state.blocked_reason || "Akcja zablokowana.");
+        if (disabledLabel && !state.enabled) {
+          button.textContent = disabledLabel;
+        } else {
+          button.textContent = enabledLabel;
+        }
+      }
+
+      function renderList(containerId, items, emptyMessage, formatter) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        if (!items || !items.length) {
+          container.innerHTML = `<div class="empty">${escapeHtml(emptyMessage)}</div>`;
+          return;
+        }
+        container.innerHTML = items.map(formatter).join("");
+      }
+
+      function renderHome(home) {
+        operatorHomeCache = home;
+        const futures = home.futures || {};
+        const ai = home.ai || {};
+        const summaryLabels = home.summary_labels || {};
+        const futuresBots = futures.bots || [];
+        const runtimeFlags = ai.runtime_flags || {};
+        const resourceGuard = ai.resource_guard || {};
+        const freshness = home.freshness || {};
+
+        document.getElementById("top-futures-state").textContent = translateStatus(futures.cluster_state || "brak");
+        document.getElementById("top-futures-detail").textContent = futures.ready
+          ? `snapshot age ${formatAge(futures.snapshot_age_seconds)}`
+          : "cluster nie jest jeszcze gotowy";
+        document.getElementById("top-ai-state").textContent = translateStatus(ai.agents_status || "brak");
+        document.getElementById("top-ai-detail").textContent = ai.agents_reason || "brak dodatkowego powodu";
+        document.getElementById("top-kill-switch").textContent = summaryLabels.kill_switch || "brak";
+        document.getElementById("top-runtime-freeze").textContent = summaryLabels.runtime_freeze || "brak";
+        document.getElementById("top-resource-guard").textContent = summaryLabels.resource_guard || "brak";
+        document.getElementById("top-resource-detail").textContent = resourceGuard.operator_message || "brak dodatkowych ograniczeń";
+        document.getElementById("top-freshness").textContent = formatAge(freshness.latest_age_seconds);
+        document.getElementById("top-freshness-detail").textContent = freshness.status || "brak";
+
+        document.getElementById("futures-summary").textContent = futures.ready
+          ? `Klaster futures jest gotowy. ${futuresBots.filter((bot) => bot.state === "running").length}/${futuresBots.length} botów działa.`
+          : `Klaster futures nie jest jeszcze gotowy. Stan: ${translateStatus(futures.cluster_state || "brak")}.`;
+        document.getElementById("futures-risk-mode").textContent = futures.risk_mode || "brak";
+        document.getElementById("futures-allow-trading").textContent = futures.allow_trading === null || futures.allow_trading === undefined ? "brak" : (futures.allow_trading ? "tak" : "nie");
+        document.getElementById("futures-preferred-strategy").textContent = futures.preferred_risk_admitted_strategy_id || "brak";
+        document.getElementById("futures-force-reduce").textContent = futures.force_reduce_only ? "tak" : "nie";
+        document.getElementById("futures-cooldown").textContent = futures.cooldown_active ? "tak" : "nie";
+        document.getElementById("futures-open-trades").textContent = futures.snapshot_open_trades ?? "brak";
+        setActionButton("futures-start", futures.actions?.start_cluster, "Start cluster");
+        setActionButton("futures-stop", futures.actions?.stop_cluster, "Stop cluster");
+        setActionButton("futures-smoke", futures.actions?.run_smoke, "Run smoke");
+        setActionButton("futures-snapshot", futures.actions?.refresh_snapshot, "Refresh snapshot");
+        document.getElementById("futures-action-note").textContent =
+          !futures.actions?.start_cluster?.enabled && futures.actions?.start_cluster?.blocked_reason
+            ? `Start cluster zablokowany: ${futures.actions.start_cluster.blocked_reason}`
+            : "Akcje klastra obejmują tylko 5 botów z runtime_group=futures_canonical.";
+
+        renderList(
+          "futures-bots",
+          futuresBots,
+          "Brak botów futures w konfiguracji.",
+          (bot) => `
+            <div class="bot-tile">
+              <strong>${escapeHtml(bot.bot_id)}</strong>
+              <div>${statusPill(bot.state)}</div>
+              <small>${escapeHtml(bot.strategy || "brak strategii")} | dry_run: ${bot.dry_run ? "tak" : "nie"}</small>
+            </div>
+          `
+        );
+        renderList(
+          "futures-blockers",
+          futures.top_blockers || [],
+          "Brak aktywnych blockerów tradingowych.",
+          (item) => `<div class="list-item"><strong>${escapeHtml(item)}</strong></div>`
+        );
+
+        document.getElementById("ai-summary").textContent = ai.agents_reason
+          ? `Warstwa AI jest w stanie ${translateStatus(ai.agents_status)}: ${ai.agents_reason}.`
+          : `Warstwa AI jest w stanie ${translateStatus(ai.agents_status)}.`;
+        document.getElementById("ai-autopilot-state").textContent = ai.autopilot_running ? "Aktywny" : "Wyłączony";
+        document.getElementById("ai-coding-state").textContent = ai.coding_supervisor_running ? "Aktywny" : "Wyłączony";
+        document.getElementById("ai-budget-daily").textContent = `$${Number(ai.global_daily_budget_usd || 0).toFixed(2)}`;
+        document.getElementById("ai-budget-run").textContent = `$${Number(ai.global_per_run_budget_usd || 0).toFixed(2)}`;
+        document.getElementById("ai-budget-blocks").textContent = String(ai.blocked_by_budget_total || 0);
+        document.getElementById("ai-resource-blocks").textContent = String(ai.blocked_by_resource_guard_total || 0);
+        document.getElementById("ai-active-core").textContent = String((ai.agent_tree_summary?.activation_counts?.always_on_guarded) || 0);
+        document.getElementById("ai-manual-only").textContent = String((ai.agent_tree_summary?.activation_counts?.manual_only) || 0);
+        document.getElementById("ai-disabled-default").textContent = String((ai.agent_tree_summary?.activation_counts?.disabled_by_default) || 0);
+        document.getElementById("ai-manual-enabled").textContent = String((ai.agent_tree_summary?.operational_counts?.manual_enabled) || 0);
+        document.getElementById("ai-guard-reason").textContent = resourceGuard.primary_reason || ai.agents_reason || "brak";
+        setActionButton("autopilot-toggle", ai.autopilot_running ? ai.actions?.stop_autopilot : ai.actions?.start_autopilot, ai.autopilot_running ? "Stop autopilot" : "Start autopilot");
+        setActionButton("coding-toggle", ai.coding_supervisor_running ? ai.actions?.stop_coding_supervisor : ai.actions?.start_coding_supervisor, ai.coding_supervisor_running ? "Stop coding supervisor" : "Start coding supervisor");
+        const killEffective = runtimeFlags.kill_switch?.effective_enabled;
+        const freezeEffective = runtimeFlags.runtime_freeze?.effective_enabled;
+        setActionButton("kill-toggle", ai.actions?.toggle_kill_switch, killEffective ? "Disable kill switch" : "Enable kill switch");
+        setActionButton("freeze-toggle", ai.actions?.toggle_runtime_freeze, freezeEffective ? "Disable runtime freeze" : "Enable runtime freeze");
+        document.getElementById("ai-action-note").textContent = resourceGuard.operator_message || "AI runtime działa w modelu guarded i ma osobne bezpieczniki budżetu oraz zasobów.";
+
+        const guardNotes = [];
+        if (runtimeFlags.kill_switch?.effective_enabled) guardNotes.push("Kill switch jest aktywny.");
+        if (runtimeFlags.runtime_freeze?.effective_enabled) guardNotes.push("Runtime freeze jest aktywny.");
+        for (const note of (resourceGuard.notes || []).slice(0, 3)) {
+          guardNotes.push(note);
+        }
+        renderList(
+          "ai-guard-notes",
+          guardNotes,
+          "Brak dodatkowych blokad AI.",
+          (item) => `<div class="list-item"><strong>${escapeHtml(item)}</strong></div>`
+        );
+
+        renderList(
+          "attention-items",
+          home.attention_items || [],
+          "Brak top blockerów do natychmiastowej uwagi.",
+          (item) => `
+            <div class="list-item">
+              <strong>${escapeHtml(item.title)}</strong>
+              <div>${escapeHtml(item.summary)}</div>
+              <small>${escapeHtml(item.kind)} | ${escapeHtml(item.severity)}${item.owner ? ` | ${escapeHtml(item.owner)}` : ""}</small>
+            </div>
+          `
+        );
+        renderList(
+          "recent-errors",
+          home.recent_errors || [],
+          "Brak nowych błędów w summary feedzie.",
+          (item) => `
+            <div class="list-item">
+              <strong>${escapeHtml(item.title)}</strong>
+              <div>${escapeHtml(item.summary)}</div>
+              <small>${escapeHtml(item.severity || "medium")}${item.owner ? ` | ${escapeHtml(item.owner)}` : ""}</small>
+            </div>
+          `
+        );
+        renderList(
+          "recent-actions",
+          home.recent_actions || [],
+          "Brak ostatnich akcji operatorskich.",
+          (item) => `
+            <div class="list-item">
+              <strong>${escapeHtml(item.title)}</strong>
+              <div>${escapeHtml(item.summary)}</div>
+              <small>${item.owner ? escapeHtml(item.owner) : "brak ownera"}${item.status ? ` | ${escapeHtml(item.status)}` : ""}</small>
+            </div>
+          `
+        );
+      }
+
+      async function refreshHome() {
+        const home = await fetchJson("/ops/operator-home");
+        renderHome(home);
+      }
+
+      async function runHomeAction(action, path, payload = null) {
+        const noteId = action.startsWith("futures") ? "futures-action-note" : "ai-action-note";
+        try {
+          const response = await postJson(path, payload);
+          document.getElementById(noteId).textContent = response.message || "Akcja zakończona.";
+          await refreshHome();
+          if (advancedLoaded) {
+            await refreshAdvanced();
+          }
+        } catch (error) {
+          document.getElementById(noteId).textContent = `Błąd: ${error.message}`;
+        }
       }
 
       async function refreshBots() {
@@ -518,10 +1097,10 @@
         const tbody = document.getElementById("bots-table");
         tbody.innerHTML = bots.map((bot) => `
           <tr>
-            <td><strong>${bot.bot_id}</strong><div class="muted">${bot.description || ""}</div></td>
+            <td><strong>${escapeHtml(bot.bot_id)}</strong><div class="muted">${escapeHtml(bot.description || "")}</div></td>
             <td>${statusPill(bot.state)}</td>
-            <td>${bot.dry_run ? "Tak" : "Nie"}</td>
-            <td class="run-actions">
+            <td>${bot.dry_run ? "tak" : "nie"}</td>
+            <td class="button-row">
               <button onclick="startBot('${bot.bot_id}')">Uruchom</button>
               <button class="danger" onclick="stopBot('${bot.bot_id}')">Zatrzymaj</button>
             </td>
@@ -529,120 +1108,76 @@
         `).join("");
       }
 
-      async function refreshAgents() {
-        const agents = await fetchJson("/ops/agents");
-        const tbody = document.getElementById("agents-table");
-        document.getElementById("agent-name").innerHTML = agents.map((agent) =>
-          `<option value="${agent.name}">${agent.name}</option>`
+      function populateAgentSelectors(agents) {
+        const options = agents.map((agent) =>
+          `<option value="${agent.name}">${agent.name} (${agent.activation_mode})</option>`
         ).join("");
-        tbody.innerHTML = agents.map((agent) => `
-          <tr>
-            <td><strong>${agent.name}</strong><div class="muted">${agent.role}</div></td>
-            <td>${agent.model_tier}</td>
-            <td>$${Number(agent.default_daily_budget_usd).toFixed(2)}</td>
-            <td>$${Number(agent.default_per_run_budget_usd).toFixed(2)}</td>
-          </tr>
-        `).join("");
+        document.getElementById("agent-name").innerHTML = options;
+        document.getElementById("chat-agent-name").innerHTML = options;
       }
 
-      function formatAge(seconds) {
-        if (seconds === null || seconds === undefined) return "Brak";
-        const value = Number(seconds);
-        if (!Number.isFinite(value)) return "Brak";
-        if (value < 60) return `${Math.round(value)} s`;
-        if (value < 3600) return `${Math.round(value / 60)} min`;
-        return `${(value / 3600).toFixed(1)} h`;
+      async function refreshAgentSelectors() {
+        const agents = await fetchJson("/ops/agents");
+        populateAgentSelectors(agents);
+        return agents;
       }
 
-      async function refreshDryRun() {
-        const health = await fetchJson("/ops/dry-run/health");
-        let latestSnapshot = null;
-        let snapshotHistory = [];
-        try {
-          latestSnapshot = await fetchJson("/ops/dry-run/snapshot/latest");
-        } catch (error) {
-          latestSnapshot = null;
-        }
-        try {
-          const historyPayload = await fetchJson("/ops/dry-run/snapshot/history?limit=10");
-          snapshotHistory = historyPayload.snapshots || [];
-        } catch (error) {
-          snapshotHistory = [];
-        }
-
-        document.getElementById("dry-run-ready").textContent = health.ready ? "Gotowy" : "Nie";
-        document.getElementById("dry-run-mode").textContent = health.runtime_mode || "Brak";
-        document.getElementById("dry-run-bridge").textContent = health.bridge_status || "Brak";
-        document.getElementById("dry-run-snapshot-age").textContent = formatAge(health.snapshot_age_seconds);
-        document.getElementById("dry-run-open-trades").textContent = String(latestSnapshot?.open_trades_count || 0);
-        document.getElementById("dry-run-last-smoke").textContent = translateStatus(health.last_smoke_status || "brak");
-        document.getElementById("dry-run-blocking").textContent = health.ready
-          ? "Dry run działa, snapshot jest dostępny i agenci mogą pracować na danych runtime."
-          : `Blokada: ${health.blocking_reason || "brak świeżego snapshotu lub runtime nie jest jeszcze gotowy."}`;
-        document.getElementById("dry-run-warnings").textContent = (health.warnings || []).length
-          ? `Ostrzeżenia runtime: ${health.warnings.join(" | ")}`
-          : "Brak nowych ostrzeżeń runtime.";
-
-        const tbody = document.getElementById("dry-run-history-table");
-        if (!snapshotHistory.length) {
-          tbody.innerHTML = `<tr><td colspan="6" class="muted">Brak snapshotów dry run.</td></tr>`;
-          return;
-        }
-        tbody.innerHTML = snapshotHistory.map((snapshot) => `
-          <tr>
-            <td><strong>${snapshot.generated_at || "-"}</strong></td>
-            <td>${snapshot.runmode || "-"}</td>
-            <td>${snapshot.strategy || "-"}</td>
-            <td>${Number(snapshot.open_trades_count || 0)}</td>
-            <td>${statusPill(snapshot.snapshot_status || "unknown")}</td>
-            <td>${(snapshot.runtime_warnings || []).slice(0, 1).join("") || "Brak"}</td>
-          </tr>
-        `).join("");
+      async function refreshAgents() {
+        const agents = await refreshAgentSelectors();
+        const tbody = document.getElementById("agents-table");
+        tbody.innerHTML = agents.map((agent) => {
+          const safeId = agent.name.replace(/[^a-zA-Z0-9_-]/g, "_");
+          return `
+            <tr>
+              <td><strong>${escapeHtml(agent.name)}</strong><div class="muted">${escapeHtml(agent.role)}</div></td>
+              <td>${escapeHtml(agent.parent_agent || "root")}<div class="muted">${escapeHtml(agent.domain || "-")}</div></td>
+              <td>${statusPill(agent.activation_mode)}<div class="muted">${escapeHtml(translateStatus(agent.operational_state || "unknown"))}</div></td>
+              <td>${escapeHtml(agent.cost_tier || "-")}<div class="muted">${escapeHtml(agent.model_tier || "-")}</div></td>
+              <td>$${Number(agent.effective_daily_budget_usd ?? agent.default_daily_budget_usd).toFixed(2)}</td>
+              <td>$${Number(agent.effective_per_run_budget_usd ?? agent.default_per_run_budget_usd).toFixed(2)}</td>
+              <td class="button-row">
+                <select id="agent-override-${safeId}">
+                  <option value="" ${(agent.enabled_override === null || agent.enabled_override === undefined) ? "selected" : ""}>Domyślnie</option>
+                  <option value="enable" ${agent.enabled_override === true ? "selected" : ""}>Włącz</option>
+                  <option value="disable" ${agent.enabled_override === false ? "selected" : ""}>Wyłącz</option>
+                </select>
+                <input id="agent-daily-${safeId}" type="number" min="0" step="0.01" value="${agent.effective_daily_budget_usd ?? agent.default_daily_budget_usd}" style="width: 88px;" />
+                <input id="agent-run-${safeId}" type="number" min="0" step="0.01" value="${agent.effective_per_run_budget_usd ?? agent.default_per_run_budget_usd}" style="width: 88px;" />
+                <button onclick="saveAgentOverride('${agent.name}')">Zapisz</button>
+              </td>
+            </tr>
+          `;
+        }).join("");
       }
 
-      function refreshOperatorSummary(runs) {
-        const activeRuns = runs.filter((run) => ["queued", "running", "awaiting_approval"].includes(run.status)).length;
-        const blockedRuns = runs.filter((run) => run.status === "blocked").length;
-        const reviewRuns = runs.filter((run) => run.review_required).length;
-        const lastBlocked = runs.find((run) => run.status === "blocked");
-        const lastReviewed = runs.find((run) => run.review_json && run.review_json.decision);
-
-        document.getElementById("summary-active-runs").textContent = String(activeRuns);
-        document.getElementById("summary-blocked-runs").textContent = String(blockedRuns);
-        document.getElementById("summary-review-runs").textContent = String(reviewRuns);
-        document.getElementById("summary-last-blocked").textContent = lastBlocked ? `${lastBlocked.agent_name}` : "Brak";
-        document.getElementById("summary-last-review").textContent = lastReviewed ? translateReviewDecision(lastReviewed.review_json.decision) : "Brak";
-      }
-
-      async function refreshAutopilot() {
-        const autopilot = await fetchJson("/ops/autopilot/status");
-        document.getElementById("autopilot-running").textContent = autopilot.running ? "Aktywny" : "Wyłączony";
-        document.getElementById("autopilot-next-task").textContent = autopilot.next_task_name || "Brak";
-        document.getElementById("autopilot-cycle-count").textContent = String(autopilot.cycle_count || 0);
-        document.getElementById("autopilot-objective").textContent = autopilot.objective || "Brak celu.";
-        const lastStatus = autopilot.last_status ? translateStatus(autopilot.last_status) : "Brak";
-        const lastRunId = autopilot.last_run_id ? autopilot.last_run_id.slice(0, 8) : "-";
-        const lastError = autopilot.last_error ? ` | Błąd: ${autopilot.last_error}` : "";
-        document.getElementById("autopilot-last-status").textContent = `Ostatni run: ${lastRunId} | Status: ${lastStatus}${lastError}`;
+      async function saveAgentOverride(agentName) {
+        const safeId = agentName.replace(/[^a-zA-Z0-9_-]/g, "_");
+        const payload = {
+          enabled: (() => {
+            const value = document.getElementById(`agent-override-${safeId}`).value;
+            return value === "" ? null : value === "enable";
+          })(),
+          daily_budget_usd: Number(document.getElementById(`agent-daily-${safeId}`).value),
+          per_run_budget_usd: Number(document.getElementById(`agent-run-${safeId}`).value),
+        };
+        await postJson(`/ops/agents/${encodeURIComponent(agentName)}/override`, payload);
+        await refreshAgents();
+        await refreshHome();
       }
 
       async function refreshRuns() {
         const runs = await fetchJson("/ops/runs?limit=20");
         const tbody = document.getElementById("runs-table");
-        refreshOperatorSummary(runs);
         tbody.innerHTML = runs.map((run) => `
           <tr>
-            <td>
-              <strong>${run.run_id.slice(0, 8)}</strong>
-              <div class="muted">${run.goal}</div>
-            </td>
-            <td>${run.agent_name}</td>
+            <td><strong>${escapeHtml(String(run.run_id).slice(0, 8))}</strong><div class="muted">${escapeHtml(run.goal || "")}</div></td>
+            <td>${escapeHtml(run.agent_name || "-")}</td>
             <td>${statusPill(run.status)}</td>
-            <td>${run.model || "-"}</td>
+            <td>${escapeHtml(run.model || "-")}</td>
             <td>$${Number(run.actual_cost_usd || run.estimated_cost_usd || 0).toFixed(4)}</td>
-            <td class="run-actions">
+            <td class="button-row">
               ${run.status === "awaiting_approval" ? `<button class="warn" onclick="approveRun('${run.run_id}')">Zatwierdź</button>` : ""}
-              ${["queued","running","awaiting_approval"].includes(run.status) ? `<button class="danger" onclick="stopRun('${run.run_id}')">Zatrzymaj</button>` : ""}
+              ${["queued", "running", "awaiting_approval"].includes(run.status) ? `<button class="danger" onclick="stopRun('${run.run_id}')">Zatrzymaj</button>` : ""}
             </td>
           </tr>
         `).join("");
@@ -650,16 +1185,15 @@
 
       async function refreshCodingStatus() {
         const status = await fetchJson("/ops/coding-status");
-        const moduleSelect = document.getElementById("coding-module");
-        moduleSelect.innerHTML = (status.modules || []).map((module) =>
-          `<option value="${module.module_id}">${module.title}</option>`
-        ).join("");
         document.getElementById("coding-running").textContent = status.running ? "Aktywny" : "Wyłączony";
-        document.getElementById("coding-active-task").textContent = status.active_task_id ? status.active_task_id.slice(0, 12) : "Brak";
+        document.getElementById("coding-active-task").textContent = status.active_task_id ? String(status.active_task_id).slice(0, 12) : "Brak";
         document.getElementById("coding-ready-tasks").textContent = String(status.ready_tasks || 0);
         document.getElementById("coding-review-tasks").textContent = String(status.review_tasks || 0);
         document.getElementById("coding-committed-tasks").textContent = String(status.committed_tasks || 0);
         document.getElementById("coding-last-error").textContent = status.last_error || "Brak";
+        document.getElementById("coding-module").innerHTML = (status.modules || []).map((module) =>
+          `<option value="${module.module_id}">${escapeHtml(module.title || module.module_id)}</option>`
+        ).join("");
       }
 
       async function refreshCodingTasks() {
@@ -669,26 +1203,22 @@
           tbody.innerHTML = `<tr><td colspan="7" class="muted">Brak tasków kodujących.</td></tr>`;
           return;
         }
-        tbody.innerHTML = tasks.map((task) => {
-          const reviewDecision = task.review_json?.decision ? translateReviewDecision(task.review_json.decision) : "Brak";
-          const requiresManual = task.review_json?.decision === "human_review_required";
-          return `
-            <tr>
-              <td><strong>${task.task_id.slice(0, 12)}</strong><div class="muted">${task.goal}</div></td>
-              <td>${task.module_id}</td>
-              <td>${task.owner_agent}</td>
-              <td>${statusPill(task.status)}</td>
-              <td>$${Number(task.total_cost_usd || 0).toFixed(4)}</td>
-              <td>${reviewDecision}</td>
-              <td class="run-actions">
-                <button onclick="loadWorkspaceDiff('${task.task_id}')">Diff</button>
-                ${requiresManual ? `<button class="warn" onclick="approveCodingTask('${task.task_id}')">Zatwierdź</button>` : ""}
-                ${["review","coding","ready","dispatched","approved","rejected","blocked"].includes(task.status) ? `<button class="danger" onclick="rejectCodingTask('${task.task_id}')">Odrzuć</button>` : ""}
-                ${task.status !== "committed" ? `<button onclick="resetCodingWorkspace('${task.task_id}')">Reset</button>` : ""}
-              </td>
-            </tr>
-          `;
-        }).join("");
+        tbody.innerHTML = tasks.map((task) => `
+          <tr>
+            <td><strong>${escapeHtml(String(task.task_id).slice(0, 12))}</strong><div class="muted">${escapeHtml(task.goal || "")}</div></td>
+            <td>${escapeHtml(task.module_id || "-")}</td>
+            <td>${escapeHtml(task.owner_agent || "-")}</td>
+            <td>${statusPill(task.status)}</td>
+            <td>$${Number(task.total_cost_usd || 0).toFixed(4)}</td>
+            <td>${escapeHtml(translateReviewDecision(task.review_json?.decision))}</td>
+            <td class="button-row">
+              <button onclick="loadWorkspaceDiff('${task.task_id}')">Diff</button>
+              ${task.review_json?.decision === "human_review_required" ? `<button class="warn" onclick="approveCodingTask('${task.task_id}')">Zatwierdź</button>` : ""}
+              ${task.status !== "committed" ? `<button onclick="resetCodingWorkspace('${task.task_id}')">Reset</button>` : ""}
+              ${["review","coding","ready","dispatched","approved","blocked"].includes(task.status) ? `<button class="danger" onclick="rejectCodingTask('${task.task_id}')">Odrzuć</button>` : ""}
+            </td>
+          </tr>
+        `).join("");
       }
 
       async function refreshWorkspaces() {
@@ -700,23 +1230,34 @@
         }
         tbody.innerHTML = workspaces.map((workspace) => `
           <tr>
-            <td><strong>${workspace.task_id.slice(0, 12)}</strong><div class="muted">${workspace.agent_name}</div></td>
-            <td>${workspace.branch_name}</td>
+            <td><strong>${escapeHtml(String(workspace.task_id).slice(0, 12))}</strong><div class="muted">${escapeHtml(workspace.agent_name || "-")}</div></td>
+            <td>${escapeHtml(workspace.branch_name || "-")}</td>
             <td>${Number((workspace.changed_files || []).length)}</td>
-            <td class="run-actions">
+            <td class="button-row">
               <button onclick="loadWorkspaceDiff('${workspace.task_id}')">Pokaż diff</button>
             </td>
           </tr>
         `).join("");
       }
 
-      async function loadWorkspaceDiff(taskId) {
-        try {
-          const workspace = await fetchJson(`/ops/workspaces/${taskId}/diff`);
-          document.getElementById("workspace-diff-box").textContent = workspace.diff_text || "Brak zmian w diffie.";
-        } catch (error) {
-          alert(`Nie udalo sie pobrac diffa: ${error.message}`);
+      async function refreshStrategyReports() {
+        const payload = await fetchJson("/ops/strategy-report/history?limit=10");
+        const reports = payload.reports || [];
+        const tbody = document.getElementById("strategy-history-table");
+        if (!reports.length) {
+          tbody.innerHTML = `<tr><td colspan="6" class="muted">Brak raportów strategii.</td></tr>`;
+          return;
         }
+        tbody.innerHTML = reports.map((report) => `
+          <tr>
+            <td><strong>${escapeHtml(report.strategy_name || "-")}</strong><div class="muted">${escapeHtml(report.timeframe || "-")}</div></td>
+            <td>${Number(report.profit_pct || 0).toFixed(2)}%</td>
+            <td>${Number(report.drawdown_pct || 0).toFixed(2)}%</td>
+            <td>${Number(report.total_trades || 0)}</td>
+            <td>${statusPill(report.evaluation_status || "unknown")}</td>
+            <td>${escapeHtml(report.assessment_recommendation || report.readiness_summary || "Brak")}</td>
+          </tr>
+        `).join("");
       }
 
       async function refreshLogs() {
@@ -724,261 +1265,320 @@
         document.getElementById("control-logs").textContent = (payload.logs || []).join("\n") || "Brak logów.";
       }
 
-      async function refreshStrategyReports() {
-        const payload = await fetchJson("/ops/strategy-report/history?limit=10");
-        const reports = payload.reports || [];
-        const tbody = document.getElementById("strategy-history-table");
-        if (reports.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="6" class="muted">Brak raportów strategii.</td></tr>`;
+      function renderChatThreads(threads) {
+        chatThreadsCache = threads || [];
+        const container = document.getElementById("chat-thread-list");
+        if (!chatThreadsCache.length) {
+          container.innerHTML = `<div class="empty">Brak rozmów. Utwórz nowy wątek z agentem.</div>`;
           return;
         }
-        tbody.innerHTML = reports.map((report) => `
-          <tr>
-            <td><strong>${report.strategy_name}</strong><div class="muted">${report.timeframe || "-"}</div></td>
-            <td>${(Number(report.profit_pct || 0) * 100).toFixed(2)}%</td>
-            <td>${(Number(report.drawdown_pct || 0) * 100).toFixed(2)}%</td>
-            <td>${Number(report.total_trades || 0)}</td>
-            <td>${statusPill(report.evaluation_status)}</td>
-            <td>${report.assessment_recommendation || "Brak"}</td>
-          </tr>
+        container.innerHTML = chatThreadsCache.map((thread) => `
+          <div class="chat-thread ${thread.thread_id === activeChatThreadId ? "active" : ""}" onclick="selectChatThread('${thread.thread_id}')">
+            <strong>${escapeHtml(thread.title || thread.agent_name)}</strong>
+            <div>${statusPill(thread.active_run_status || "idle")}</div>
+            <small>${escapeHtml(thread.agent_name)} | ${thread.message_count || 0} wiadomości</small>
+            <small>${escapeHtml(thread.last_message_preview || "Brak wiadomości jeszcze.")}</small>
+          </div>
         `).join("");
       }
 
-      async function startBot(botId) {
-        try {
-          await fetchJson(`/bots/${botId}/start`, { method: "POST" });
-          await refreshBots();
-        } catch (error) {
-          alert(`Nie udalo sie uruchomic bota: ${error.message}`);
+      function renderChatThread(thread) {
+        if (!thread) {
+          document.getElementById("chat-active-agent").textContent = "Wybierz wątek";
+          document.getElementById("chat-active-status").textContent = "Brak aktywnego wątku";
+          document.getElementById("chat-history").innerHTML = `<div class="empty">Wybierz wątek albo utwórz nową rozmowę.</div>`;
+          return;
+        }
+        document.getElementById("chat-active-agent").textContent = `${thread.agent_name} · ${thread.title}`;
+        document.getElementById("chat-active-status").textContent = thread.active_run_status
+          ? `${translateStatus(thread.active_run_status)}${thread.active_run_id ? ` (${String(thread.active_run_id).slice(0, 8)})` : ""}`
+          : "Idle";
+        const messages = thread.messages || [];
+        const history = document.getElementById("chat-history");
+        if (!messages.length) {
+          history.innerHTML = `<div class="empty">Ten wątek nie ma jeszcze wiadomości.</div>`;
+          return;
+        }
+        history.innerHTML = messages.map((message) => {
+          const metadata = message.metadata_json || {};
+          const metaParts = [];
+          if (metadata.current_focus) metaParts.push(`<div><strong>Focus:</strong> ${escapeHtml(metadata.current_focus)}</div>`);
+          if (metadata.next_step) metaParts.push(`<div><strong>Następny krok:</strong> ${escapeHtml(metadata.next_step)}</div>`);
+          if (metadata.tactic_update) metaParts.push(`<div><strong>Zmiana taktyki:</strong> ${escapeHtml(metadata.tactic_update)}</div>`);
+          if (Array.isArray(metadata.current_work) && metadata.current_work.length) {
+            metaParts.push(`<div><strong>Bieżąca praca:</strong> ${escapeHtml(metadata.current_work.join(" | "))}</div>`);
+          }
+          if (Array.isArray(metadata.warnings) && metadata.warnings.length) {
+            metaParts.push(`<div><strong>Uwagi:</strong> ${escapeHtml(metadata.warnings.join(" | "))}</div>`);
+          }
+          return `
+            <div class="chat-bubble ${escapeHtml(message.role || "assistant")}">
+              <strong>${escapeHtml((message.role || "assistant").toUpperCase())}</strong>
+              <div class="chat-body">${escapeHtml(message.content || "")}</div>
+              <div class="chat-meta">
+                <small>${escapeHtml(String(message.created_at || ""))}${message.run_id ? ` | run ${escapeHtml(String(message.run_id).slice(0, 8))}` : ""}</small>
+                ${metaParts.join("")}
+              </div>
+            </div>
+          `;
+        }).join("");
+        history.scrollTop = history.scrollHeight;
+      }
+
+      async function refreshChatThreads() {
+        const threads = await fetchJson("/ops/chat/threads?limit=30");
+        if (!activeChatThreadId && threads.length) {
+          activeChatThreadId = threads[0].thread_id;
+        }
+        if (activeChatThreadId && !threads.some((thread) => thread.thread_id === activeChatThreadId)) {
+          activeChatThreadId = threads.length ? threads[0].thread_id : null;
+        }
+        renderChatThreads(threads);
+        if (activeChatThreadId) {
+          await loadChatThread(activeChatThreadId);
+        } else {
+          renderChatThread(null);
         }
       }
 
-      async function stopBot(botId) {
+      async function loadChatThread(threadId) {
+        const thread = await fetchJson(`/ops/chat/threads/${encodeURIComponent(threadId)}`);
+        activeChatThreadId = thread.thread_id;
+        renderChatThreads(chatThreadsCache);
+        renderChatThread(thread);
+        return thread;
+      }
+
+      async function selectChatThread(threadId) {
+        document.getElementById("chat-action-note").textContent = "";
         try {
-          await fetchJson(`/bots/${botId}/stop`, { method: "POST" });
-          await refreshBots();
+          await loadChatThread(threadId);
         } catch (error) {
-          alert(`Nie udalo sie zatrzymac bota: ${error.message}`);
+          document.getElementById("chat-action-note").textContent = `Błąd ładowania wątku: ${error.message}`;
         }
       }
 
-      async function approveRun(runId) {
-        try {
-          await fetchJson(`/ops/runs/${runId}/approve`, { method: "POST" });
-          await refreshRuns();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie zatwierdzic runu: ${error.message}`);
-        }
-      }
-
-      async function stopRun(runId) {
-        try {
-          await fetchJson(`/ops/runs/${runId}/stop`, { method: "POST" });
-          await refreshRuns();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie zatrzymac runu: ${error.message}`);
-        }
-      }
-
-      async function createRun(riskLevel) {
-        const agentName = document.getElementById("agent-name").value;
-        const goal = document.getElementById("agent-goal").value.trim();
-        const requestedPaths = document.getElementById("requested-paths").value
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean);
+      async function createChatThread() {
         const payload = {
-          agent_name: agentName,
-          goal,
-          business_reason: "Żądanie z panelu operatorskiego",
-          requested_paths: requestedPaths,
-          risk_level: riskLevel,
-          cross_layer: false,
-          does_touch_contract: false,
-          does_touch_runtime: false,
-          force_strong_model: false
+          agent_name: document.getElementById("chat-agent-name").value,
+          title: document.getElementById("chat-thread-title").value || null
         };
+        const thread = await postJson("/ops/chat/threads", payload);
+        activeChatThreadId = thread.thread_id;
+        document.getElementById("chat-thread-title").value = "";
+        document.getElementById("chat-action-note").textContent = "Utworzono nowy wątek.";
+        await refreshChatThreads();
+      }
+
+      async function sendChatMessage() {
+        if (!activeChatThreadId) {
+          document.getElementById("chat-action-note").textContent = "Najpierw utwórz albo wybierz wątek.";
+          return;
+        }
+        const textarea = document.getElementById("chat-message-input");
+        const content = textarea.value.trim();
+        if (!content) {
+          document.getElementById("chat-action-note").textContent = "Wpisz wiadomość do agenta.";
+          return;
+        }
+        document.getElementById("chat-action-note").textContent = "Wysyłam wiadomość do agenta...";
         try {
-          await fetchJson("/ops/runs", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-          await refreshRuns();
-          await refreshLogs();
+          const thread = await postJson(
+            `/ops/chat/threads/${encodeURIComponent(activeChatThreadId)}/messages`,
+            { content }
+          );
+          textarea.value = "";
+          document.getElementById("chat-action-note").textContent = thread.active_run_status
+            ? `Agent odpowiada: ${translateStatus(thread.active_run_status)}.`
+            : "Agent odpowiedział.";
+          await refreshChatThreads();
         } catch (error) {
-          alert(`Nie udalo sie utworzyc runu: ${error.message}`);
+          document.getElementById("chat-action-note").textContent = `Błąd wysyłki: ${error.message}`;
         }
       }
 
-      async function generateStrategyAssessment() {
-        try {
-          await fetchJson("/ops/strategy-report/generate", { method: "POST" });
-          await refreshStrategyReports();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie odswiezyc assessmentu strategii: ${error.message}`);
-        }
-      }
-
-      async function runDryRunSmoke() {
-        try {
-          await fetchJson("/ops/dry-run/smoke", { method: "POST" });
-          await refreshDryRun();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie uruchomic smoke testu dry run: ${error.message}`);
-        }
-      }
-
-      async function createDryRunSnapshot() {
-        try {
-          await fetchJson("/ops/dry-run/snapshot", { method: "POST" });
-          await refreshDryRun();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie zbudowac snapshotu dry run: ${error.message}`);
-        }
-      }
-
-      async function startAutopilot() {
-        try {
-          await fetchJson("/ops/autopilot/start", { method: "POST" });
-          await refreshAutopilot();
-          await refreshRuns();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie uruchomic autopilota: ${error.message}`);
-        }
-      }
-
-      async function stopAutopilot() {
-        try {
-          await fetchJson("/ops/autopilot/stop", { method: "POST" });
-          await refreshAutopilot();
-          await refreshRuns();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie zatrzymac autopilota: ${error.message}`);
-        }
-      }
-
-      async function startCodingSupervisor() {
-        try {
-          await fetchJson("/ops/coding-status/start", { method: "POST" });
-          await refreshCodingStatus();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie uruchomic supervisora: ${error.message}`);
-        }
-      }
-
-      async function stopCodingSupervisor() {
-        try {
-          await fetchJson("/ops/coding-status/stop", { method: "POST" });
-          await refreshCodingStatus();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie zatrzymac supervisora: ${error.message}`);
-        }
-      }
-
-      async function createCodingTask() {
-        const moduleId = document.getElementById("coding-module").value;
-        const goalOverride = document.getElementById("coding-goal").value.trim();
-        const payload = {
-          module_id: moduleId,
-          goal_override: goalOverride || null,
-          business_reason: "Ręczne dodanie taska z panelu operatorskiego"
-        };
-        try {
-          await fetchJson("/ops/coding-tasks", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-          await refreshCodingStatus();
-          await refreshCodingTasks();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie dodac taska kodującego: ${error.message}`);
-        }
-      }
-
-      async function approveCodingTask(taskId) {
-        try {
-          await fetchJson(`/ops/coding-tasks/${taskId}/approve-review`, { method: "POST" });
-          await refreshCodingStatus();
-          await refreshCodingTasks();
-          await refreshWorkspaces();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie zatwierdzic taska: ${error.message}`);
-        }
-      }
-
-      async function rejectCodingTask(taskId) {
-        try {
-          await fetchJson(`/ops/coding-tasks/${taskId}/reject-review`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ reason: "Odrzucone ręcznie z panelu operatorskiego" })
-          });
-          await refreshCodingStatus();
-          await refreshCodingTasks();
-          await refreshWorkspaces();
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie odrzucic taska: ${error.message}`);
-        }
-      }
-
-      async function resetCodingWorkspace(taskId) {
-        try {
-          await fetchJson(`/ops/workspaces/${taskId}/reset`, { method: "POST" });
-          await refreshCodingStatus();
-          await refreshCodingTasks();
-          await refreshWorkspaces();
-          await loadWorkspaceDiff(taskId);
-          await refreshLogs();
-        } catch (error) {
-          alert(`Nie udalo sie zresetowac workspace: ${error.message}`);
-        }
-      }
-
-      async function refreshAll() {
+      async function refreshAdvanced() {
         await Promise.all([
-          refreshHealth(),
           refreshBots(),
           refreshAgents(),
-          refreshDryRun(),
-          refreshAutopilot(),
           refreshRuns(),
           refreshCodingStatus(),
           refreshCodingTasks(),
           refreshWorkspaces(),
-          refreshLogs(),
-          refreshStrategyReports()
+          refreshStrategyReports(),
+          refreshLogs()
         ]);
+        advancedLoaded = true;
+      }
+
+      async function startBot(botId) {
+        await postJson(`/bots/${encodeURIComponent(botId)}/start`);
+        await refreshAdvanced();
+        await refreshHome();
+      }
+
+      async function stopBot(botId) {
+        await postJson(`/bots/${encodeURIComponent(botId)}/stop`);
+        await refreshAdvanced();
+        await refreshHome();
+      }
+
+      async function approveRun(runId) {
+        await postJson(`/ops/runs/${encodeURIComponent(runId)}/approve`);
+        await refreshAdvanced();
+        await refreshHome();
+      }
+
+      async function stopRun(runId) {
+        await postJson(`/ops/runs/${encodeURIComponent(runId)}/stop`);
+        await refreshAdvanced();
+        await refreshHome();
+      }
+
+      async function approveCodingTask(taskId) {
+        await postJson(`/ops/coding-tasks/${encodeURIComponent(taskId)}/approve-review`);
+        await refreshAdvanced();
+      }
+
+      async function rejectCodingTask(taskId) {
+        const reason = window.prompt("Powód odrzucenia review:", "Manual review rejection.") || "Manual review rejection.";
+        await postJson(`/ops/coding-tasks/${encodeURIComponent(taskId)}/reject-review`, { reason });
+        await refreshAdvanced();
+      }
+
+      async function resetCodingWorkspace(taskId) {
+        await postJson(`/ops/workspaces/${encodeURIComponent(taskId)}/reset`);
+        await refreshAdvanced();
+      }
+
+      async function loadWorkspaceDiff(taskId) {
+        try {
+          const workspace = await fetchJson(`/ops/workspaces/${encodeURIComponent(taskId)}/diff`);
+          document.getElementById("workspace-diff-box").textContent = workspace.diff_text || "Brak zmian w diffie.";
+        } catch (error) {
+          document.getElementById("workspace-diff-box").textContent = `Nie udało się pobrać diffu: ${error.message}`;
+        }
+      }
+
+      async function createManualRun(riskLevel) {
+        const payload = {
+          agent_name: document.getElementById("agent-name").value,
+          goal: document.getElementById("agent-goal").value,
+          business_reason: "Manual operator run from advanced panel.",
+          requested_paths: document.getElementById("requested-paths").value.split(",").map((item) => item.trim()).filter(Boolean),
+          risk_level: riskLevel,
+          cross_layer: riskLevel !== "low",
+          does_touch_contract: false,
+          does_touch_runtime: false,
+          force_strong_model: false,
+          metadata: {}
+        };
+        await postJson("/ops/runs", payload);
+        await refreshAdvanced();
+        await refreshHome();
+      }
+
+      async function createCodingTask() {
+        const payload = {
+          module_id: document.getElementById("coding-module").value,
+          goal_override: document.getElementById("coding-goal").value || null,
+          business_reason: "Manual operator request from advanced panel.",
+          target_files_override: []
+        };
+        await postJson("/ops/coding-tasks", payload);
+        await refreshAdvanced();
+      }
+
+      async function refreshStrategyAssessment() {
+        await postJson("/ops/strategy-report/generate");
+        await refreshStrategyReports();
+      }
+
+      async function toggleRuntimeFlag(flagName, enabled) {
+        await postJson(`/ops/runtime-flags/${flagName}`, { enabled });
+        await refreshHome();
+      }
+
+      function bindHomeActions() {
+        document.getElementById("futures-start").addEventListener("click", () => runHomeAction("futures", "/ops/futures-cluster/start"));
+        document.getElementById("futures-stop").addEventListener("click", () => runHomeAction("futures", "/ops/futures-cluster/stop"));
+        document.getElementById("futures-smoke").addEventListener("click", () => runHomeAction("futures", "/ops/futures-cluster/smoke"));
+        document.getElementById("futures-snapshot").addEventListener("click", () => runHomeAction("futures", "/ops/futures-cluster/snapshot"));
+        document.getElementById("autopilot-toggle").addEventListener("click", async () => {
+          const running = operatorHomeCache?.ai?.autopilot_running;
+          await runHomeAction("ai", running ? "/ops/autopilot/stop" : "/ops/autopilot/start");
+        });
+        document.getElementById("coding-toggle").addEventListener("click", async () => {
+          const running = operatorHomeCache?.ai?.coding_supervisor_running;
+          await runHomeAction("ai", running ? "/ops/coding-status/stop" : "/ops/coding-status/start");
+        });
+        document.getElementById("kill-toggle").addEventListener("click", async () => {
+          const enabled = !(operatorHomeCache?.ai?.runtime_flags?.kill_switch?.effective_enabled);
+          await runHomeAction("ai", "/ops/runtime-flags/kill-switch", { enabled });
+        });
+        document.getElementById("freeze-toggle").addEventListener("click", async () => {
+          const enabled = !(operatorHomeCache?.ai?.runtime_flags?.runtime_freeze?.effective_enabled);
+          await runHomeAction("ai", "/ops/runtime-flags/runtime-freeze", { enabled });
+        });
+      }
+
+      function bindAdvancedActions() {
+        document.getElementById("run-low").addEventListener("click", () => createManualRun("low"));
+        document.getElementById("run-medium").addEventListener("click", () => createManualRun("medium"));
+        document.getElementById("coding-start").addEventListener("click", async () => {
+          await postJson("/ops/coding-status/start");
+          await refreshAdvanced();
+          await refreshHome();
+        });
+        document.getElementById("coding-stop").addEventListener("click", async () => {
+          await postJson("/ops/coding-status/stop");
+          await refreshAdvanced();
+          await refreshHome();
+        });
+        document.getElementById("coding-create-task").addEventListener("click", createCodingTask);
+        document.getElementById("refresh-strategy-report").addEventListener("click", refreshStrategyAssessment);
+        document.getElementById("refresh-advanced").addEventListener("click", refreshAdvanced);
+      }
+
+      function bindChatActions() {
+        document.getElementById("chat-create-thread").addEventListener("click", createChatThread);
+        document.getElementById("chat-refresh").addEventListener("click", refreshChatThreads);
+        document.getElementById("chat-send").addEventListener("click", sendChatMessage);
+      }
+
+      function setupAdvancedLazyLoading() {
+        const advancedPanel = document.getElementById("advanced-panel");
+        advancedPanel.addEventListener("toggle", async () => {
+          if (advancedPanel.open && !advancedLoaded) {
+            await refreshAdvanced();
+          }
+        });
+      }
+
+      async function refreshAll() {
+        await Promise.all([
+          refreshHome(),
+          refreshAgentSelectors(),
+          refreshChatThreads()
+        ]);
+        if (document.getElementById("advanced-panel").open) {
+          await refreshAdvanced();
+        }
       }
 
       configureExternalLinks();
-      document.getElementById("refresh-all").addEventListener("click", refreshAll);
-      document.getElementById("run-low").addEventListener("click", () => createRun("low"));
-      document.getElementById("run-medium").addEventListener("click", () => createRun("medium"));
-      document.getElementById("dry-run-smoke").addEventListener("click", runDryRunSmoke);
-      document.getElementById("dry-run-snapshot").addEventListener("click", createDryRunSnapshot);
-      document.getElementById("refresh-strategy-report").addEventListener("click", generateStrategyAssessment);
-      document.getElementById("autopilot-start").addEventListener("click", startAutopilot);
-      document.getElementById("autopilot-stop").addEventListener("click", stopAutopilot);
-      document.getElementById("coding-start").addEventListener("click", startCodingSupervisor);
-      document.getElementById("coding-stop").addEventListener("click", stopCodingSupervisor);
-      document.getElementById("coding-create-task").addEventListener("click", createCodingTask);
-
-      refreshAll();
-      setInterval(refreshAll, 10000);
+      bindHomeActions();
+      bindChatActions();
+      bindAdvancedActions();
+      setupAdvancedLazyLoading();
+      document.getElementById("refresh-home").addEventListener("click", refreshAll);
+      refreshAll().catch((error) => {
+        document.getElementById("futures-action-note").textContent = `Błąd home: ${error.message}`;
+        document.getElementById("ai-action-note").textContent = `Błąd home: ${error.message}`;
+      });
+      setInterval(() => {
+        refreshAll().catch(() => {});
+      }, 10000);
     </script>
   </body>
 </html>

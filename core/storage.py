@@ -124,6 +124,27 @@ CREATE TABLE IF NOT EXISTS coding_task_events (
     payload_json TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS agent_chat_threads (
+    thread_id TEXT PRIMARY KEY,
+    agent_name TEXT NOT NULL,
+    title TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_message_at TEXT,
+    last_run_id TEXT
+);
+
+CREATE TABLE IF NOT EXISTS agent_chat_messages (
+    message_id TEXT PRIMARY KEY,
+    thread_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    run_id TEXT,
+    created_at TEXT NOT NULL,
+    metadata_json TEXT,
+    FOREIGN KEY (thread_id) REFERENCES agent_chat_threads(thread_id)
+);
 """
 
 
@@ -357,6 +378,15 @@ class RunStore:
         data["check_results"] = data.get("check_results_json", {})
         return data
 
+    def _chat_thread_row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
+        return dict(row)
+
+    def _chat_message_row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
+        data = dict(row)
+        metadata = data.get("metadata_json")
+        data["metadata_json"] = json.loads(metadata) if metadata else {}
+        return data
+
     def get_run(self, run_id: str) -> dict[str, Any] | None:
         with self._lock, self._connection() as connection:
             row = connection.execute(
@@ -539,6 +569,121 @@ class RunStore:
                 (f"{today_prefix}%",),
             ).fetchone()
         return float(row["spend"]) if row else 0.0
+
+    def create_chat_thread(self, record: dict[str, Any]) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        values = {
+            "thread_id": record["thread_id"],
+            "agent_name": record["agent_name"],
+            "title": record["title"],
+            "created_at": record.get("created_at", now),
+            "updated_at": record.get("updated_at", now),
+            "last_message_at": record.get("last_message_at"),
+            "last_run_id": record.get("last_run_id"),
+        }
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO agent_chat_threads (
+                    thread_id, agent_name, title, created_at, updated_at, last_message_at, last_run_id
+                ) VALUES (
+                    :thread_id, :agent_name, :title, :created_at, :updated_at, :last_message_at, :last_run_id
+                )
+                """,
+                values,
+            )
+            connection.commit()
+
+    def update_chat_thread(self, thread_id: str, **fields: Any) -> None:
+        if not fields:
+            return
+        allowed = {"title", "updated_at", "last_message_at", "last_run_id"}
+        payload = {key: value for key, value in fields.items() if key in allowed}
+        if not payload:
+            return
+        payload.setdefault("updated_at", datetime.now(timezone.utc).isoformat())
+        payload["thread_id"] = thread_id
+        assignments = ", ".join(f"{key} = :{key}" for key in payload if key != "thread_id")
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                f"UPDATE agent_chat_threads SET {assignments} WHERE thread_id = :thread_id",
+                payload,
+            )
+            connection.commit()
+
+    def get_chat_thread(self, thread_id: str) -> dict[str, Any] | None:
+        with self._lock, self._connection() as connection:
+            row = connection.execute(
+                "SELECT * FROM agent_chat_threads WHERE thread_id = ?",
+                (thread_id,),
+            ).fetchone()
+        return self._chat_thread_row_to_dict(row) if row else None
+
+    def list_chat_threads(self, limit: int = 50) -> list[dict[str, Any]]:
+        with self._lock, self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM agent_chat_threads
+                ORDER BY COALESCE(last_message_at, updated_at, created_at) DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [self._chat_thread_row_to_dict(row) for row in rows]
+
+    def add_chat_message(self, record: dict[str, Any]) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        values = {
+            "message_id": record["message_id"],
+            "thread_id": record["thread_id"],
+            "role": record["role"],
+            "content": record["content"],
+            "run_id": record.get("run_id"),
+            "created_at": record.get("created_at", now),
+            "metadata_json": json.dumps(record.get("metadata_json", {})),
+        }
+        with self._lock, self._connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO agent_chat_messages (
+                    message_id, thread_id, role, content, run_id, created_at, metadata_json
+                ) VALUES (
+                    :message_id, :thread_id, :role, :content, :run_id, :created_at, :metadata_json
+                )
+                """,
+                values,
+            )
+            connection.execute(
+                """
+                UPDATE agent_chat_threads
+                SET updated_at = ?, last_message_at = ?, last_run_id = COALESCE(?, last_run_id)
+                WHERE thread_id = ?
+                """,
+                (
+                    values["created_at"],
+                    values["created_at"],
+                    values["run_id"],
+                    values["thread_id"],
+                ),
+            )
+            connection.commit()
+
+    def list_chat_messages(self, thread_id: str, limit: int = 200) -> list[dict[str, Any]]:
+        with self._lock, self._connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM (
+                    SELECT *
+                    FROM agent_chat_messages
+                    WHERE thread_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                )
+                ORDER BY created_at ASC
+                """,
+                (thread_id, limit),
+            ).fetchall()
+        return [self._chat_message_row_to_dict(row) for row in rows]
 
     def create_coding_task(self, record: dict[str, Any]) -> None:
         now = datetime.now(timezone.utc).isoformat()

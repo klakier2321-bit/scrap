@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .schemas import (
+    ChatReplyOutput,
     CodingChangeOutput,
     CodingTaskPacketOutput,
     FileEditOutput,
@@ -140,6 +141,72 @@ class MockExecutionEngine:
             ),
         )
 
+    def run_chat_agent(
+        self,
+        request_payload: dict,
+        run_context: dict,
+    ) -> tuple[ChatReplyOutput, StepUsage]:
+        metadata = request_payload.get("metadata") or {}
+        latest_user_message = str(metadata.get("chat_latest_user_message") or "").strip()
+        chat_context = metadata.get("chat_context") or {}
+        recent_runs = list(chat_context.get("recent_runs") or [])
+        current_work_items = list(chat_context.get("current_work") or [])
+        focus = "Utrzymuję bezpieczny, ręczny tryb pracy w swoim zakresie."
+        if current_work_items:
+            focus = str(current_work_items[0].get("title") or focus)
+        elif recent_runs:
+            focus = str(recent_runs[0].get("goal") or focus)
+
+        current_work: list[str] = []
+        for item in current_work_items[:3]:
+            title = str(item.get("title") or "").strip()
+            status = str(item.get("status") or "").strip()
+            if title:
+                current_work.append(f"{title} [{status or 'status_unknown'}]")
+        if not current_work and recent_runs:
+            for item in recent_runs[:3]:
+                goal = str(item.get("goal") or "").strip()
+                status = str(item.get("status") or "").strip()
+                if goal:
+                    current_work.append(f"{goal} [{status or 'status_unknown'}]")
+        if not current_work:
+            current_work = ["Brak aktywnej pracy; jestem gotowy do kolejnego ręcznego kroku."]
+
+        tactic_update = None
+        lowered_message = latest_user_message.lower()
+        if any(keyword in lowered_message for keyword in ("takty", "strateg", "zmień", "zmiana")):
+            tactic_update = (
+                "Przesunąłbym pracę na mniejszy, bezpieczny przyrost i najpierw doprecyzował "
+                "najbliższy dowód lub blocker zamiast szerokiego taska."
+            )
+
+        reply = (
+            f"Obecnie skupiam się na: {focus} "
+            f"Najnowsza wiadomość operatora brzmiała: '{latest_user_message or 'brak treści'}'. "
+            "To jest odpowiedź mock, więc opisuję status i sugerowany kierunek bez wykonywania zmian."
+        )
+
+        chat = ChatReplyOutput(
+            reply=reply,
+            current_focus=focus,
+            current_work=current_work,
+            next_step="Zadaj doprecyzowujące pytanie albo poproś o zmianę taktyki w obrębie mojego scope.",
+            tactic_update=tactic_update,
+            warnings=list(run_context.get("warnings", [])),
+        )
+        return (
+            chat,
+            StepUsage(
+                agent_name=request_payload["agent_name"],
+                model=run_context["selected_model"],
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                successful_requests=0,
+                estimated_cost_usd=0.0,
+            ),
+        )
+
     def run_lead_task_packet_agent(
         self,
         *,
@@ -253,12 +320,18 @@ class MockExecutionEngine:
         defaults = {
             "system_lead_agent": ["docs/", "ai_agents/"],
             "architecture_agent": ["docs/ARCHITECTURE.md"],
+            "ops_observability_agent": ["monitoring/", "infrastructure/grafana/"],
             "monitoring_agent": ["monitoring/", "infrastructure/grafana/"],
             "control_layer_agent": ["core/"],
-            "strategy_agent": ["trading/"],
+            "strategy_agent": ["research/strategies/", "strategy_research/"],
             "integration_agent": ["docs/", "core/", "ai_agents/"],
             "api_agent": ["docs/openapi.yaml"],
             "gui_agent": ["core/templates/operator.html"],
             "review_agent": ["docs/", "ai_agents/"],
+            "trend_pullback_steward": ["research/strategies/manifests/trend_pullback_continuation_v1.yaml"],
+            "breakout_from_compression_steward": ["research/strategies/manifests/breakout_from_compression_v1.yaml"],
+            "range_mean_reversion_steward": ["research/strategies/manifests/range_mean_reversion_v1.yaml"],
+            "panic_reversal_steward": ["research/strategies/manifests/panic_reversal_v1.yaml"],
+            "defense_only_steward": ["research/strategies/manifests/defense_only_v1.yaml"],
         }
         return defaults.get(agent_name, ["docs/"])

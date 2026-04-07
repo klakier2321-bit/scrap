@@ -1,20 +1,20 @@
 autopilot:
-  objective: "Najpierw zbudowac mocny, futures-aware regime detector, a dopiero potem wracac do strategii budowanych pod konkretne reżimy rynku. Freeze build, keep dry-run telemetry."
+  objective: "Utrzymuj paper-ready, canonical futures runtime: regime -> risk -> strategy layer -> execution guard -> telemetry -> system replay. Nie reaktywuj legacy candidate-first lanes."
   auto_start: true
   poll_interval_seconds: 600
   max_cycles: 0
 
   tasks:
-    - name: "strategy_regime_alignment"
+    - name: "canonical_strategy_governance"
       agent_name: "strategy_agent"
-      goal: "Utrzymuj lifecycle kandydatow w trybie frozen_pending_regime_engine, dopinaj allowed/blocked regimes, entry_contexts i regime_risk_policy. Nie generuj nowych build-taskow strategii."
-      business_reason: "Pion strategii ma pozostac uporzadkowany, ale aktywne budowanie kandydatow jest zamrozone do czasu gotowego regime detectora."
+      goal: "Pilnuj lifecycle kanonicznych strategii, stewardow, manifestow i replay evidence. Nie reaktywuj research/candidates jako runtime source."
+      business_reason: "System ma pozostac canonical-strategy-first i tani kosztowo."
       requested_paths:
-        - "research/candidates/"
-        - "research/promotion/"
-        - "docs/STRATEGY_LIFECYCLE.md"
-        - "docs/STRATEGY_PROMOTION_PIPELINE.md"
-        - "docs/REGIME_DETECTION.md"
+        - "research/strategies/"
+        - "strategy_research/"
+        - "strategy_stewards/"
+        - "docs/ARCHITECTURE.md"
+        - "backtests/system/"
       risk_level: "low"
       cross_layer: false
       does_touch_contract: false
@@ -23,10 +23,10 @@ autopilot:
       auto_approve: false
       allow_parallel: true
 
-    - name: "regime_core_build"
+    - name: "regime_runtime_maintenance"
       agent_name: "regime_model_agent"
-      goal: "Zbuduj i utrzymuj kanoniczny Regime Detector v1: 6 reżimow, confidence, risk level, reasons, latest.json i historia. To jest teraz glowny write lane strategii."
-      business_reason: "Dalsze poprawianie strategii bez porzadnego podzialu rynku na reżimy prowadzi do chaosu i zlej oceny kandydatow."
+      goal: "Utrzymuj kanoniczny Regime Detector i replay semantics dla futures. Priorytet to stabilnosc kontraktu, nie eksperymenty candidate-first."
+      business_reason: "Regime engine jest pierwszym gatingiem dla risk i strategy layer."
       requested_paths:
         - "core/regime_detector.py"
         - "research/regimes/"
@@ -41,16 +41,16 @@ autopilot:
       auto_approve: false
       allow_parallel: true
 
-    - name: "regime_feature_support"
+    - name: "feature_packet_maintenance"
       agent_name: "feature_engineering_agent"
-      goal: "Dostarcz regime feature snapshot i manifest: trend, volatility, volume, session i derivatives context dla futures. Nie rozwijaj nowych candidate packetow."
-      business_reason: "Detektor reżimu potrzebuje stabilnych, audytowalnych cech zanim powstana kolejne strategie pod reżimy."
+      goal: "Dostarczaj lekkie packets i manifesty cech dla regime, replay i canonical strategies. Preferuj artifact-first context zamiast szerokich promptow."
+      business_reason: "Niskokosztowy system agentowy musi opierac sie na gotowych artefaktach, nie na dumpach repo."
       requested_paths:
         - "research/features/"
         - "research/datasets/"
         - "research/regimes/"
         - "docs/FEATURE_STORE.md"
-        - "docs/RESEARCH_LAYER.md"
+        - "data/ai_control/"
       risk_level: "low"
       cross_layer: false
       does_touch_contract: false
@@ -61,14 +61,14 @@ autopilot:
 
     - name: "regime_risk_mapping"
       agent_name: "risk_research_agent"
-      goal: "Zmapuj reżimy rynku na polityki ryzyka: leverage, exposure, concurrency, stress derisking i side parking. Nie buduj nowych candidate risk packetow."
-      business_reason: "Platforma ma najpierw wiedziec jak rynek wplywa na ryzyko, a dopiero potem jakie strategie warto pod niego uruchamiac."
+      goal: "Utrzymuj regime-aware mapowanie ryzyka futures, ale nie zmieniaj centralnego risk desk bez jawnego review."
+      business_reason: "Risk ma pozostac centralny, twardy i przewidywalny."
       requested_paths:
         - "research/risk/"
-        - "research/regimes/"
         - "docs/RISK_MODEL_FUTURES.md"
-        - "docs/SYSTEM_OPERATING_MODEL.md"
+        - "core/risk_management/"
         - "core/risk_manager.py"
+        - "backtests/system/"
       risk_level: "low"
       cross_layer: false
       does_touch_contract: false

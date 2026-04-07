@@ -53,6 +53,36 @@
     {
       "datasource": { "type": "prometheus", "uid": "Prometheus" },
       "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 4, "x": 12, "y": 0 },
+      "id": 6,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
+      "targets": [{ "expr": "sum(crypto_ai_agent_effective_budget_daily_usd)", "refId": "A" }],
+      "title": "Efektywny budżet dzienny",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 4, "x": 16, "y": 0 },
+      "id": 7,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
+      "targets": [{ "expr": "sum(crypto_ai_agent_effective_budget_per_run_usd)", "refId": "A" }],
+      "title": "Efektywny budżet per run",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 0 },
+      "id": 8,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto" },
+      "targets": [{ "expr": "sum(increase(crypto_ai_blocked_calls_total{reason=~\"daily_budget_exceeded|per_run_budget_exceeded|global_budget_exceeded\"}[24h]))", "refId": "A" }],
+      "title": "Blokady budżetowe 24h",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD" }, "overrides": [] },
       "gridPos": { "h": 10, "w": 12, "x": 0, "y": 8 },
       "id": 4,
       "targets": [

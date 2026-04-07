@@ -1,126 +1,657 @@
 agents:
+  system_lead_agent:
+    role: "System Lead Agent"
+    goal: "Coordinate safe, low-cost work across the canonical futures runtime without bypassing review."
+    backstory: "You are the top coordinator of the AI tree. You freeze scope when needed, keep work small, and delegate only through explicit ownership."
+    prompt_file: "system_lead_agent.md"
+    model_tier: "guarded"
+    max_iter: 3
+    max_retry_limit: 1
+    parent_agent:
+    activation_mode: "always_on_guarded"
+    domain: "governance"
+    writes_to:
+      - "ai_agents/"
+      - "docs/"
+      - "AGENT_SYSTEM_PLAN.md"
+      - "AGENT_BOUNDARIES.md"
+    reads_from:
+      - "core/"
+      - "monitoring/"
+      - "research/"
+      - "strategy_research/"
+      - "strategy_stewards/"
+      - "backtests/system/"
+      - "telemetry/"
+      - "data/ai_control/"
+      - "trading/"
+    handoff_targets:
+      - "review_agent"
+      - "architecture_agent"
+      - "control_layer_agent"
+      - "strategy_agent"
+      - "ops_observability_agent"
+    max_parallel_runs: 1
+    cost_tier: "guarded"
+    grafana_visibility: true
+    requires_review_for_activation: false
+    can_dispatch_subtasks: true
+    can_touch_runtime: false
+
   review_agent:
     role: "Review Agent"
-    goal: "Review plans, classify risk, and block unsafe changes."
-    backstory: "You are the final safety layer for AI-generated changes in crypto-system."
+    goal: "Review risky changes, protect contracts, and stop unsafe or too-expensive execution."
+    backstory: "You are the final safety layer. You do not own product work; you own safe gating."
     prompt_file: "review_agent.md"
     model_tier: "cheap"
     max_iter: 3
     max_retry_limit: 1
-
-  system_lead_agent:
-    role: "System Lead Agent"
-    goal: "Plan safe project work that increases long-term risk-adjusted performance."
-    backstory: "You coordinate the project without bypassing safety, ownership, or review."
-    prompt_file: "system_lead_agent.md"
-    model_tier: "cheap"
-    max_iter: 4
-    max_retry_limit: 1
+    parent_agent: "system_lead_agent"
+    activation_mode: "always_on_guarded"
+    domain: "governance"
+    writes_to:
+      - "docs/"
+      - "ai_agents/"
+    reads_from:
+      - "core/"
+      - "ai_agents/"
+      - "docs/"
+      - "data/ai_control/"
+    handoff_targets:
+      - "system_lead_agent"
+      - "architecture_agent"
+    max_parallel_runs: 2
+    cost_tier: "micro"
+    grafana_visibility: true
+    requires_review_for_activation: false
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
 
   architecture_agent:
     role: "Architecture Agent"
-    goal: "Design clean architecture changes that fit the current repository."
-    backstory: "You protect architectural clarity and avoid runtime surprises."
+    goal: "Protect contracts, boundaries, and long-term repository coherence."
+    backstory: "You step in for architecture-sensitive changes and prevent scope creep between regime, risk, strategy, execution, and agents."
     prompt_file: "architecture_agent.md"
-    model_tier: "cheap"
-    max_iter: 4
+    model_tier: "guarded"
+    max_iter: 3
     max_retry_limit: 1
+    parent_agent: "system_lead_agent"
+    activation_mode: "manual_only"
+    domain: "platform"
+    writes_to:
+      - "docs/"
+      - "ai_agents/rules/"
+      - "core/"
+    reads_from:
+      - "core/"
+      - "trading/"
+      - "ai_agents/"
+      - "research/"
+    handoff_targets:
+      - "system_lead_agent"
+      - "review_agent"
+      - "control_layer_agent"
+      - "strategy_agent"
+    max_parallel_runs: 1
+    cost_tier: "strong_review_only"
+    grafana_visibility: true
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
 
-  monitoring_agent:
-    role: "Monitoring Agent"
-    goal: "Improve observability, dashboards, metrics, and safety visibility."
-    backstory: "You make the system measurable before making it more autonomous."
+  ops_observability_agent:
+    role: "Ops Observability Agent"
+    goal: "Own Grafana, operator visibility, agent cost dashboards, replay visibility, and runtime safety observability."
+    backstory: "You explain what is happening across agents and futures runtime using cheap metrics, artifacts, and dashboards instead of expensive chat loops."
     prompt_file: "monitoring_agent.md"
     model_tier: "cheap"
     max_iter: 3
     max_retry_limit: 1
+    parent_agent: "system_lead_agent"
+    activation_mode: "always_on_guarded"
+    domain: "platform"
+    writes_to:
+      - "monitoring/"
+      - "infrastructure/grafana/"
+      - "infrastructure/prometheus/"
+      - "core/metrics.py"
+      - "core/executive_report.py"
+      - "core/templates/"
+      - "docs/"
+    reads_from:
+      - "core/"
+      - "data/ai_control/"
+      - "backtests/system/"
+      - "telemetry/"
+      - "trading/freqtrade/user_data/runtime_artifacts/"
+    handoff_targets:
+      - "control_layer_agent"
+      - "gui_agent"
+      - "api_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "cheap"
+    grafana_visibility: true
+    requires_review_for_activation: false
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
+
+  monitoring_agent:
+    role: "Monitoring Agent (Legacy Alias)"
+    goal: "Legacy alias kept disabled; use ops_observability_agent for all active monitoring work."
+    backstory: "You exist only for backward compatibility. Active observability ownership moved to ops_observability_agent."
+    prompt_file: "monitoring_agent.md"
+    model_tier: "micro"
+    max_iter: 1
+    max_retry_limit: 0
+    parent_agent: "ops_observability_agent"
+    activation_mode: "disabled_by_default"
+    domain: "platform"
+    writes_to:
+      - "monitoring/"
+      - "infrastructure/grafana/"
+    reads_from:
+      - "core/"
+      - "data/ai_control/"
+    handoff_targets:
+      - "ops_observability_agent"
+    max_parallel_runs: 1
+    cost_tier: "micro"
+    grafana_visibility: false
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
 
   control_layer_agent:
     role: "Control Layer Agent"
-    goal: "Improve the control layer without changing trading runtime directly."
-    backstory: "You work on control API and orchestration while respecting runtime boundaries."
+    goal: "Improve control API, orchestration, runtime views, and system replay integration without touching trading logic directly."
+    backstory: "You own the control layer and keep it safe, testable, and operator-friendly."
     prompt_file: "control_layer_agent.md"
     model_tier: "cheap"
     max_iter: 4
     max_retry_limit: 1
+    parent_agent: "system_lead_agent"
+    activation_mode: "always_on_guarded"
+    domain: "platform"
+    writes_to:
+      - "core/"
+      - "docs/"
+    reads_from:
+      - "trading/"
+      - "ai_agents/"
+      - "monitoring/"
+      - "data/ai_control/"
+    handoff_targets:
+      - "integration_agent"
+      - "api_agent"
+      - "gui_agent"
+      - "ops_observability_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "cheap"
+    grafana_visibility: true
+    requires_review_for_activation: false
+    can_dispatch_subtasks: true
+    can_touch_runtime: false
 
   strategy_agent:
     role: "Strategy Lead Agent"
-    goal: "Coordinate the futures strategy factory and promote only evidence-backed candidates."
-    backstory: "You are the lead of the strategy pillar and turn research evidence into disciplined candidate decisions."
+    goal: "Lead the canonical futures strategy pillar, coordinate strategy stewards, and protect lifecycle discipline."
+    backstory: "You are head of strategy, not a candidate factory. You coordinate regime-aware strategies, stewards, replay evidence, and backtest gating."
     prompt_file: "strategy_agent.md"
-    model_tier: "cheap"
+    model_tier: "guarded"
     max_iter: 4
     max_retry_limit: 1
-
-  alpha_research_agent:
-    role: "Alpha Research Agent"
-    goal: "Generate and refine small, testable futures trading hypotheses."
-    backstory: "You search for edge hypotheses, but you do not confuse ideas with validated strategies."
-    prompt_file: "alpha_research_agent.md"
-    model_tier: "cheap"
-    max_iter: 3
-    max_retry_limit: 1
-
-  feature_engineering_agent:
-    role: "Feature Engineering Agent"
-    goal: "Design futures-aware datasets and feature definitions for the strategy factory."
-    backstory: "You turn market structure, funding, volatility, and context into usable research inputs."
-    prompt_file: "feature_engineering_agent.md"
-    model_tier: "cheap"
-    max_iter: 3
-    max_retry_limit: 1
+    parent_agent: "system_lead_agent"
+    activation_mode: "always_on_guarded"
+    domain: "strategy"
+    writes_to:
+      - "research/strategies/"
+      - "strategy_research/"
+      - "strategy_stewards/"
+      - "docs/"
+      - "ai_agents/"
+    reads_from:
+      - "core/strategy_layer/"
+      - "core/system_backtest/"
+      - "backtests/system/"
+      - "telemetry/strategies/"
+      - "data/ai_control/strategy_telemetry/"
+      - "trading/freqtrade/user_data/strategies/"
+      - "research/system_backtests/"
+    handoff_targets:
+      - "regime_model_agent"
+      - "feature_engineering_agent"
+      - "risk_research_agent"
+      - "experiment_evaluation_agent"
+      - "alpha_research_agent"
+      - "trend_pullback_steward"
+      - "breakout_from_compression_steward"
+      - "range_mean_reversion_steward"
+      - "panic_reversal_steward"
+      - "defense_only_steward"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "guarded"
+    grafana_visibility: true
+    requires_review_for_activation: false
+    can_dispatch_subtasks: true
+    can_touch_runtime: false
 
   regime_model_agent:
     role: "Regime Model Agent"
-    goal: "Define and refine market regime logic for futures strategy activation."
-    backstory: "You classify when a strategy should be trusted and when a regime should block it."
+    goal: "Refine regime logic, replay interpretation, and activation semantics for the canonical futures runtime."
+    backstory: "You improve regime classification and confidence without leaking into execution or portfolio decisions."
     prompt_file: "regime_model_agent.md"
     model_tier: "cheap"
     max_iter: 3
     max_retry_limit: 1
+    parent_agent: "strategy_agent"
+    activation_mode: "always_on_guarded"
+    domain: "research"
+    writes_to:
+      - "research/regimes/"
+      - "docs/"
+      - "core/regime_detector.py"
+      - "core/tests/test_regime_detector.py"
+    reads_from:
+      - "core/"
+      - "data/ai_control/regime/"
+      - "backtests/system/"
+      - "telemetry/strategies/"
+    handoff_targets:
+      - "strategy_agent"
+      - "feature_engineering_agent"
+      - "risk_research_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "cheap"
+    grafana_visibility: true
+    requires_review_for_activation: false
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
+
+  feature_engineering_agent:
+    role: "Feature Engineering Agent"
+    goal: "Deliver cheap, reusable feature packets and research inputs for regimes and strategies."
+    backstory: "You turn structure, volatility, derivatives, and replay context into audit-ready inputs instead of bloated prompt context."
+    prompt_file: "feature_engineering_agent.md"
+    model_tier: "cheap"
+    max_iter: 3
+    max_retry_limit: 1
+    parent_agent: "strategy_agent"
+    activation_mode: "always_on_guarded"
+    domain: "research"
+    writes_to:
+      - "research/features/"
+      - "research/datasets/"
+      - "research/regimes/"
+      - "docs/"
+    reads_from:
+      - "core/"
+      - "data/ai_control/"
+      - "backtests/system/"
+      - "telemetry/strategies/"
+    handoff_targets:
+      - "strategy_agent"
+      - "regime_model_agent"
+      - "risk_research_agent"
+    max_parallel_runs: 1
+    cost_tier: "cheap"
+    grafana_visibility: true
+    requires_review_for_activation: false
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
 
   risk_research_agent:
     role: "Risk Research Agent"
-    goal: "Design futures-specific risk rules and evidence for strategy approval."
-    backstory: "You focus on leverage, liquidation, exposure, and funding drag before profit claims."
+    goal: "Research regime-aware risk mappings and guardrails without changing the central risk desk by stealth."
+    backstory: "You work on evidence and policy mapping for futures risk, never on bypassing enforcement."
     prompt_file: "risk_research_agent.md"
     model_tier: "cheap"
     max_iter: 3
     max_retry_limit: 1
+    parent_agent: "strategy_agent"
+    activation_mode: "always_on_guarded"
+    domain: "research"
+    writes_to:
+      - "research/risk/"
+      - "docs/"
+    reads_from:
+      - "core/risk_management/"
+      - "core/risk_manager.py"
+      - "backtests/system/"
+      - "data/ai_control/"
+    handoff_targets:
+      - "strategy_agent"
+      - "regime_model_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "cheap"
+    grafana_visibility: true
+    requires_review_for_activation: false
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
 
   experiment_evaluation_agent:
     role: "Experiment Evaluation Agent"
-    goal: "Compare candidates, analyze robustness, and produce promotion evidence."
-    backstory: "You are the brutal filter that rejects weak or unstable candidates before promotion."
+    goal: "Compare replay and backtest evidence across regimes, strategies, and steward proposals."
+    backstory: "You are on-demand validation. You do not create runtime work; you compare evidence and reject weak claims."
     prompt_file: "experiment_evaluation_agent.md"
     model_tier: "cheap"
     max_iter: 3
     max_retry_limit: 1
+    parent_agent: "strategy_agent"
+    activation_mode: "manual_only"
+    domain: "research"
+    writes_to:
+      - "research/evaluation/"
+      - "docs/"
+      - "backtests/strategies/"
+    reads_from:
+      - "backtests/system/"
+      - "telemetry/strategies/"
+      - "research/strategies/"
+      - "strategy_research/"
+    handoff_targets:
+      - "strategy_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "cheap"
+    grafana_visibility: true
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
+
+  alpha_research_agent:
+    role: "Alpha Research Agent"
+    goal: "Explore new hypotheses only after the canonical runtime is stable and within explicit budget limits."
+    backstory: "You are idea generation, not runtime truth. You stay disabled until explicitly needed."
+    prompt_file: "alpha_research_agent.md"
+    model_tier: "micro"
+    max_iter: 2
+    max_retry_limit: 1
+    parent_agent: "strategy_agent"
+    activation_mode: "disabled_by_default"
+    domain: "research"
+    writes_to:
+      - "strategy_research/"
+      - "research/"
+      - "docs/"
+    reads_from:
+      - "backtests/system/"
+      - "telemetry/strategies/"
+      - "research/strategies/"
+    handoff_targets:
+      - "strategy_agent"
+      - "experiment_evaluation_agent"
+    max_parallel_runs: 1
+    cost_tier: "micro"
+    grafana_visibility: true
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
 
   integration_agent:
     role: "Integration Agent"
-    goal: "Plan safe cross-layer integrations with explicit review."
-    backstory: "You connect layers carefully and never hide cross-layer impact."
+    goal: "Handle reviewed cross-layer integration tasks without taking ownership of domain logic."
+    backstory: "You are a shared service for small, explicit integrations only."
     prompt_file: "integration_agent.md"
     model_tier: "cheap"
-    max_iter: 4
+    max_iter: 3
     max_retry_limit: 1
+    parent_agent: "control_layer_agent"
+    activation_mode: "manual_only"
+    domain: "surface"
+    writes_to:
+      - "docs/"
+      - "core/"
+      - "ai_agents/"
+    reads_from:
+      - "."
+    handoff_targets:
+      - "control_layer_agent"
+      - "review_agent"
+      - "architecture_agent"
+    max_parallel_runs: 1
+    cost_tier: "cheap"
+    grafana_visibility: true
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
 
   api_agent:
     role: "API Agent"
-    goal: "Design and refine control-facing API contracts and implementations."
-    backstory: "You protect clear interfaces between GUI, agents, and control layer."
+    goal: "Refine cheap, explicit control-facing APIs for operators and observability."
+    backstory: "You support the control layer and observability surfaces only when asked."
     prompt_file: "api_agent.md"
-    model_tier: "cheap"
-    max_iter: 3
+    model_tier: "micro"
+    max_iter: 2
     max_retry_limit: 1
+    parent_agent: "control_layer_agent"
+    activation_mode: "disabled_by_default"
+    domain: "surface"
+    writes_to:
+      - "core/api.py"
+      - "core/schemas.py"
+      - "docs/openapi.yaml"
+      - "docs/"
+    reads_from:
+      - "core/"
+      - "monitoring/"
+      - "ai_agents/"
+    handoff_targets:
+      - "control_layer_agent"
+      - "ops_observability_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "micro"
+    grafana_visibility: true
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
 
   gui_agent:
     role: "GUI Agent"
-    goal: "Improve the operator UI without turning it into an expensive chat app."
-    backstory: "You build practical operational interfaces for humans."
+    goal: "Improve operator UI and Grafana-facing surfaces without turning them into token-hungry chat UX."
+    backstory: "You work on stateful, cheap operator interfaces only on demand."
     prompt_file: "gui_agent.md"
-    model_tier: "cheap"
-    max_iter: 3
+    model_tier: "micro"
+    max_iter: 2
     max_retry_limit: 1
+    parent_agent: "control_layer_agent"
+    activation_mode: "disabled_by_default"
+    domain: "surface"
+    writes_to:
+      - "core/templates/"
+      - "docs/"
+      - "infrastructure/grafana/"
+    reads_from:
+      - "core/"
+      - "monitoring/"
+      - "ai_agents/"
+    handoff_targets:
+      - "control_layer_agent"
+      - "ops_observability_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "micro"
+    grafana_visibility: true
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
+
+  trend_pullback_steward:
+    role: "Trend Pullback Steward"
+    goal: "Improve only trend_pullback_continuation_v1 through replay, telemetry, and bounded parameter work."
+    backstory: "You are the dedicated steward of one strategy. You never change system contracts or central risk."
+    prompt_file: "strategy_steward_agent.md"
+    model_tier: "micro"
+    max_iter: 2
+    max_retry_limit: 1
+    parent_agent: "strategy_agent"
+    activation_mode: "disabled_by_default"
+    domain: "strategy"
+    writes_to:
+      - "research/strategies/manifests/trend_pullback_continuation_v1.yaml"
+      - "core/strategy_layer/strategies/trend/"
+      - "strategy_research/trend_pullback_continuation_v1/"
+      - "strategy_stewards/"
+      - "backtests/strategies/"
+      - "telemetry/strategies/"
+    reads_from:
+      - "backtests/system/"
+      - "data/ai_control/strategy_telemetry/"
+      - "research/system_backtests/"
+      - "trading/freqtrade/user_data/runtime_artifacts/"
+    handoff_targets:
+      - "strategy_agent"
+      - "experiment_evaluation_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "micro"
+    grafana_visibility: true
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
+    strategy_scope: "trend_pullback_continuation_v1"
+
+  breakout_from_compression_steward:
+    role: "Compression Breakout Steward"
+    goal: "Improve only breakout_from_compression_v1 inside its manifest and replay mandate."
+    backstory: "You steward one breakout strategy and stay out of global risk, leverage, and contract changes."
+    prompt_file: "strategy_steward_agent.md"
+    model_tier: "micro"
+    max_iter: 2
+    max_retry_limit: 1
+    parent_agent: "strategy_agent"
+    activation_mode: "disabled_by_default"
+    domain: "strategy"
+    writes_to:
+      - "research/strategies/manifests/breakout_from_compression_v1.yaml"
+      - "core/strategy_layer/strategies/breakout/"
+      - "strategy_research/breakout_from_compression_v1/"
+      - "strategy_stewards/"
+      - "backtests/strategies/"
+      - "telemetry/strategies/"
+    reads_from:
+      - "backtests/system/"
+      - "data/ai_control/strategy_telemetry/"
+      - "research/system_backtests/"
+      - "trading/freqtrade/user_data/runtime_artifacts/"
+    handoff_targets:
+      - "strategy_agent"
+      - "experiment_evaluation_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "micro"
+    grafana_visibility: true
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
+    strategy_scope: "breakout_from_compression_v1"
+
+  range_mean_reversion_steward:
+    role: "Range Reversion Steward"
+    goal: "Improve only range_mean_reversion_v1 with bounded tuning and replay analysis."
+    backstory: "You guard one range strategy and stay within its regime and signal contract."
+    prompt_file: "strategy_steward_agent.md"
+    model_tier: "micro"
+    max_iter: 2
+    max_retry_limit: 1
+    parent_agent: "strategy_agent"
+    activation_mode: "disabled_by_default"
+    domain: "strategy"
+    writes_to:
+      - "research/strategies/manifests/range_mean_reversion_v1.yaml"
+      - "core/strategy_layer/strategies/range/"
+      - "strategy_research/range_mean_reversion_v1/"
+      - "strategy_stewards/"
+      - "backtests/strategies/"
+      - "telemetry/strategies/"
+    reads_from:
+      - "backtests/system/"
+      - "data/ai_control/strategy_telemetry/"
+      - "research/system_backtests/"
+      - "trading/freqtrade/user_data/runtime_artifacts/"
+    handoff_targets:
+      - "strategy_agent"
+      - "experiment_evaluation_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "micro"
+    grafana_visibility: true
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
+    strategy_scope: "range_mean_reversion_v1"
+
+  panic_reversal_steward:
+    role: "Panic Reversal Steward"
+    goal: "Improve only panic_reversal_v1 inside event-native replay and telemetry constraints."
+    backstory: "You steward one event-driven reversal strategy and never relax global safety rules."
+    prompt_file: "strategy_steward_agent.md"
+    model_tier: "micro"
+    max_iter: 2
+    max_retry_limit: 1
+    parent_agent: "strategy_agent"
+    activation_mode: "disabled_by_default"
+    domain: "strategy"
+    writes_to:
+      - "research/strategies/manifests/panic_reversal_v1.yaml"
+      - "core/strategy_layer/strategies/event/"
+      - "strategy_research/panic_reversal_v1/"
+      - "strategy_stewards/"
+      - "backtests/strategies/"
+      - "telemetry/strategies/"
+    reads_from:
+      - "backtests/system/"
+      - "data/ai_control/strategy_telemetry/"
+      - "research/system_backtests/"
+      - "trading/freqtrade/user_data/runtime_artifacts/"
+    handoff_targets:
+      - "strategy_agent"
+      - "experiment_evaluation_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "micro"
+    grafana_visibility: true
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
+    strategy_scope: "panic_reversal_v1"
+
+  defense_only_steward:
+    role: "Defense Only Steward"
+    goal: "Improve only defense_only_v1 as a defensive gate, never as a hidden risk engine."
+    backstory: "You steward the no-trade and defensive lane. Your job is to protect clarity, not to sneak in portfolio logic."
+    prompt_file: "strategy_steward_agent.md"
+    model_tier: "micro"
+    max_iter: 2
+    max_retry_limit: 1
+    parent_agent: "strategy_agent"
+    activation_mode: "disabled_by_default"
+    domain: "strategy"
+    writes_to:
+      - "research/strategies/manifests/defense_only_v1.yaml"
+      - "core/strategy_layer/strategies/defense/"
+      - "strategy_research/defense_only_v1/"
+      - "strategy_stewards/"
+      - "backtests/strategies/"
+      - "telemetry/strategies/"
+    reads_from:
+      - "backtests/system/"
+      - "data/ai_control/strategy_telemetry/"
+      - "research/system_backtests/"
+      - "trading/freqtrade/user_data/runtime_artifacts/"
+    handoff_targets:
+      - "strategy_agent"
+      - "experiment_evaluation_agent"
+      - "review_agent"
+    max_parallel_runs: 1
+    cost_tier: "micro"
+    grafana_visibility: true
+    requires_review_for_activation: true
+    can_dispatch_subtasks: false
+    can_touch_runtime: false
+    strategy_scope: "defense_only_v1"

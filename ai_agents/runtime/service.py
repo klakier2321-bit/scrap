@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import logging
+from pathlib import Path
+from typing import Callable
 from typing import Any
 
 from opentelemetry import trace
@@ -21,10 +23,17 @@ from .config import (
     load_prompt,
     load_scope_manifest,
 )
+from .context_packets import (
+    ContextPacketStore,
+    build_agent_tree_packet,
+    build_cost_packet,
+    build_strategy_packet,
+)
 from .crew_factory import CrewAIExecutionEngine
 from .flow import PlanningFlow
 from .hooks import HookRunContext, register_runtime_hooks, reset_current_run_context, set_current_run_context
 from .mock_engine import MockExecutionEngine
+from .overrides import load_runtime_overrides, merge_agent_override
 from .policy import evaluate_request
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -51,12 +60,33 @@ class RuntimeDecision:
 class AgentRuntimeService:
     """Loads agent config, applies policy, and executes flows."""
 
-    def __init__(self, settings: Any) -> None:
+    def __init__(
+        self,
+        settings: Any,
+        *,
+        resource_guard_provider: Callable[[], dict[str, Any]] | None = None,
+    ) -> None:
         self.settings = settings
+        self.resource_guard_provider = resource_guard_provider
         self.agent_profiles = load_agent_profiles()
         self.model_profiles = load_model_profiles()
         self.global_budget, self.budget_profiles = load_budget_profiles()
         self.scope_manifest = load_scope_manifest()
+        self.context_packet_store = ContextPacketStore(
+            settings.agent_context_packets_dir
+        )
+        self.runtime_overrides_path = Path(
+            getattr(
+                settings,
+                "agent_runtime_overrides_path",
+                settings.agent_context_packets_dir.parent / "agent_runtime_overrides.json",
+            )
+        )
+        self.children_by_parent: dict[str, list[str]] = {}
+        for name, profile in self.agent_profiles.items():
+            if not profile.parent_agent:
+                continue
+            self.children_by_parent.setdefault(profile.parent_agent, []).append(name)
         self.prompt_hashes = {
             name: hashlib.sha256(load_prompt(profile.prompt_file).encode("utf-8")).hexdigest()
             for name, profile in self.agent_profiles.items()
@@ -68,6 +98,37 @@ class AgentRuntimeService:
         )
         self.mock_engine = MockExecutionEngine()
         register_runtime_hooks()
+
+    def _resource_guard_snapshot(self) -> dict[str, Any]:
+        if self.resource_guard_provider is None:
+            return {
+                "enabled": False,
+                "allow_new_runs": True,
+                "allow_coding_dispatch": True,
+                "primary_reason": None,
+                "blocked_reasons": [],
+                "operator_message": "Host resource guard is disabled.",
+                "notes": [],
+                "resources": {},
+            }
+        try:
+            snapshot = self.resource_guard_provider()
+        except Exception:  # noqa: BLE001
+            logger.exception("Resource guard provider failed. Blocking new agent runs for safety.")
+            return {
+                "enabled": True,
+                "allow_new_runs": False,
+                "allow_coding_dispatch": False,
+                "primary_reason": "resource_guard_unavailable",
+                "blocked_reasons": ["resource_guard_unavailable"],
+                "operator_message": "Host resource guard is unavailable and new agent runs are paused for safety.",
+                "notes": [
+                    "Host resource guard could not produce a snapshot.",
+                    "New agent runs are blocked until resource visibility returns.",
+                ],
+                "resources": {},
+            }
+        return dict(snapshot or {})
 
     def _select_engine(self) -> Any:
         return self.mock_engine if self.settings.agent_use_mock_llm else self.real_engine
@@ -96,24 +157,138 @@ class AgentRuntimeService:
             )
             return runner(self.mock_engine)
 
+    def _load_runtime_overrides(self) -> dict[str, Any]:
+        return load_runtime_overrides(self.runtime_overrides_path)
+
+    def get_runtime_overrides(self) -> dict[str, Any]:
+        return self._load_runtime_overrides()
+
+    def update_agent_override(
+        self,
+        *,
+        agent_name: str,
+        enabled: bool | None = None,
+        daily_budget_usd: float | None = None,
+        per_run_budget_usd: float | None = None,
+    ) -> dict[str, Any]:
+        if agent_name not in self.agent_profiles:
+            raise KeyError(f"Unknown agent: {agent_name}")
+        return merge_agent_override(
+            self.runtime_overrides_path,
+            agent_name=agent_name,
+            enabled=enabled,
+            daily_budget_usd=daily_budget_usd,
+            per_run_budget_usd=per_run_budget_usd,
+        )
+
+    def _agent_override(self, agent_name: str) -> dict[str, Any]:
+        return dict(
+            (self._load_runtime_overrides().get("agents") or {}).get(agent_name) or {}
+        )
+
+    @staticmethod
+    def _effective_agent_state(*, activation_mode: str, enabled_override: bool | None) -> tuple[bool, str]:
+        if enabled_override is False:
+            return False, "operator_disabled"
+        if activation_mode == "disabled_by_default":
+            if enabled_override is True:
+                return True, "manual_enabled"
+            return False, "disabled"
+        if activation_mode == "manual_only":
+            return True, "manual_only"
+        if activation_mode == "always_on_guarded":
+            return True, "active_core"
+        return False, "unknown"
+
+    @staticmethod
+    def _effective_budget(
+        budget: BudgetProfile,
+        *,
+        daily_budget_usd: float | None,
+        per_run_budget_usd: float | None,
+    ) -> BudgetProfile:
+        return replace(
+            budget,
+            daily_usd=float(daily_budget_usd)
+            if daily_budget_usd is not None
+            else budget.daily_usd,
+            per_run_usd=float(per_run_budget_usd)
+            if per_run_budget_usd is not None
+            else budget.per_run_usd,
+        )
+
     def list_agents(self) -> list[dict[str, Any]]:
         agents = []
+        overrides = self._load_runtime_overrides().get("agents") or {}
         for name, profile in self.agent_profiles.items():
             budget = self.budget_profiles[name]
+            override = dict(overrides.get(name) or {})
+            effective_enabled, operational_state = self._effective_agent_state(
+                activation_mode=profile.activation_mode,
+                enabled_override=override.get("enabled"),
+            )
+            effective_budget = self._effective_budget(
+                budget,
+                daily_budget_usd=override.get("daily_budget_usd"),
+                per_run_budget_usd=override.get("per_run_budget_usd"),
+            )
             manifest = self.scope_manifest["agents"].get(name, {})
             agents.append(
                 {
                     "name": name,
                     "role": profile.role,
+                    "parent_agent": profile.parent_agent,
+                    "child_agents": sorted(self.children_by_parent.get(name, [])),
+                    "activation_mode": profile.activation_mode,
+                    "operational_state": operational_state,
+                    "enabled_override": override.get("enabled"),
+                    "effective_enabled": effective_enabled,
+                    "domain": profile.domain,
                     "model_tier": profile.model_tier,
+                    "cost_tier": profile.cost_tier,
                     "default_daily_budget_usd": budget.daily_usd,
                     "default_per_run_budget_usd": budget.per_run_usd,
+                    "effective_daily_budget_usd": effective_budget.daily_usd,
+                    "effective_per_run_budget_usd": effective_budget.per_run_usd,
+                    "max_parallel_runs": profile.max_parallel_runs,
+                    "grafana_visibility": profile.grafana_visibility,
+                    "requires_review_for_activation": profile.requires_review_for_activation,
+                    "can_dispatch_subtasks": profile.can_dispatch_subtasks,
+                    "can_touch_runtime": profile.can_touch_runtime,
+                    "handoff_targets": list(profile.handoff_targets),
+                    "writes_to": list(profile.writes_to),
+                    "reads_from": list(profile.reads_from),
+                    "strategy_scope": profile.strategy_scope,
                     "owned_scope": manifest.get("owned_scope", []),
                     "read_only_scope": manifest.get("read_only_scope", []),
                     "forbidden_scope": manifest.get("forbidden_scope", []),
                 }
             )
-        return agents
+        return sorted(
+            agents,
+            key=lambda item: (
+                item.get("parent_agent") is not None,
+                item.get("domain") or "",
+                item["name"],
+            ),
+        )
+
+    def write_agent_catalog_packets(self, *, runs: list[dict[str, Any]]) -> None:
+        agents = self.list_agents()
+        self.context_packet_store.write_packet(
+            packet_type="catalog",
+            packet_name="agent_tree",
+            payload=build_agent_tree_packet(agents),
+        )
+        self.context_packet_store.write_packet(
+            packet_type="catalog",
+            packet_name="cost_control",
+            payload=build_cost_packet(
+                agents=agents,
+                runs=runs,
+                global_budget=self.global_budget,
+            ),
+        )
 
     def generate_coding_task_packet(
         self,
@@ -180,6 +355,7 @@ class AgentRuntimeService:
         current_total_spend: float,
         risk_overrides: dict[str, Any],
         sensitive_path_violations: list[str],
+        current_agent_active_runs: int = 0,
     ) -> dict[str, Any]:
         with tracer.start_as_current_span("AgentRuntimeService.prepare_run") as span:
             agent_name = request_payload["agent_name"]
@@ -217,10 +393,75 @@ class AgentRuntimeService:
                     allowed=False,
                 ).__dict__
 
+            override = self._agent_override(agent_name)
+            effective_enabled, _operational_state = self._effective_agent_state(
+                activation_mode=self.agent_profiles[agent_name].activation_mode,
+                enabled_override=override.get("enabled"),
+            )
+            if not effective_enabled:
+                return RuntimeDecision(
+                    agent_name=agent_name,
+                    selected_model_tier=self.agent_profiles[agent_name].model_tier,
+                    selected_model=self.model_profiles[
+                        self.agent_profiles[agent_name].model_tier
+                    ].model,
+                    review_required=True,
+                    human_decision_required=False,
+                    approval_required=False,
+                    estimated_cost_usd=0.0,
+                    max_iterations=1,
+                    max_retry_limit=0,
+                    warnings=["Agent is disabled by operator override or default guarded state."],
+                    blocked_reason="agent_disabled_by_operator"
+                    if override.get("enabled") is False
+                    else "agent_disabled_by_default",
+                    allowed=False,
+                ).__dict__
+
+            effective_budget = self._effective_budget(
+                self.budget_profiles[agent_name],
+                daily_budget_usd=override.get("daily_budget_usd"),
+                per_run_budget_usd=override.get("per_run_budget_usd"),
+            )
+            effective_request_payload = dict(request_payload)
+            metadata = dict(effective_request_payload.get("metadata") or {})
+            if (
+                self.agent_profiles[agent_name].activation_mode == "disabled_by_default"
+                and override.get("enabled") is True
+            ):
+                metadata["explicit_enable"] = True
+            effective_request_payload["metadata"] = metadata
+
+            resource_guard = self._resource_guard_snapshot()
+            if not bool(resource_guard.get("allow_new_runs", True)):
+                primary_reason = str(
+                    resource_guard.get("primary_reason") or "resource_guard_blocked"
+                )
+                warnings = list(resource_guard.get("notes") or [])
+                operator_message = str(resource_guard.get("operator_message") or "").strip()
+                if operator_message:
+                    warnings.insert(0, operator_message)
+                return RuntimeDecision(
+                    agent_name=agent_name,
+                    selected_model_tier=self.agent_profiles[agent_name].model_tier,
+                    selected_model=self.model_profiles[
+                        self.agent_profiles[agent_name].model_tier
+                    ].model,
+                    review_required=False,
+                    human_decision_required=False,
+                    approval_required=False,
+                    estimated_cost_usd=0.0,
+                    max_iterations=1,
+                    max_retry_limit=0,
+                    warnings=warnings,
+                    blocked_reason=f"host_resource_guard:{primary_reason}",
+                    allowed=False,
+                ).__dict__
+
             decision = evaluate_request(
-                request_payload=request_payload,
+                request_payload=effective_request_payload,
                 agent_profile=self.agent_profiles[agent_name],
-                budget_profile=self.budget_profiles[agent_name],
+                budget_profile=effective_budget,
                 models=self.model_profiles,
                 scope_manifest=self.scope_manifest,
                 current_agent_spend=current_agent_spend,
@@ -239,6 +480,7 @@ class AgentRuntimeService:
                 ),
                 risk_overrides=risk_overrides,
                 sensitive_path_violations=sensitive_path_violations,
+                current_agent_active_runs=current_agent_active_runs,
             )
             decision_dict = decision.to_dict()
             span.set_attribute("crypto.allowed", bool(decision_dict.get("allowed")))
@@ -345,6 +587,71 @@ class AgentRuntimeService:
             tracing_utils._suppress_tracing_messages.reset(suppress_tracing_token)
             reset_current_run_context(token)
 
+    def execute_chat(
+        self,
+        *,
+        run_record: dict[str, Any],
+        stop_requested_callback: Any,
+    ) -> dict[str, Any]:
+        run_context = {
+            "selected_model_tier": run_record["model_tier"],
+            "selected_model": run_record["model"],
+            "review_required": False,
+            "human_decision_required": False,
+            "warnings": run_record.get("warnings_json") or [],
+            "max_iterations": int(run_record.get("max_iterations", 1)),
+            "max_retry_limit": int(run_record.get("max_retry_limit", 0)),
+        }
+
+        hook_context = HookRunContext(
+            run_id=run_record["run_id"],
+            task_id=run_record["task_id"],
+            agent_name=run_record["agent_name"],
+            model=run_record["model"],
+            max_iterations=run_context["max_iterations"],
+            stop_requested=stop_requested_callback,
+            on_blocked=lambda reason: record_blocked_call(run_record["agent_name"], reason),
+            on_llm_call=lambda agent_name, model: logger.info(
+                "LLM chat call executed.",
+                extra={
+                    "run_id": run_record["run_id"],
+                    "task_id": run_record["task_id"],
+                    "agent_name": agent_name,
+                    "model": model,
+                    "status": "running",
+                    "event": "llm_chat_call",
+                },
+            ),
+        )
+
+        token = set_current_run_context(hook_context)
+        suppress_tracing_token = tracing_utils.set_suppress_tracing_messages(True)
+        try:
+            if stop_requested_callback():
+                raise RuntimeError("Run was stopped before the chat step.")
+            chat_output, usage = self._run_with_optional_mock_fallback(
+                agent_name=run_record["agent_name"],
+                task_label="chat_reply",
+                runner=lambda engine: engine.run_chat_agent(
+                    run_record["payload_json"],
+                    run_context,
+                ),
+            )
+            return {
+                "model": usage.model,
+                "result_json": chat_output.model_dump(),
+                "review_json": None,
+                "actual_cost_usd": usage.estimated_cost_usd,
+                "prompt_tokens": usage.prompt_tokens,
+                "completion_tokens": usage.completion_tokens,
+                "total_tokens": usage.total_tokens,
+                "successful_requests": usage.successful_requests,
+                "retry_like_requests": 0,
+            }
+        finally:
+            tracing_utils._suppress_tracing_messages.reset(suppress_tracing_token)
+            reset_current_run_context(token)
+
     def generate_strategy_assessment(
         self,
         strategy_report: dict[str, Any],
@@ -375,11 +682,21 @@ class AgentRuntimeService:
                     if trade.get("pair")
                 ],
             }
+        strategy_packet = build_strategy_packet(
+            strategy_report=strategy_report,
+            readiness_gate=readiness_gate,
+            dry_run_context=dry_run_context,
+        )
+        self.context_packet_store.write_packet(
+            packet_type="strategy",
+            packet_name=str(strategy_report.get("strategy_name") or "unknown_strategy"),
+            payload=strategy_packet,
+        )
         assessment_output, usage = self._run_with_optional_mock_fallback(
             agent_name="strategy_agent",
             task_label="strategy_assessment",
             runner=lambda engine: engine.run_strategy_assessment_agent(
-                strategy_report,
+                strategy_packet,
                 run_context,
                 readiness_gate=readiness_gate,
                 dry_run_context=dry_run_context,

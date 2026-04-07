@@ -63,6 +63,46 @@ ESTIMATED_COST_USD_TOTAL = Counter(
     "Estimated USD cost accumulated by agent and model.",
     ["agent_name", "model"],
 )
+AGENT_CATALOG_INFO = Gauge(
+    "crypto_ai_agent_catalog_info",
+    "Static agent catalog info for Grafana and operator dashboards.",
+    [
+        "agent_name",
+        "parent_agent",
+        "activation_mode",
+        "operational_state",
+        "domain",
+        "cost_tier",
+        "model_tier",
+        "grafana_visibility",
+        "can_touch_runtime",
+    ],
+)
+AGENT_BUDGET_DAILY_USD = Gauge(
+    "crypto_ai_agent_budget_daily_usd",
+    "Configured daily budget per agent.",
+    ["agent_name", "activation_mode", "cost_tier"],
+)
+AGENT_BUDGET_PER_RUN_USD = Gauge(
+    "crypto_ai_agent_budget_per_run_usd",
+    "Configured per-run budget per agent.",
+    ["agent_name", "activation_mode", "cost_tier"],
+)
+AGENT_EFFECTIVE_ENABLED = Gauge(
+    "crypto_ai_agent_effective_enabled",
+    "Whether the agent is effectively enabled after operator overrides.",
+    ["agent_name", "activation_mode", "operational_state"],
+)
+AGENT_EFFECTIVE_BUDGET_DAILY_USD = Gauge(
+    "crypto_ai_agent_effective_budget_daily_usd",
+    "Effective daily budget per agent after operator overrides.",
+    ["agent_name", "activation_mode", "operational_state"],
+)
+AGENT_EFFECTIVE_BUDGET_PER_RUN_USD = Gauge(
+    "crypto_ai_agent_effective_budget_per_run_usd",
+    "Effective per-run budget per agent after operator overrides.",
+    ["agent_name", "activation_mode", "operational_state"],
+)
 BLOCKED_CALLS_TOTAL = Counter(
     "crypto_ai_blocked_calls_total",
     "Blocked calls caused by cost, scope, or stop gates.",
@@ -212,6 +252,46 @@ EXEC_AUTOPILOT_LAST_STARTED_AT_SECONDS = Gauge(
     "crypto_exec_autopilot_last_started_at_seconds",
     "Unix timestamp of the last autopilot dispatch.",
 )
+EXEC_AGENTS_DISABLED = Gauge(
+    "crypto_exec_agents_disabled",
+    "Whether the agent runtime is fully disabled.",
+)
+EXEC_AGENTS_GUARDED = Gauge(
+    "crypto_exec_agents_guarded",
+    "Whether the agent runtime is in guarded mode.",
+)
+EXEC_AGENTS_ACTIVE_LIMITED = Gauge(
+    "crypto_exec_agents_active_limited",
+    "Whether the agent runtime is active in limited mode.",
+)
+EXEC_KILL_SWITCH_ENABLED = Gauge(
+    "crypto_exec_kill_switch_enabled",
+    "Whether the global agent kill switch is enabled.",
+)
+EXEC_RUNTIME_FREEZE_ENABLED = Gauge(
+    "crypto_exec_runtime_freeze_enabled",
+    "Whether the agent runtime freeze is enabled.",
+)
+EXEC_FUTURES_RUNTIME_READY = Gauge(
+    "crypto_exec_futures_runtime_ready",
+    "Whether the canonical futures runtime cluster is ready.",
+)
+EXEC_REPLAY_READY = Gauge(
+    "crypto_exec_replay_ready",
+    "Whether replay artifacts are available from the executive perspective.",
+)
+EXEC_BUDGET_BLOCKS_TOTAL = Gauge(
+    "crypto_exec_budget_blocks_total",
+    "Recent budget-related blocks visible in the observability summary.",
+)
+EXEC_AGENT_BUDGET_DAILY_TOTAL_USD = Gauge(
+    "crypto_exec_agent_budget_daily_total_usd",
+    "Total effective daily budget across the active agent tree.",
+)
+EXEC_AGENT_BUDGET_PER_RUN_TOTAL_USD = Gauge(
+    "crypto_exec_agent_budget_per_run_total_usd",
+    "Total effective per-run budget across the active agent tree.",
+)
 EXEC_MODULE_PROGRESS_PCT = Gauge(
     "crypto_exec_module_progress_pct",
     "Progress percent for one executive roadmap module.",
@@ -357,6 +437,26 @@ EXEC_CODING_WORKSPACE = Gauge(
         "changed_files_count",
     ],
 )
+EXEC_CURRENT_WORK = Gauge(
+    "crypto_exec_current_work",
+    "Current work items shown on the unified executive dashboard.",
+    ["item_id", "owner_name", "owner_type", "workstream", "status", "title", "next_step", "scope"],
+)
+EXEC_HANDOFF = Gauge(
+    "crypto_exec_handoff",
+    "Recent handoffs between agents and runtime owners.",
+    ["handoff_id", "from_actor", "to_actor", "status", "title", "reason"],
+)
+EXEC_RUNTIME_FOCUS = Gauge(
+    "crypto_exec_runtime_focus",
+    "Runtime and strategy focus items for the executive control tower.",
+    ["item_id", "area", "status", "title", "detail", "next_step"],
+)
+EXEC_COST_CONTROL_ITEM = Gauge(
+    "crypto_exec_cost_control_item",
+    "Cost control items for the executive dashboard.",
+    ["item_id", "title", "status", "detail"],
+)
 
 
 def record_run_created(agent_name: str, status: str) -> None:
@@ -436,6 +536,52 @@ def record_model_allowlist_violation(agent_name: str) -> None:
 def update_bot_statuses(bots: list[dict[str, Any]]) -> None:
     for bot in bots:
         BOT_RUNNING.labels(bot_id=bot["bot_id"]).set(1 if bot["state"] == "running" else 0)
+
+
+def update_agent_catalog_metrics(agents: list[dict[str, Any]]) -> None:
+    AGENT_CATALOG_INFO.clear()
+    AGENT_BUDGET_DAILY_USD.clear()
+    AGENT_BUDGET_PER_RUN_USD.clear()
+    AGENT_EFFECTIVE_ENABLED.clear()
+    AGENT_EFFECTIVE_BUDGET_DAILY_USD.clear()
+    AGENT_EFFECTIVE_BUDGET_PER_RUN_USD.clear()
+    for agent in agents:
+        AGENT_CATALOG_INFO.labels(
+            agent_name=str(agent.get("name") or "unknown"),
+            parent_agent=str(agent.get("parent_agent") or "root"),
+            activation_mode=str(agent.get("activation_mode") or "unknown"),
+            operational_state=str(agent.get("operational_state") or "unknown"),
+            domain=str(agent.get("domain") or "unknown"),
+            cost_tier=str(agent.get("cost_tier") or "unknown"),
+            model_tier=str(agent.get("model_tier") or "unknown"),
+            grafana_visibility=str(bool(agent.get("grafana_visibility"))).lower(),
+            can_touch_runtime=str(bool(agent.get("can_touch_runtime"))).lower(),
+        ).set(1)
+        AGENT_BUDGET_DAILY_USD.labels(
+            agent_name=str(agent.get("name") or "unknown"),
+            activation_mode=str(agent.get("activation_mode") or "unknown"),
+            cost_tier=str(agent.get("cost_tier") or "unknown"),
+        ).set(float(agent.get("default_daily_budget_usd", 0.0)))
+        AGENT_BUDGET_PER_RUN_USD.labels(
+            agent_name=str(agent.get("name") or "unknown"),
+            activation_mode=str(agent.get("activation_mode") or "unknown"),
+            cost_tier=str(agent.get("cost_tier") or "unknown"),
+        ).set(float(agent.get("default_per_run_budget_usd", 0.0)))
+        AGENT_EFFECTIVE_ENABLED.labels(
+            agent_name=str(agent.get("name") or "unknown"),
+            activation_mode=str(agent.get("activation_mode") or "unknown"),
+            operational_state=str(agent.get("operational_state") or "unknown"),
+        ).set(1 if agent.get("effective_enabled") else 0)
+        AGENT_EFFECTIVE_BUDGET_DAILY_USD.labels(
+            agent_name=str(agent.get("name") or "unknown"),
+            activation_mode=str(agent.get("activation_mode") or "unknown"),
+            operational_state=str(agent.get("operational_state") or "unknown"),
+        ).set(float(agent.get("effective_daily_budget_usd", agent.get("default_daily_budget_usd", 0.0))))
+        AGENT_EFFECTIVE_BUDGET_PER_RUN_USD.labels(
+            agent_name=str(agent.get("name") or "unknown"),
+            activation_mode=str(agent.get("activation_mode") or "unknown"),
+            operational_state=str(agent.get("operational_state") or "unknown"),
+        ).set(float(agent.get("effective_per_run_budget_usd", agent.get("default_per_run_budget_usd", 0.0))))
 
 
 def record_dry_run_smoke_failure(bot_id: str, reason: str) -> None:
@@ -540,6 +686,10 @@ def update_executive_metrics(executive_report: dict[str, Any] | None) -> None:
     EXEC_CODING_ACTIVE_TASK.clear()
     EXEC_CODING_TASK.clear()
     EXEC_CODING_WORKSPACE.clear()
+    EXEC_CURRENT_WORK.clear()
+    EXEC_HANDOFF.clear()
+    EXEC_RUNTIME_FOCUS.clear()
+    EXEC_COST_CONTROL_ITEM.clear()
 
     summary = executive_report.get("summary", {})
     for status, count in summary.get("modules_by_status", {}).items():
@@ -561,6 +711,16 @@ def update_executive_metrics(executive_report: dict[str, Any] | None) -> None:
     EXEC_AUTOPILOT_RUNNING.set(1 if autopilot.get("running") else 0)
     EXEC_AUTOPILOT_CYCLE_COUNT.set(int(autopilot.get("cycle_count", 0)))
     EXEC_AUTOPILOT_ATTENTION_NEEDED.set(1 if autopilot.get("attention_needed") else 0)
+    EXEC_AGENTS_DISABLED.set(int(summary.get("agents_disabled", 0)))
+    EXEC_AGENTS_GUARDED.set(int(summary.get("agents_guarded", 0)))
+    EXEC_AGENTS_ACTIVE_LIMITED.set(int(summary.get("agents_active_limited", 0)))
+    EXEC_AGENT_BUDGET_DAILY_TOTAL_USD.set(float(summary.get("agent_budget_daily_total_usd", 0.0)))
+    EXEC_AGENT_BUDGET_PER_RUN_TOTAL_USD.set(float(summary.get("agent_budget_per_run_total_usd", 0.0)))
+    health = executive_report.get("autopilot", {})
+    EXEC_KILL_SWITCH_ENABLED.set(1 if health.get("kill_switch") else 0)
+    EXEC_RUNTIME_FREEZE_ENABLED.set(1 if health.get("runtime_freeze") else 0)
+    EXEC_FUTURES_RUNTIME_READY.set(int(summary.get("dry_run_ready", 0)))
+    EXEC_REPLAY_READY.set(int(summary.get("regime_replay_available", 0)))
     last_started_at = autopilot.get("last_started_at")
     if last_started_at:
         try:
@@ -745,9 +905,54 @@ def update_executive_metrics(executive_report: dict[str, Any] | None) -> None:
             changed_files_count=str(len(workspace.get("changed_files", []))),
         ).set(1)
 
+    observability = executive_report.get("observability_summary") or {}
+    cost_control = observability.get("cost_control") or {}
+    EXEC_BUDGET_BLOCKS_TOTAL.set(int(cost_control.get("budget_blocked_runs_total", 0)))
+
+    for item in observability.get("current_work") or []:
+        EXEC_CURRENT_WORK.labels(
+            item_id=str(item.get("item_id") or "unknown"),
+            owner_name=str(item.get("owner_name") or "unknown"),
+            owner_type=str(item.get("owner_type") or "unknown"),
+            workstream=str(item.get("workstream") or "unknown"),
+            status=str(item.get("status") or "unknown"),
+            title=str(item.get("title") or "Brak tytułu"),
+            next_step=str(item.get("next_step") or "Brak kolejnego kroku"),
+            scope=str(item.get("scope") or "brak"),
+        ).set(1)
+
+    for item in observability.get("recent_handoffs") or []:
+        EXEC_HANDOFF.labels(
+            handoff_id=str(item.get("handoff_id") or "unknown"),
+            from_actor=str(item.get("from_actor") or "unknown"),
+            to_actor=str(item.get("to_actor") or "unknown"),
+            status=str(item.get("status") or "unknown"),
+            title=str(item.get("title") or "Brak tytułu"),
+            reason=str(item.get("reason") or "Brak powodu"),
+        ).set(1)
+
+    for item in observability.get("runtime_focus") or []:
+        EXEC_RUNTIME_FOCUS.labels(
+            item_id=str(item.get("item_id") or "unknown"),
+            area=str(item.get("area") or "unknown"),
+            status=str(item.get("status") or "unknown"),
+            title=str(item.get("title") or "Brak tytułu"),
+            detail=str(item.get("detail") or "Brak szczegółu"),
+            next_step=str(item.get("next_step") or "Brak kolejnego kroku"),
+        ).set(1)
+
+    for item in cost_control.get("items") or []:
+        EXEC_COST_CONTROL_ITEM.labels(
+            item_id=str(item.get("item_id") or "unknown"),
+            title=str(item.get("title") or "Brak tytułu"),
+            status=str(item.get("status") or "unknown"),
+            detail=str(item.get("detail") or "Brak szczegółu"),
+        ).set(1)
+
 
 def render_metrics(
     bot_states: list[dict[str, Any]],
+    agents: list[dict[str, Any]] | None = None,
     strategy_report: dict[str, Any] | None = None,
     strategy_report_history: list[dict[str, Any]] | None = None,
     dry_run_health: dict[str, Any] | None = None,
@@ -755,6 +960,7 @@ def render_metrics(
     executive_report: dict[str, Any] | None = None,
 ) -> tuple[bytes, str]:
     update_bot_statuses(bot_states)
+    update_agent_catalog_metrics(agents or [])
     update_strategy_metrics(strategy_report)
     update_strategy_history_metrics(strategy_report_history or [])
     update_dry_run_metrics(dry_run_health, dry_run_snapshot)

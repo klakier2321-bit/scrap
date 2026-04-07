@@ -1,12 +1,24 @@
 models:
+  micro:
+    model: "${AGENT_CHEAP_MODEL}"
+    estimated_input_cost_per_1k_usd: 0.00015
+    estimated_output_cost_per_1k_usd: 0.0006
+    max_output_tokens: 700
+
   cheap:
     model: "${AGENT_CHEAP_MODEL}"
     estimated_input_cost_per_1k_usd: 0.00015
     estimated_output_cost_per_1k_usd: 0.0006
     max_output_tokens: 1200
 
-  strong:
+  guarded:
+    model: "${AGENT_CHEAP_MODEL}"
+    estimated_input_cost_per_1k_usd: 0.00015
+    estimated_output_cost_per_1k_usd: 0.0006
+    max_output_tokens: 900
+
+  strong_review_only:
     model: "${AGENT_STRONG_MODEL}"
     estimated_input_cost_per_1k_usd: 0.005
     estimated_output_cost_per_1k_usd: 0.015
-    max_output_tokens: 2000
+    max_output_tokens: 1800

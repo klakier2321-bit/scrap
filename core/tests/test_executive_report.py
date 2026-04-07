@@ -521,3 +521,67 @@ executive_dashboard:
             blocker_ids = {blocker["blocker_id"] for blocker in report["blockers"]}
             self.assertNotIn("autopilot:attention", blocker_ids)
             self.assertEqual(report["summary"]["agents_disabled"], 1)
+
+    def test_agent_runtime_tree_and_budget_summary_are_included(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            _write_exec_config(repo_root)
+            service = ExecutiveReportService(repo_root)
+
+            report = service.build_report(
+                runs=[],
+                autopilot_status={
+                    "running": False,
+                    "poll_interval_seconds": 300,
+                    "agents_status": "agents_guarded",
+                    "agents_reason": "manual_or_mock_mode",
+                },
+                strategy_report=None,
+                dry_run_health={"ready": True, "runtime_mode": "dry_run"},
+                dry_run_snapshot=None,
+                dry_run_smoke=None,
+                control_status=None,
+                coding_status={"running": False, "enabled": True, "attention_needed": False},
+                coding_tasks=[],
+                coding_workspaces=[],
+                agents=[
+                    {
+                        "name": "system_lead_agent",
+                        "parent_agent": None,
+                        "activation_mode": "always_on_guarded",
+                        "domain": "governance",
+                        "cost_tier": "guarded",
+                        "default_daily_budget_usd": 0.24,
+                        "default_per_run_budget_usd": 0.06,
+                        "grafana_visibility": True,
+                        "strategy_scope": None,
+                    },
+                    {
+                        "name": "ops_observability_agent",
+                        "parent_agent": "system_lead_agent",
+                        "activation_mode": "always_on_guarded",
+                        "domain": "platform",
+                        "cost_tier": "cheap",
+                        "default_daily_budget_usd": 0.14,
+                        "default_per_run_budget_usd": 0.04,
+                        "grafana_visibility": True,
+                        "strategy_scope": None,
+                    },
+                    {
+                        "name": "trend_pullback_steward",
+                        "parent_agent": "strategy_agent",
+                        "activation_mode": "disabled_by_default",
+                        "domain": "strategy",
+                        "cost_tier": "micro",
+                        "default_daily_budget_usd": 0.04,
+                        "default_per_run_budget_usd": 0.015,
+                        "grafana_visibility": True,
+                        "strategy_scope": "trend_pullback_continuation_v1",
+                    },
+                ],
+            )
+
+            self.assertEqual(report["agent_runtime"]["observability_owner"], "ops_observability_agent")
+            self.assertEqual(report["summary"]["agents_total"], 3)
+            self.assertEqual(report["summary"]["strategy_stewards_total"], 1)
+            self.assertAlmostEqual(report["summary"]["agent_budget_daily_total_usd"], 0.42)

@@ -1,4 +1,4 @@
-version: 1
+version: 2
 default_execution_mode: plan_first
 
 rules:
@@ -8,15 +8,23 @@ rules:
   canonical_docs_write_roles:
     - system_lead_agent
     - architecture_agent
+    - control_layer_agent
+    - strategy_agent
+    - ops_observability_agent
   sensitive_paths:
     - .env
     - docker-compose.yml
     - trading/freqtrade/user_data/config.json
     - trading/freqtrade/user_data/config.backtest.local.json
+    - trading/freqtrade/user_data/config.dryrun.canonical.trend_pullback_continuation.json
+    - trading/freqtrade/user_data/config.dryrun.canonical.breakout_from_compression.json
+    - trading/freqtrade/user_data/config.dryrun.canonical.range_mean_reversion.json
+    - trading/freqtrade/user_data/config.dryrun.canonical.panic_reversal.json
+    - trading/freqtrade/user_data/config.dryrun.canonical.defense_only.json
 
 agents:
   system_lead_agent:
-    role: orchestration
+    role: governance
     owned_scope:
       - ai_agents/
       - docs/
@@ -27,232 +35,22 @@ agents:
       - AGENT_WORKFLOW.md
       - BOT_DECISION_FLOW.md
     read_only_scope:
-      - .
+      - core/
+      - trading/
+      - research/
+      - monitoring/
+      - infrastructure/
+      - data/ai_control/
+      - backtests/
+      - telemetry/
+      - strategy_research/
+      - strategy_stewards/
     forbidden_scope:
       - .env
       - docker-compose.yml
       - trading/freqtrade/user_data/config.json
       - trading/freqtrade/user_data/config.backtest.local.json
     write_mode: review_before_cross_layer
-
-  architecture_agent:
-    role: architecture
-    owned_scope:
-      - docs/
-      - ARCHITECTURE.md
-      - README.md
-      - PROJECT_RULES.md
-      - CONFIGURATION_POLICY.md
-      - RISK_RULES.md
-    read_only_scope:
-      - core/
-      - trading/
-      - ai_agents/
-      - scripts/
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: owned_scope_only
-
-  control_layer_agent:
-    role: control_layer
-    owned_scope:
-      - core/
-    read_only_scope:
-      - docs/
-      - trading/
-      - ai_agents/
-      - scripts/
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: owned_scope_only
-
-  strategy_agent:
-    role: trading_strategy
-    owned_scope:
-      - trading/
-      - research/
-      - docs/
-    read_only_scope:
-      - core/
-      - ai_agents/
-      - scripts/
-      - data/ai_control/dry_run_snapshots/
-      - data/ai_control/dry_run_smoke/
-      - data/ai_control/strategy_reports/
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: owned_scope_only
-
-  alpha_research_agent:
-    role: alpha_research
-    owned_scope:
-      - research/
-      - docs/
-      - trading/freqtrade/user_data/strategies/structured_futures_short_breakdown_strategy.py
-      - trading/freqtrade/user_data/strategies/structured_futures_long_continuation_strategy.py
-    read_only_scope:
-      - trading/
-      - core/
-      - ai_agents/
-      - data/ai_control/dry_run_snapshots/
-      - data/ai_control/strategy_reports/
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: owned_scope_only
-
-  feature_engineering_agent:
-    role: feature_engineering
-    owned_scope:
-      - research/
-      - docs/
-    read_only_scope:
-      - trading/
-      - core/
-      - ai_agents/
-      - data/ai_control/dry_run_snapshots/
-      - data/ai_control/strategy_reports/
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: owned_scope_only
-
-  regime_model_agent:
-    role: regime_modeling
-    owned_scope:
-      - research/
-      - docs/
-      - core/regime_detector.py
-    read_only_scope:
-      - trading/
-      - core/
-      - ai_agents/
-      - data/ai_control/dry_run_snapshots/
-      - data/ai_control/strategy_reports/
-      - data/ai_control/regime/
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: owned_scope_only
-
-  risk_research_agent:
-    role: futures_risk_research
-    owned_scope:
-      - research/
-      - docs/
-    read_only_scope:
-      - trading/
-      - core/
-      - ai_agents/
-      - data/ai_control/dry_run_snapshots/
-      - data/ai_control/strategy_reports/
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: owned_scope_only
-
-  experiment_evaluation_agent:
-    role: experiment_evaluation
-    owned_scope:
-      - research/
-      - docs/
-    read_only_scope:
-      - trading/
-      - core/
-      - ai_agents/
-      - data/ai_control/dry_run_snapshots/
-      - data/ai_control/strategy_reports/
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: owned_scope_only
-
-  api_agent:
-    role: api_contracts
-    owned_scope:
-      - docs/openapi.yaml
-      - core/api.py
-      - core/schemas.py
-    read_only_scope:
-      - docs/
-      - core/
-      - trading/
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: owned_scope_only
-
-  gui_agent:
-    role: gui
-    owned_scope:
-      - docs/
-      - core/templates/
-    read_only_scope:
-      - core/
-      - trading/
-      - ai_agents/
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: owned_scope_only
-
-  monitoring_agent:
-    role: monitoring
-    owned_scope:
-      - monitoring/
-      - infrastructure/grafana/
-      - infrastructure/prometheus/
-      - core/metrics.py
-      - docs/
-    read_only_scope:
-      - core/
-      - trading/
-      - ai_agents/
-      - data/ai_control/dry_run_snapshots/
-      - data/ai_control/strategy_reports/
-      - data/ai_control/dry_run_smoke/
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: owned_scope_only
-
-  integration_agent:
-    role: integration
-    owned_scope:
-      - docs/
-    read_only_scope:
-      - .
-    forbidden_scope:
-      - .env
-      - docker-compose.yml
-      - trading/freqtrade/user_data/config.json
-      - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: review_before_write
 
   review_agent:
     role: review
@@ -266,4 +64,370 @@ agents:
       - docker-compose.yml
       - trading/freqtrade/user_data/config.json
       - trading/freqtrade/user_data/config.backtest.local.json
-    write_mode: no_direct_runtime_changes
+    write_mode: review_notes_only
+
+  architecture_agent:
+    role: architecture
+    owned_scope:
+      - docs/
+      - ai_agents/rules/
+      - README.md
+    read_only_scope:
+      - core/
+      - trading/
+      - research/
+      - monitoring/
+      - infrastructure/
+      - strategy_research/
+      - strategy_stewards/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  control_layer_agent:
+    role: control_layer
+    owned_scope:
+      - core/
+      - docs/
+    read_only_scope:
+      - trading/
+      - ai_agents/
+      - monitoring/
+      - infrastructure/
+      - data/ai_control/
+      - research/
+      - backtests/system/
+      - telemetry/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  ops_observability_agent:
+    role: observability
+    owned_scope:
+      - monitoring/
+      - infrastructure/grafana/
+      - infrastructure/prometheus/
+      - core/metrics.py
+      - core/executive_report.py
+      - core/templates/
+      - docs/
+    read_only_scope:
+      - core/
+      - trading/
+      - ai_agents/
+      - data/ai_control/
+      - backtests/system/
+      - telemetry/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  monitoring_agent:
+    role: legacy_observability_alias
+    owned_scope:
+      - monitoring/
+      - infrastructure/grafana/
+    read_only_scope:
+      - core/
+      - data/ai_control/
+    forbidden_scope:
+      - .
+    write_mode: disabled_alias
+
+  strategy_agent:
+    role: canonical_strategy
+    owned_scope:
+      - research/strategies/
+      - strategy_research/
+      - strategy_stewards/
+      - docs/
+      - ai_agents/
+    read_only_scope:
+      - core/strategy_layer/
+      - core/system_backtest/
+      - core/risk_management/
+      - core/risk_manager.py
+      - trading/freqtrade/user_data/strategies/
+      - telemetry/
+      - backtests/
+      - data/ai_control/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+      - core/risk_management/engine.py
+      - core/risk_management/execution_guard.py
+    write_mode: owned_scope_only
+
+  regime_model_agent:
+    role: regime_modeling
+    owned_scope:
+      - research/regimes/
+      - docs/
+      - core/regime_detector.py
+      - core/tests/test_regime_detector.py
+    read_only_scope:
+      - core/
+      - trading/
+      - ai_agents/
+      - data/ai_control/
+      - backtests/system/
+      - telemetry/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  feature_engineering_agent:
+    role: feature_engineering
+    owned_scope:
+      - research/features/
+      - research/datasets/
+      - research/regimes/
+      - docs/
+    read_only_scope:
+      - core/
+      - trading/
+      - ai_agents/
+      - data/ai_control/
+      - backtests/system/
+      - telemetry/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  risk_research_agent:
+    role: futures_risk_research
+    owned_scope:
+      - research/risk/
+      - docs/
+    read_only_scope:
+      - core/risk_management/
+      - core/risk_manager.py
+      - trading/
+      - ai_agents/
+      - data/ai_control/
+      - backtests/system/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  experiment_evaluation_agent:
+    role: experiment_evaluation
+    owned_scope:
+      - research/evaluation/
+      - backtests/strategies/
+      - docs/
+    read_only_scope:
+      - backtests/system/
+      - telemetry/
+      - research/strategies/
+      - strategy_research/
+      - data/ai_control/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  alpha_research_agent:
+    role: alpha_research
+    owned_scope:
+      - strategy_research/
+      - research/
+      - docs/
+    read_only_scope:
+      - backtests/system/
+      - telemetry/
+      - research/strategies/
+      - data/ai_control/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+      - core/risk_management/
+      - trading/freqtrade/user_data/runtime_artifacts/
+    write_mode: owned_scope_only
+
+  integration_agent:
+    role: integration
+    owned_scope:
+      - docs/
+      - ai_agents/
+      - core/
+    read_only_scope:
+      - .
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: review_before_write
+
+  api_agent:
+    role: api_contracts
+    owned_scope:
+      - core/api.py
+      - core/schemas.py
+      - docs/openapi.yaml
+      - docs/
+    read_only_scope:
+      - core/
+      - monitoring/
+      - trading/
+      - ai_agents/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  gui_agent:
+    role: gui
+    owned_scope:
+      - core/templates/
+      - infrastructure/grafana/
+      - docs/
+    read_only_scope:
+      - core/
+      - monitoring/
+      - ai_agents/
+      - trading/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - trading/freqtrade/user_data/config.json
+      - trading/freqtrade/user_data/config.backtest.local.json
+    write_mode: owned_scope_only
+
+  trend_pullback_steward:
+    role: strategy_steward
+    owned_scope:
+      - research/strategies/manifests/trend_pullback_continuation_v1.yaml
+      - core/strategy_layer/strategies/trend/
+      - strategy_research/trend_pullback_continuation_v1/
+      - strategy_stewards/
+      - backtests/strategies/
+      - telemetry/strategies/
+    read_only_scope:
+      - backtests/system/
+      - data/ai_control/strategy_telemetry/
+      - trading/freqtrade/user_data/runtime_artifacts/
+      - research/system_backtests/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - core/risk_management/
+      - core/risk_manager.py
+      - trading/freqtrade/user_data/config.json
+    write_mode: owned_scope_only
+
+  breakout_from_compression_steward:
+    role: strategy_steward
+    owned_scope:
+      - research/strategies/manifests/breakout_from_compression_v1.yaml
+      - core/strategy_layer/strategies/breakout/
+      - strategy_research/breakout_from_compression_v1/
+      - strategy_stewards/
+      - backtests/strategies/
+      - telemetry/strategies/
+    read_only_scope:
+      - backtests/system/
+      - data/ai_control/strategy_telemetry/
+      - trading/freqtrade/user_data/runtime_artifacts/
+      - research/system_backtests/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - core/risk_management/
+      - core/risk_manager.py
+      - trading/freqtrade/user_data/config.json
+    write_mode: owned_scope_only
+
+  range_mean_reversion_steward:
+    role: strategy_steward
+    owned_scope:
+      - research/strategies/manifests/range_mean_reversion_v1.yaml
+      - core/strategy_layer/strategies/range/
+      - strategy_research/range_mean_reversion_v1/
+      - strategy_stewards/
+      - backtests/strategies/
+      - telemetry/strategies/
+    read_only_scope:
+      - backtests/system/
+      - data/ai_control/strategy_telemetry/
+      - trading/freqtrade/user_data/runtime_artifacts/
+      - research/system_backtests/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - core/risk_management/
+      - core/risk_manager.py
+      - trading/freqtrade/user_data/config.json
+    write_mode: owned_scope_only
+
+  panic_reversal_steward:
+    role: strategy_steward
+    owned_scope:
+      - research/strategies/manifests/panic_reversal_v1.yaml
+      - core/strategy_layer/strategies/event/
+      - strategy_research/panic_reversal_v1/
+      - strategy_stewards/
+      - backtests/strategies/
+      - telemetry/strategies/
+    read_only_scope:
+      - backtests/system/
+      - data/ai_control/strategy_telemetry/
+      - trading/freqtrade/user_data/runtime_artifacts/
+      - research/system_backtests/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - core/risk_management/
+      - core/risk_manager.py
+      - trading/freqtrade/user_data/config.json
+    write_mode: owned_scope_only
+
+  defense_only_steward:
+    role: strategy_steward
+    owned_scope:
+      - research/strategies/manifests/defense_only_v1.yaml
+      - core/strategy_layer/strategies/defense/
+      - strategy_research/defense_only_v1/
+      - strategy_stewards/
+      - backtests/strategies/
+      - telemetry/strategies/
+    read_only_scope:
+      - backtests/system/
+      - data/ai_control/strategy_telemetry/
+      - trading/freqtrade/user_data/runtime_artifacts/
+      - research/system_backtests/
+    forbidden_scope:
+      - .env
+      - docker-compose.yml
+      - core/risk_management/
+      - core/risk_manager.py
+      - trading/freqtrade/user_data/config.json
+    write_mode: owned_scope_only

@@ -13,6 +13,10 @@ import uuid
 from typing import Any
 
 from ai_agents.runtime.service import AgentRuntimeService
+from ai_agents.runtime.context_packets import (
+    build_executive_packet as build_agent_executive_packet,
+    build_runtime_state_packet,
+)
 from opentelemetry import trace
 
 from .bot_manager import BotManager
@@ -37,8 +41,16 @@ from .metrics import (
     record_run_succeeded,
     record_scope_violation,
 )
+from .operator_home import build_operator_home
+from .observability_summary import (
+    build_observability_summary,
+    load_latest_observability_summary,
+    load_observability_summary_history,
+    persist_observability_summary,
+)
 from .regime_detector import RegimeDetector
 from .risk_manager import RiskManager
+from .runtime_flags import load_runtime_flags, merge_runtime_flags
 from .runtime_artifacts import (
     aggregate_portfolio_snapshots,
     aggregate_strategy_layer_reports,
@@ -50,6 +62,7 @@ from .runtime_artifacts import (
 from .storage import RunStore
 from .strategy_layer import StrategyLayerService
 from .strategy_manager import StrategyManager
+from .system_resource_guard import SystemResourceGuard
 from monitoring.control_status import create_report as create_control_status_report
 from monitoring.control_status import write_report_files as write_control_status_files
 
@@ -105,15 +118,24 @@ class Orchestrator:
             smoke_dir=settings.dry_run_smoke_dir,
             stale_after_seconds=settings.dry_run_snapshot_stale_seconds,
         )
+        self.resource_guard = SystemResourceGuard(
+            settings=settings,
+            docker_base_url=settings.docker_socket_path,
+        )
+        self._runtime_flags = load_runtime_flags(settings.runtime_flags_path)
         self.store = RunStore(settings.database_path)
         stale_runs = self.store.reconcile_stale_runs()
-        self.agent_runtime = AgentRuntimeService(settings=settings)
+        self.agent_runtime = AgentRuntimeService(
+            settings=settings,
+            resource_guard_provider=self.operation_guard_snapshot,
+        )
         self.executive_report = ExecutiveReportService(settings.repo_checkout_path)
         self.coding_supervisor = CodingSupervisorService(
             settings=settings,
             store=self.store,
             agent_runtime=self.agent_runtime,
             executive_report_provider=self.get_executive_report,
+            resource_guard_provider=self.operation_guard_snapshot,
         )
         self.executor = ThreadPoolExecutor(max_workers=settings.agent_max_parallel_runs)
         self.futures: dict[str, Future[Any]] = {}
@@ -139,12 +161,90 @@ class Orchestrator:
             "agent_mode": self.settings.agent_mode,
             "mock_llm": self.settings.agent_use_mock_llm,
             "litellm_url": self.settings.agent_litellm_base_url,
-            "kill_switch": self.settings.agent_kill_switch,
-            "runtime_freeze": self.settings.agent_runtime_freeze,
+            "kill_switch": self.effective_kill_switch_enabled(),
+            "runtime_freeze": self.effective_runtime_freeze_enabled(),
             "docker_available": self.bot_manager.docker_available(),
             "agents_status": agent_runtime["agents_status"],
             "agents_reason": agent_runtime.get("agents_reason"),
+            "resource_guard": self.operation_guard_snapshot(),
         }
+
+    def _operator_runtime_flags(self) -> dict[str, bool]:
+        self._runtime_flags = load_runtime_flags(self.settings.runtime_flags_path)
+        return dict(self._runtime_flags)
+
+    def get_runtime_flags(self) -> dict[str, Any]:
+        operator_flags = self._operator_runtime_flags()
+        return {
+            "kill_switch": {
+                "flag_name": "kill_switch",
+                "env_enabled": bool(self.settings.agent_kill_switch),
+                "operator_enabled": bool(operator_flags.get("kill_switch")),
+                "effective_enabled": bool(self.settings.agent_kill_switch or operator_flags.get("kill_switch")),
+            },
+            "runtime_freeze": {
+                "flag_name": "runtime_freeze",
+                "env_enabled": bool(self.settings.agent_runtime_freeze),
+                "operator_enabled": bool(operator_flags.get("runtime_freeze")),
+                "effective_enabled": bool(
+                    self.settings.agent_runtime_freeze or operator_flags.get("runtime_freeze")
+                ),
+            },
+        }
+
+    def update_runtime_flags(
+        self,
+        *,
+        kill_switch: bool | None = None,
+        runtime_freeze: bool | None = None,
+    ) -> dict[str, Any]:
+        self._runtime_flags = merge_runtime_flags(
+            self.settings.runtime_flags_path,
+            kill_switch=kill_switch,
+            runtime_freeze=runtime_freeze,
+        )
+        return self.get_runtime_flags()
+
+    def effective_kill_switch_enabled(self) -> bool:
+        flags = self.get_runtime_flags()
+        return bool((flags.get("kill_switch") or {}).get("effective_enabled"))
+
+    def effective_runtime_freeze_enabled(self) -> bool:
+        flags = self.get_runtime_flags()
+        return bool((flags.get("runtime_freeze") or {}).get("effective_enabled"))
+
+    def operation_guard_snapshot(self) -> dict[str, Any]:
+        snapshot = dict(self.resource_guard.snapshot() or {})
+        snapshot.setdefault("enabled", True)
+        snapshot.setdefault("allow_new_runs", True)
+        snapshot.setdefault("allow_coding_dispatch", True)
+        snapshot.setdefault("blocked_reasons", [])
+        snapshot.setdefault("notes", [])
+        snapshot.setdefault("resources", {})
+        if self.effective_kill_switch_enabled():
+            snapshot["allow_new_runs"] = False
+            snapshot["allow_coding_dispatch"] = False
+            snapshot["primary_reason"] = "kill_switch_enabled"
+            snapshot["operator_message"] = "Kill switch jest aktywny i blokuje nowe akcje AI."
+            snapshot["blocked_reasons"] = list(
+                dict.fromkeys(list(snapshot.get("blocked_reasons") or []) + ["kill_switch_enabled"])
+            )
+            snapshot["notes"] = list(
+                dict.fromkeys(list(snapshot.get("notes") or []) + ["Operator kill switch blokuje nowe runy i dispatch."])
+            )
+            return snapshot
+        if self.effective_runtime_freeze_enabled():
+            snapshot["allow_new_runs"] = False
+            snapshot["allow_coding_dispatch"] = False
+            snapshot["primary_reason"] = "runtime_freeze_enabled"
+            snapshot["operator_message"] = "Runtime freeze jest aktywny i blokuje nowe akcje AI."
+            snapshot["blocked_reasons"] = list(
+                dict.fromkeys(list(snapshot.get("blocked_reasons") or []) + ["runtime_freeze_enabled"])
+            )
+            snapshot["notes"] = list(
+                dict.fromkeys(list(snapshot.get("notes") or []) + ["Operator runtime freeze pauzuje nowe runy i dispatch."])
+            )
+        return snapshot
 
     def _has_valid_llm_key(self) -> bool:
         key = str(self.settings.agent_litellm_api_key or "").strip()
@@ -158,12 +258,12 @@ class Orchestrator:
         return True
 
     def agent_runtime_status(self) -> dict[str, Any]:
-        if self.settings.agent_kill_switch:
+        if self.effective_kill_switch_enabled():
             return {
                 "agents_status": "agents_disabled",
                 "agents_reason": "kill_switch_enabled",
             }
-        if self.settings.agent_runtime_freeze:
+        if self.effective_runtime_freeze_enabled():
             return {
                 "agents_status": "agents_disabled",
                 "agents_reason": "runtime_freeze_enabled",
@@ -173,14 +273,23 @@ class Orchestrator:
                 "agents_status": "agents_disabled",
                 "agents_reason": "missing_valid_api_key",
             }
+        resource_guard = self.operation_guard_snapshot()
+        if not bool(resource_guard.get("allow_new_runs", True)):
+            return {
+                "agents_status": "agents_guarded",
+                "agents_reason": f"host_resource_guard:{resource_guard.get('primary_reason') or 'blocked'}",
+                "resource_guard": resource_guard,
+            }
         if self.settings.agent_use_mock_llm or not self.settings.agent_autopilot_enabled:
             return {
                 "agents_status": "agents_guarded",
                 "agents_reason": "manual_or_mock_mode",
+                "resource_guard": resource_guard,
             }
         return {
             "agents_status": "agents_active_limited",
             "agents_reason": "budget_guarded_runtime",
+            "resource_guard": resource_guard,
         }
 
     def list_bots(self) -> list[dict[str, Any]]:
@@ -236,9 +345,12 @@ class Orchestrator:
             return [strategy_id]
         return None
 
-    def get_futures_cluster_health(self) -> dict[str, Any]:
+    def get_futures_cluster_health(self, *, refresh_runtime: bool = True) -> dict[str, Any]:
         bot_ids = self._canonical_futures_bot_ids()
-        healths = [self.get_dry_run_health(bot_id=bot_id) for bot_id in bot_ids]
+        healths = [
+            self.get_dry_run_health(bot_id=bot_id, refresh_runtime=refresh_runtime)
+            for bot_id in bot_ids
+        ]
         if not healths:
             return {}
         ready_all = all(bool(item.get("ready")) for item in healths)
@@ -283,10 +395,18 @@ class Orchestrator:
         publish_global_portfolio(self.settings.futures_runtime_artifacts_dir, aggregated)
         return aggregated
 
-    def get_dry_run_health(self, bot_id: str = "freqtrade") -> dict[str, Any]:
+    def get_dry_run_health(
+        self,
+        bot_id: str = "freqtrade",
+        *,
+        refresh_runtime: bool = True,
+    ) -> dict[str, Any]:
         bot_status = self.bot_manager.get_bot_status(bot_id)
         logs = self.bot_manager.get_bot_logs(bot_id, tail=200)
-        return self._runtime_manager_for_bot(bot_id).health(bot_status=bot_status, logs=logs)
+        runtime_manager = self._runtime_manager_for_bot(bot_id)
+        if refresh_runtime:
+            return runtime_manager.health(bot_status=bot_status, logs=logs)
+        return runtime_manager.cached_health(bot_status=bot_status, logs=logs)
 
     def create_dry_run_snapshot(self, bot_id: str = "freqtrade") -> dict[str, Any]:
         bot_status = self.bot_manager.get_bot_status(bot_id)
@@ -351,12 +471,14 @@ class Orchestrator:
     def _load_strategy_context(
         self,
         strategy_name: str | None = None,
+        *,
+        refresh_runtime: bool = True,
     ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
         report = self.strategy_manager.latest_strategy_report(strategy_name=strategy_name)
         if report is None:
             return None, None, None, None
 
-        latest_snapshot = self.get_latest_dry_run_snapshot(refresh_if_stale=True)
+        latest_snapshot = self.get_latest_dry_run_snapshot(refresh_if_stale=refresh_runtime)
         assessment = self.strategy_manager.latest_strategy_assessment(
             strategy_name=report["strategy_name"]
         )
@@ -379,13 +501,16 @@ class Orchestrator:
     def get_latest_strategy_report_with_assessment(
         self,
         strategy_name: str | None = None,
+        *,
+        refresh_runtime: bool = True,
     ) -> dict[str, Any] | None:
         report, latest_snapshot, assessment, readiness_gate = self._load_strategy_context(
-            strategy_name=strategy_name
+            strategy_name=strategy_name,
+            refresh_runtime=refresh_runtime,
         )
         if report is None:
             return None
-        if assessment is None:
+        if assessment is None and refresh_runtime:
             assessment = self.generate_strategy_assessment(strategy_name=report["strategy_name"])
         readiness_gate = self.risk_manager.evaluate_strategy_readiness(
             strategy_report=report,
@@ -402,11 +527,14 @@ class Orchestrator:
         self,
         strategy_name: str | None = None,
         limit: int = 20,
+        *,
+        refresh_runtime: bool = True,
     ) -> list[dict[str, Any]]:
         history = self.strategy_manager.list_strategy_reports(
             strategy_name=strategy_name,
             limit=limit,
         )
+        latest_snapshot = self.get_latest_dry_run_snapshot(refresh_if_stale=refresh_runtime)
         merged: list[dict[str, Any]] = []
         for report in history:
             assessment = self.strategy_manager.get_assessment_for_report(
@@ -416,7 +544,7 @@ class Orchestrator:
             )
             readiness_gate = self.risk_manager.evaluate_strategy_readiness(
                 strategy_report=report,
-                dry_run_snapshot=self.get_latest_dry_run_snapshot(refresh_if_stale=True),
+                dry_run_snapshot=latest_snapshot,
                 strategy_assessment=assessment,
             )
             merged.append(
@@ -581,8 +709,267 @@ class Orchestrator:
     def list_agents(self) -> list[dict[str, Any]]:
         return self.agent_runtime.list_agents()
 
+    def get_agent_runtime_overrides(self) -> dict[str, Any]:
+        return self.agent_runtime.get_runtime_overrides()
+
+    def update_agent_runtime_override(
+        self,
+        *,
+        agent_name: str,
+        enabled: bool | None = None,
+        daily_budget_usd: float | None = None,
+        per_run_budget_usd: float | None = None,
+    ) -> dict[str, Any]:
+        return self.agent_runtime.update_agent_override(
+            agent_name=agent_name,
+            enabled=enabled,
+            daily_budget_usd=daily_budget_usd,
+            per_run_budget_usd=per_run_budget_usd,
+        )
+
     def list_runs(self, limit: int = 50) -> list[dict[str, Any]]:
         return self.store.list_runs(limit=limit)
+
+    def _is_chat_run(self, run: dict[str, Any]) -> bool:
+        metadata = dict((run.get("payload_json") or {}).get("metadata") or {})
+        return bool(metadata.get("chat_mode"))
+
+    def _chat_thread_id_for_run(self, run: dict[str, Any]) -> str | None:
+        metadata = dict((run.get("payload_json") or {}).get("metadata") or {})
+        thread_id = metadata.get("chat_thread_id")
+        return str(thread_id) if thread_id else None
+
+    def _find_active_chat_run(self, thread_id: str) -> dict[str, Any] | None:
+        for run in self.store.list_runs(limit=200):
+            if self._chat_thread_id_for_run(run) != thread_id:
+                continue
+            if run.get("status") in {"queued", "running", "awaiting_approval"}:
+                return run
+        return None
+
+    @staticmethod
+    def _summarize_run_for_chat(run: dict[str, Any]) -> dict[str, Any]:
+        result_json = dict(run.get("result_json") or {})
+        review_json = dict(run.get("review_json") or {})
+        summary = ""
+        if result_json:
+            summary = str(
+                result_json.get("summary")
+                or result_json.get("reply")
+                or result_json.get("current_focus")
+                or ""
+            ).strip()
+        if not summary and review_json:
+            summary = str(
+                review_json.get("decision")
+                or review_json.get("main_findings")
+                or ""
+            ).strip()
+        return {
+            "run_id": run.get("run_id"),
+            "status": run.get("status"),
+            "goal": run.get("goal"),
+            "created_at": run.get("created_at"),
+            "finished_at": run.get("finished_at"),
+            "blocked_reason": run.get("blocked_reason"),
+            "summary": summary[:280] if summary else None,
+        }
+
+    def _build_agent_chat_context(self, agent_name: str) -> dict[str, Any]:
+        agent = next(
+            (item for item in self.list_agents() if item.get("name") == agent_name),
+            None,
+        )
+        observability_summary = self.get_latest_observability_summary() or {}
+        current_work = [
+            item
+            for item in list(observability_summary.get("current_work") or [])
+            if str(item.get("owner_name") or "") == agent_name
+        ][:4]
+        recent_runs = [
+            self._summarize_run_for_chat(run)
+            for run in self.store.list_runs(limit=100)
+            if run.get("agent_name") == agent_name
+        ][:5]
+        coding_tasks = [
+            {
+                "task_id": task.get("task_id"),
+                "module_id": task.get("module_id"),
+                "status": task.get("status"),
+                "goal": task.get("goal"),
+            }
+            for task in self.store.list_coding_tasks(limit=50)
+            if task.get("owner_agent") == agent_name
+        ][:5]
+        runtime_status = self.agent_runtime_status()
+        return {
+            "agent": {
+                "name": agent_name,
+                "role": (agent or {}).get("role"),
+                "domain": (agent or {}).get("domain"),
+                "activation_mode": (agent or {}).get("activation_mode"),
+                "operational_state": (agent or {}).get("operational_state"),
+                "handoff_targets": list((agent or {}).get("handoff_targets") or [])[:8],
+                "strategy_scope": (agent or {}).get("strategy_scope"),
+            },
+            "current_work": current_work,
+            "recent_runs": recent_runs,
+            "coding_tasks": coding_tasks,
+            "runtime": {
+                "agents_status": runtime_status.get("agents_status"),
+                "agents_reason": runtime_status.get("agents_reason"),
+                "autopilot_running": bool(self.autopilot.status().get("running")),
+                "coding_supervisor_running": bool(self.coding_status().get("running")),
+                "resource_guard_primary_reason": (
+                    self.operation_guard_snapshot().get("primary_reason")
+                ),
+            },
+            "observability_operator_attention": list(
+                observability_summary.get("operator_attention") or []
+            )[:5],
+        }
+
+    def list_chat_threads(self, limit: int = 50) -> list[dict[str, Any]]:
+        threads = self.store.list_chat_threads(limit=limit)
+        summaries: list[dict[str, Any]] = []
+        for thread in threads:
+            messages = self.store.list_chat_messages(thread["thread_id"], limit=1)
+            active_run = self._find_active_chat_run(thread["thread_id"])
+            last_message = messages[-1] if messages else None
+            summaries.append(
+                {
+                    **thread,
+                    "last_message_preview": (
+                        str(last_message.get("content") or "")[:160] if last_message else None
+                    ),
+                    "message_count": len(self.store.list_chat_messages(thread["thread_id"], limit=200)),
+                    "active_run_id": (active_run or {}).get("run_id"),
+                    "active_run_status": (active_run or {}).get("status"),
+                }
+            )
+        return summaries
+
+    def get_chat_thread(self, thread_id: str, *, limit: int = 200) -> dict[str, Any]:
+        thread = self.store.get_chat_thread(thread_id)
+        if thread is None:
+            raise KeyError(f"Unknown chat thread: {thread_id}")
+        messages = self.store.list_chat_messages(thread_id, limit=limit)
+        active_run = self._find_active_chat_run(thread_id)
+        last_message = messages[-1] if messages else None
+        return {
+            **thread,
+            "last_message_preview": (
+                str(last_message.get("content") or "")[:160] if last_message else None
+            ),
+            "message_count": len(messages),
+            "active_run_id": (active_run or {}).get("run_id"),
+            "active_run_status": (active_run or {}).get("status"),
+            "messages": messages,
+        }
+
+    def create_chat_thread(
+        self,
+        *,
+        agent_name: str,
+        title: str | None = None,
+    ) -> dict[str, Any]:
+        if agent_name not in {item.get("name") for item in self.list_agents()}:
+            raise KeyError(f"Unknown agent: {agent_name}")
+        thread_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        safe_title = (title or "").strip() or (
+            f"{agent_name} · {now.strftime('%Y-%m-%d %H:%M UTC')}"
+        )
+        self.store.create_chat_thread(
+            {
+                "thread_id": thread_id,
+                "agent_name": agent_name,
+                "title": safe_title[:120],
+                "created_at": now.isoformat(),
+                "updated_at": now.isoformat(),
+                "last_message_at": None,
+                "last_run_id": None,
+            }
+        )
+        return self.get_chat_thread(thread_id)
+
+    def send_chat_message(self, *, thread_id: str, content: str) -> dict[str, Any]:
+        thread = self.store.get_chat_thread(thread_id)
+        if thread is None:
+            raise KeyError(f"Unknown chat thread: {thread_id}")
+        message = str(content or "").strip()
+        if not message:
+            raise ValueError("Chat message cannot be empty.")
+        active_run = self._find_active_chat_run(thread_id)
+        if active_run is not None:
+            raise RuntimeError(
+                f"Agent is still replying in this thread ({active_run['status']})."
+            )
+        self.store.add_chat_message(
+            {
+                "message_id": str(uuid.uuid4()),
+                "thread_id": thread_id,
+                "role": "user",
+                "content": message,
+                "run_id": None,
+                "metadata_json": {},
+            }
+        )
+        history = [
+            {
+                "role": item.get("role"),
+                "content": item.get("content"),
+            }
+            for item in self.store.list_chat_messages(thread_id, limit=8)
+        ]
+        chat_context = self._build_agent_chat_context(str(thread.get("agent_name")))
+        run = self.create_agent_run(
+            {
+                "agent_name": str(thread["agent_name"]),
+                "goal": f"Respond to the operator in chat thread {thread_id}.",
+                "business_reason": message[:500],
+                "requested_paths": [],
+                "risk_level": "low",
+                "cross_layer": False,
+                "does_touch_contract": False,
+                "does_touch_runtime": False,
+                "force_strong_model": False,
+                "metadata": {
+                    "chat_mode": True,
+                    "chat_thread_id": thread_id,
+                    "chat_latest_user_message": message,
+                    "chat_history": history,
+                    "chat_context": chat_context,
+                    "idempotency_key": f"chat:{uuid.uuid4()}",
+                },
+            }
+        )
+        if run.get("status") in {"blocked", "awaiting_approval"}:
+            system_content = (
+                "Nie mogę jeszcze odpowiedzieć w tym wątku. "
+                f"Status runu: {run.get('status')}. "
+                f"Powód: {run.get('blocked_reason') or run.get('error') or 'unknown'}."
+            )
+            self.store.add_chat_message(
+                {
+                    "message_id": str(uuid.uuid4()),
+                    "thread_id": thread_id,
+                    "role": "system",
+                    "content": system_content,
+                    "run_id": run.get("run_id"),
+                    "metadata_json": {
+                        "run_status": run.get("status"),
+                        "blocked_reason": run.get("blocked_reason"),
+                    },
+                }
+            )
+        return self.get_chat_thread(thread_id)
+
+    def get_latest_observability_summary(self) -> dict[str, Any] | None:
+        return load_latest_observability_summary(self.settings)
+
+    def list_observability_summary_history(self, limit: int = 20) -> list[dict[str, Any]]:
+        return load_observability_summary_history(self.settings, limit=limit)
 
     def get_candidate_assessment(self, candidate_id: str) -> dict[str, Any]:
         manifest = self.strategy_manager.get_candidate_manifest(candidate_id)
@@ -661,9 +1048,12 @@ class Orchestrator:
             "latest_smoke": self.get_latest_dry_run_smoke(bot_id=bot_id),
         }
 
-    def get_executive_report(self) -> dict[str, Any]:
-        latest_snapshot = self.get_futures_cluster_snapshot(refresh_if_stale=True)
-        dry_run_health = self.get_futures_cluster_health()
+    def get_executive_report(self, *, refresh_runtime: bool = True) -> dict[str, Any]:
+        agent_catalog = self.list_agents()
+        runs = self.store.list_runs(limit=200)
+        self.agent_runtime.write_agent_catalog_packets(runs=runs)
+        latest_snapshot = self.get_futures_cluster_snapshot(refresh_if_stale=refresh_runtime)
+        dry_run_health = self.get_futures_cluster_health(refresh_runtime=refresh_runtime)
         dry_run_smoke = {
             "bot_id": "futures_canonical_cluster",
             "status": "pass" if dry_run_health.get("ready") else "fail",
@@ -673,21 +1063,29 @@ class Orchestrator:
             ],
         }
         candidate_assessments: list[dict[str, Any]] = []
-        regime_report = self.get_latest_regime_report()
-        if regime_report is None:
+        regime_report = (
+            self.get_latest_regime_report()
+            if refresh_runtime
+            else self.regime_detector.latest_report()
+        )
+        if regime_report is None and refresh_runtime:
             try:
                 regime_report = self.generate_regime_report()
             except Exception:
                 regime_report = None
-        derivatives_report = self.get_latest_derivatives_report()
-        if derivatives_report is None:
+        derivatives_report = (
+            self.get_latest_derivatives_report()
+            if refresh_runtime
+            else self.derivatives_feed.latest_report()
+        )
+        if derivatives_report is None and refresh_runtime:
             try:
                 derivatives_report = self.generate_derivatives_report()
             except Exception:
                 derivatives_report = None
         replay_report = self.get_latest_regime_replay()
         strategy_layer_report = self.get_latest_futures_cluster_strategy_layer_report()
-        if strategy_layer_report is None:
+        if strategy_layer_report is None and refresh_runtime:
             try:
                 strategy_layer_report = aggregate_strategy_layer_reports(
                     [
@@ -700,16 +1098,22 @@ class Orchestrator:
                 strategy_layer_report = None
         representative_bot_id = next(iter(self._canonical_futures_bot_ids()), "ft_trend_pullback_continuation_v1")
         risk_decision = self.get_latest_risk_decision(bot_id=representative_bot_id)
-        if risk_decision is None:
+        if risk_decision is None and refresh_runtime:
             try:
                 risk_decision = self.generate_risk_decision(bot_id=representative_bot_id)
             except Exception:
                 risk_decision = None
         candidate_dry_run = None
-        return self.executive_report.build_report(
-            runs=self.store.list_runs(limit=200),
-            autopilot_status=self.autopilot.status(),
-            strategy_report=self.get_latest_strategy_report_with_assessment(),
+        autopilot_status = self.autopilot_status()
+        coding_status = self.coding_supervisor.status()
+        coding_tasks = self.store.list_coding_tasks(limit=100)
+        coding_workspaces = self.store.list_coding_workspaces()
+        report = self.executive_report.build_report(
+            runs=runs,
+            autopilot_status=autopilot_status,
+            strategy_report=self.get_latest_strategy_report_with_assessment(
+                refresh_runtime=refresh_runtime
+            ),
             dry_run_health=dry_run_health,
             dry_run_snapshot=latest_snapshot,
             dry_run_smoke=dry_run_smoke,
@@ -721,10 +1125,39 @@ class Orchestrator:
             regime_replay_report=replay_report,
             strategy_layer_report=strategy_layer_report,
             control_status=self.get_control_status(refresh_if_missing=True),
-            coding_status=self.coding_supervisor.status(),
-            coding_tasks=self.store.list_coding_tasks(limit=100),
-            coding_workspaces=self.store.list_coding_workspaces(),
+            coding_status=coding_status,
+            coding_tasks=coding_tasks,
+            coding_workspaces=coding_workspaces,
+            agents=agent_catalog,
         )
+        observability_summary = build_observability_summary(
+            executive_report=report,
+            bot_states=self.list_bots(),
+            runs=runs,
+        )
+        observability_summary = persist_observability_summary(self.settings, observability_summary)
+        report["observability_summary"] = observability_summary
+        self.agent_runtime.context_packet_store.write_packet(
+            packet_type="runtime",
+            packet_name="state",
+            payload=build_runtime_state_packet(
+                health=self.health(),
+                autopilot_status=autopilot_status,
+                coding_status=coding_status,
+                resource_guard=self.operation_guard_snapshot(),
+            ),
+        )
+        self.agent_runtime.context_packet_store.write_packet(
+            packet_type="runtime",
+            packet_name="executive",
+            payload=build_agent_executive_packet(report),
+        )
+        self.agent_runtime.context_packet_store.write_packet(
+            packet_type="runtime",
+            packet_name="observability",
+            payload=observability_summary,
+        )
+        return report
 
     def get_control_status(self, *, refresh_if_missing: bool = False) -> dict[str, Any] | None:
         report_path = self.settings.repo_checkout_path / "monitoring" / "reports" / "control_status.json"
@@ -748,7 +1181,7 @@ class Orchestrator:
         return {
             **self.autopilot.status(),
             **self.agent_runtime_status(),
-            "runtime_freeze": self.settings.agent_runtime_freeze,
+            "runtime_freeze": self.effective_runtime_freeze_enabled(),
         }
 
     def start_autopilot(self) -> dict[str, Any]:
@@ -766,6 +1199,10 @@ class Orchestrator:
         return self.coding_supervisor.status()
 
     def start_coding_supervisor(self) -> dict[str, Any]:
+        if self.effective_kill_switch_enabled():
+            raise RuntimeError("Coding supervisor cannot start while kill switch is enabled.")
+        if self.effective_runtime_freeze_enabled():
+            raise RuntimeError("Coding supervisor cannot start while runtime freeze is enabled.")
         return self.coding_supervisor.start()
 
     def stop_coding_supervisor(self) -> dict[str, Any]:
@@ -813,6 +1250,138 @@ class Orchestrator:
             raise KeyError(f"Unknown run_id: {run_id}")
         return run
 
+    def start_futures_cluster(self) -> dict[str, Any]:
+        bot_ids = self._canonical_futures_bot_ids()
+        results: dict[str, Any] = {}
+        failures: dict[str, str] = {}
+        for bot_id in bot_ids:
+            try:
+                results[bot_id] = self.start_bot(bot_id)
+            except Exception as exc:  # noqa: BLE001
+                failures[bot_id] = str(exc)
+        message = "Futures cluster started." if not failures else "Futures cluster start completed with failures."
+        return {
+            "accepted": not failures,
+            "message": message,
+            "payload": {
+                "cluster_id": "futures_canonical",
+                "member_bot_ids": bot_ids,
+                "member_states": {
+                    bot_id: (
+                        failures.get(bot_id)
+                        or str((results.get(bot_id) or {}).get("state") or "unknown")
+                    )
+                    for bot_id in bot_ids
+                },
+                "failures": failures,
+            },
+        }
+
+    def stop_futures_cluster(self) -> dict[str, Any]:
+        bot_ids = self._canonical_futures_bot_ids()
+        results: dict[str, Any] = {}
+        failures: dict[str, str] = {}
+        for bot_id in bot_ids:
+            try:
+                results[bot_id] = self.stop_bot(bot_id)
+            except Exception as exc:  # noqa: BLE001
+                failures[bot_id] = str(exc)
+        message = "Futures cluster stopped." if not failures else "Futures cluster stop completed with failures."
+        return {
+            "accepted": not failures,
+            "message": message,
+            "payload": {
+                "cluster_id": "futures_canonical",
+                "member_bot_ids": bot_ids,
+                "member_states": {
+                    bot_id: (
+                        failures.get(bot_id)
+                        or str((results.get(bot_id) or {}).get("state") or "unknown")
+                    )
+                    for bot_id in bot_ids
+                },
+                "failures": failures,
+            },
+        }
+
+    def run_futures_cluster_smoke(self) -> dict[str, Any]:
+        bot_ids = self._canonical_futures_bot_ids()
+        results: dict[str, Any] = {}
+        failures: dict[str, str] = {}
+        for bot_id in bot_ids:
+            try:
+                results[bot_id] = self.run_dry_run_smoke_test(bot_id=bot_id)
+            except Exception as exc:  # noqa: BLE001
+                failures[bot_id] = str(exc)
+        passed = all(str((results.get(bot_id) or {}).get("status")) == "pass" for bot_id in bot_ids if bot_id in results)
+        message = "Futures cluster smoke completed." if not failures else "Futures cluster smoke completed with failures."
+        return {
+            "accepted": not failures and passed,
+            "message": message,
+            "payload": {
+                "cluster_id": "futures_canonical",
+                "member_results": results,
+                "failures": failures,
+            },
+        }
+
+    def refresh_futures_cluster_snapshot(self) -> dict[str, Any]:
+        bot_ids = self._canonical_futures_bot_ids()
+        snapshots: dict[str, Any] = {}
+        failures: dict[str, str] = {}
+        for bot_id in bot_ids:
+            try:
+                snapshots[bot_id] = self.create_dry_run_snapshot(bot_id=bot_id)
+            except Exception as exc:  # noqa: BLE001
+                failures[bot_id] = str(exc)
+        aggregated = None
+        if snapshots:
+            aggregated = self.get_futures_cluster_snapshot(refresh_if_stale=False)
+        message = "Futures snapshots refreshed." if not failures else "Futures snapshot refresh completed with failures."
+        return {
+            "accepted": not failures,
+            "message": message,
+            "payload": {
+                "cluster_id": "futures_canonical",
+                "member_bot_ids": bot_ids,
+                "failures": failures,
+                "cluster_snapshot": aggregated,
+            },
+        }
+
+    def get_operator_home(self) -> dict[str, Any]:
+        futures_bots = [
+            self.bot_manager.get_bot_status(bot_id)
+            for bot_id in self._canonical_futures_bot_ids()
+        ]
+        futures_health = self.get_futures_cluster_health(refresh_runtime=False)
+        futures_snapshot = self.get_futures_cluster_snapshot(refresh_if_stale=False)
+        representative_bot_id = next(iter(self._canonical_futures_bot_ids()), "ft_trend_pullback_continuation_v1")
+        risk_decision = self.get_latest_risk_decision(bot_id=representative_bot_id)
+        strategy_layer_report = self.get_latest_futures_cluster_strategy_layer_report()
+        autopilot_status = self.autopilot_status()
+        coding_status = self.coding_status()
+        agents = self.list_agents()
+        observability_summary = self.get_latest_observability_summary()
+        if observability_summary is None:
+            observability_summary = self.get_executive_report(refresh_runtime=False).get("observability_summary") or {}
+        recent_runs = self.list_runs(limit=50)
+        return build_operator_home(
+            health=self.health(),
+            futures_bots=futures_bots,
+            futures_health=futures_health,
+            futures_snapshot=futures_snapshot,
+            risk_decision=risk_decision,
+            strategy_layer_report=strategy_layer_report,
+            autopilot_status=autopilot_status,
+            coding_status=coding_status,
+            agents=agents,
+            observability_summary=observability_summary,
+            runtime_flags=self.get_runtime_flags(),
+            recent_runs=recent_runs,
+            settings=self.settings,
+        )
+
     def create_agent_run(self, request_payload: dict[str, Any]) -> dict[str, Any]:
         with tracer.start_as_current_span("Orchestrator.create_agent_run") as span:
             span.set_attribute("crypto.agent_name", request_payload["agent_name"])
@@ -824,7 +1393,7 @@ class Orchestrator:
                 return existing_run
             span.set_attribute("crypto.idempotent_hit", False)
 
-            if self.settings.agent_kill_switch:
+            if self.effective_kill_switch_enabled():
                 run_id = str(uuid.uuid4())
                 task_id = f"task-{uuid.uuid4()}"
                 now = datetime.now(timezone.utc).isoformat()
@@ -866,8 +1435,56 @@ class Orchestrator:
                 record_human_escalation(record["agent_name"])
                 return self.get_run(run_id)
 
+            if self.effective_runtime_freeze_enabled():
+                run_id = str(uuid.uuid4())
+                task_id = f"task-{uuid.uuid4()}"
+                now = datetime.now(timezone.utc).isoformat()
+                record = {
+                    "run_id": run_id,
+                    "task_id": task_id,
+                    "agent_name": request_payload["agent_name"],
+                    "goal": request_payload["goal"],
+                    "business_reason": request_payload.get("business_reason", ""),
+                    "payload_json": request_payload,
+                    "request_fingerprint": request_fingerprint,
+                    "status": "blocked",
+                    "risk_level": request_payload["risk_level"],
+                    "model": None,
+                    "model_tier": None,
+                    "review_required": True,
+                    "human_decision_required": True,
+                    "approval_required": False,
+                    "approval_granted": False,
+                    "stop_requested": False,
+                    "cross_layer": bool(request_payload.get("cross_layer")),
+                    "does_touch_contract": bool(request_payload.get("does_touch_contract")),
+                    "does_touch_runtime": bool(request_payload.get("does_touch_runtime")),
+                    "estimated_cost_usd": 0.0,
+                    "warnings_json": ["Runtime freeze is enabled."],
+                    "blocked_reason": "runtime_freeze_enabled",
+                    "max_iterations": 0,
+                    "max_retry_limit": 0,
+                    "created_at": now,
+                    "started_at": None,
+                    "finished_at": now,
+                    "result_json": None,
+                    "review_json": None,
+                    "error": "AI runtime is paused by runtime freeze.",
+                }
+                self.store.create_run(record)
+                record_run_created(record["agent_name"], "blocked")
+                record_blocked_call(record["agent_name"], "runtime_freeze_enabled")
+                record_human_escalation(record["agent_name"])
+                return self.get_run(run_id)
+
             current_agent_spend = self.store.get_today_spend(request_payload["agent_name"])
             current_total_spend = self.store.get_today_total_spend()
+            current_agent_active_runs = sum(
+                1
+                for run in self.store.list_runs(limit=200)
+                if run.get("agent_name") == request_payload["agent_name"]
+                and run.get("status") in {"queued", "running", "awaiting_approval"}
+            )
             risk_decision = self.risk_manager.evaluate_request_risk(request_payload)
             sensitive_paths = self.risk_manager.validate_requested_paths(
                 request_payload.get("requested_paths", [])
@@ -881,6 +1498,7 @@ class Orchestrator:
                 current_total_spend=current_total_spend,
                 risk_overrides=risk_decision,
                 sensitive_path_violations=sensitive_paths,
+                current_agent_active_runs=current_agent_active_runs,
             )
 
             run_id = str(uuid.uuid4())
@@ -985,6 +1603,8 @@ class Orchestrator:
 
     def _execute_run(self, run_id: str) -> None:
         run = self.get_run(run_id)
+        chat_mode = self._is_chat_run(run)
+        chat_thread_id = self._chat_thread_id_for_run(run)
         if run.get("stop_requested"):
             self.store.update_run(
                 run_id,
@@ -992,6 +1612,94 @@ class Orchestrator:
                 finished_at=datetime.now(timezone.utc).isoformat(),
                 error="Run was stopped before execution.",
             )
+            if chat_mode and chat_thread_id:
+                self.store.add_chat_message(
+                    {
+                        "message_id": str(uuid.uuid4()),
+                        "thread_id": chat_thread_id,
+                        "role": "system",
+                        "content": "Rozmowa została zatrzymana zanim agent zdążył odpowiedzieć.",
+                        "run_id": run_id,
+                        "metadata_json": {"run_status": "stopped"},
+                    }
+                )
+            return
+
+        if self.effective_kill_switch_enabled():
+            self.store.update_run(
+                run_id,
+                status="blocked",
+                finished_at=datetime.now(timezone.utc).isoformat(),
+                blocked_reason="kill_switch_enabled",
+                error="Run was blocked because kill switch is enabled.",
+            )
+            record_blocked_call(run["agent_name"], "kill_switch_enabled")
+            if chat_mode and chat_thread_id:
+                self.store.add_chat_message(
+                    {
+                        "message_id": str(uuid.uuid4()),
+                        "thread_id": chat_thread_id,
+                        "role": "system",
+                        "content": "Odpowiedź została zablokowana, bo kill switch jest aktywny.",
+                        "run_id": run_id,
+                        "metadata_json": {"run_status": "blocked", "blocked_reason": "kill_switch_enabled"},
+                    }
+                )
+            return
+        if self.effective_runtime_freeze_enabled():
+            self.store.update_run(
+                run_id,
+                status="blocked",
+                finished_at=datetime.now(timezone.utc).isoformat(),
+                blocked_reason="runtime_freeze_enabled",
+                error="Run was blocked because runtime freeze is enabled.",
+            )
+            record_blocked_call(run["agent_name"], "runtime_freeze_enabled")
+            if chat_mode and chat_thread_id:
+                self.store.add_chat_message(
+                    {
+                        "message_id": str(uuid.uuid4()),
+                        "thread_id": chat_thread_id,
+                        "role": "system",
+                        "content": "Odpowiedź została zablokowana, bo runtime freeze jest aktywny.",
+                        "run_id": run_id,
+                        "metadata_json": {"run_status": "blocked", "blocked_reason": "runtime_freeze_enabled"},
+                    }
+                )
+            return
+
+        resource_guard = self.operation_guard_snapshot()
+        if not bool(resource_guard.get("allow_new_runs", True)):
+            finished_at = datetime.now(timezone.utc).isoformat()
+            primary_reason = str(
+                resource_guard.get("primary_reason") or "resource_guard_blocked"
+            )
+            blocked_reason = f"host_resource_guard:{primary_reason}"
+            self.store.update_run(
+                run_id,
+                status="blocked",
+                finished_at=finished_at,
+                blocked_reason=blocked_reason,
+                error=str(
+                    resource_guard.get("operator_message")
+                    or "Run was blocked by the host resource guard."
+                ),
+            )
+            record_blocked_call(run["agent_name"], blocked_reason)
+            if chat_mode and chat_thread_id:
+                self.store.add_chat_message(
+                    {
+                        "message_id": str(uuid.uuid4()),
+                        "thread_id": chat_thread_id,
+                        "role": "system",
+                        "content": str(
+                            resource_guard.get("operator_message")
+                            or "Odpowiedź została zablokowana przez host resource guard."
+                        ),
+                        "run_id": run_id,
+                        "metadata_json": {"run_status": "blocked", "blocked_reason": blocked_reason},
+                    }
+                )
             return
 
         started_at = datetime.now(timezone.utc)
@@ -1001,17 +1709,24 @@ class Orchestrator:
 
         try:
             cache_enabled = self._is_cacheable_run(run)
-            result = self.agent_runtime.execute(
-                run_record=self.get_run(run_id),
-                stop_requested_callback=lambda: bool(
-                    (self.store.get_run(run_id) or {}).get("stop_requested")
+            current_run = self.get_run(run_id)
+            stop_requested = lambda: bool(
+                (self.store.get_run(run_id) or {}).get("stop_requested")
+            ) or monotonic() >= deadline
+            if chat_mode:
+                result = self.agent_runtime.execute_chat(
+                    run_record=current_run,
+                    stop_requested_callback=stop_requested,
                 )
-                or monotonic() >= deadline,
-                cache_lookup=self.store.get_cached_response if cache_enabled else None,
-                cache_store=self.store.set_cached_response if cache_enabled else None,
-                cache_hit_callback=record_cache_hit if cache_enabled else None,
-                cache_miss_callback=record_cache_miss if cache_enabled else None,
-            )
+            else:
+                result = self.agent_runtime.execute(
+                    run_record=current_run,
+                    stop_requested_callback=stop_requested,
+                    cache_lookup=self.store.get_cached_response if cache_enabled else None,
+                    cache_store=self.store.set_cached_response if cache_enabled else None,
+                    cache_hit_callback=record_cache_hit if cache_enabled else None,
+                    cache_miss_callback=record_cache_miss if cache_enabled else None,
+                )
             finished_at = datetime.now(timezone.utc)
             duration_seconds = max((finished_at - started_at).total_seconds(), 0.0)
             self.store.update_run(
@@ -1040,6 +1755,19 @@ class Orchestrator:
                 retry_like_requests=result["retry_like_requests"],
                 estimated_cost_usd=result["actual_cost_usd"],
             )
+            if chat_mode and chat_thread_id:
+                chat_result = dict(result.get("result_json") or {})
+                self.store.add_chat_message(
+                    {
+                        "message_id": str(uuid.uuid4()),
+                        "thread_id": chat_thread_id,
+                        "role": "assistant",
+                        "content": str(chat_result.get("reply") or "").strip()
+                        or "Agent zakończył odpowiedź bez treści.",
+                        "run_id": run_id,
+                        "metadata_json": chat_result,
+                    }
+                )
             logger.info(
                 "Agent run completed.",
                 extra={
@@ -1062,6 +1790,17 @@ class Orchestrator:
                 duration_seconds=duration_seconds,
             )
             record_run_failed(run["agent_name"], duration_seconds, reason="exception")
+            if chat_mode and chat_thread_id:
+                self.store.add_chat_message(
+                    {
+                        "message_id": str(uuid.uuid4()),
+                        "thread_id": chat_thread_id,
+                        "role": "system",
+                        "content": f"Agent nie odpowiedział poprawnie: {exc}",
+                        "run_id": run_id,
+                        "metadata_json": {"run_status": "failed", "error": str(exc)},
+                    }
+                )
             logger.exception(
                 "Agent run failed.",
                 extra={
@@ -1091,6 +1830,7 @@ class Orchestrator:
 
     @staticmethod
     def _is_cacheable_run(run: dict[str, Any]) -> bool:
+        metadata = dict((run.get("payload_json") or {}).get("metadata") or {})
         return (
             run.get("risk_level") == "low"
             and not run.get("cross_layer")
@@ -1098,4 +1838,5 @@ class Orchestrator:
             and not run.get("human_decision_required")
             and not run.get("approval_required")
             and run.get("model_tier") == "cheap"
+            and not bool(metadata.get("chat_mode"))
         )

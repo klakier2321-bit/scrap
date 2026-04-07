@@ -343,6 +343,7 @@ class ExecutiveReportService:
         coding_status: dict[str, Any] | None = None,
         coding_tasks: list[dict[str, Any]] | None = None,
         coding_workspaces: list[dict[str, Any]] | None = None,
+        agents: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         config = self._load_config()
         generated_at = datetime.now(timezone.utc)
@@ -365,6 +366,7 @@ class ExecutiveReportService:
         regime_replay_report = dict(regime_replay_report or {}) if regime_replay_report else None
         strategy_layer_report = dict(strategy_layer_report or {}) if strategy_layer_report else None
         control_status = dict(control_status or {}) if control_status else None
+        agents = list(agents or [])
         dry_run_ready = bool(dry_run_health.get("ready"))
         control_layer_has_commits = any(
             task.get("module_id") == "control_layer_runtime" and task.get("status") == "committed"
@@ -654,6 +656,11 @@ class ExecutiveReportService:
             ),
             None,
         )
+        resource_guard = dict(
+            coding_status.get("resource_guard")
+            or autopilot_status.get("resource_guard")
+            or {}
+        )
         last_committed_coding_task = next(
             (task for task in coding_tasks if task.get("status") == "committed"),
             None,
@@ -681,6 +688,57 @@ class ExecutiveReportService:
             ),
             "active_task": active_coding_task,
             "last_committed_task": last_committed_coding_task,
+            "resource_guard_blocking": not bool(resource_guard.get("allow_coding_dispatch", True)),
+        }
+        activation_counts: dict[str, int] = {}
+        domain_counts: dict[str, int] = {}
+        total_daily_budget = 0.0
+        total_per_run_budget = 0.0
+        observability_owner = None
+        for agent in agents:
+            activation_mode = str(agent.get("activation_mode") or "unknown")
+            domain = str(agent.get("domain") or "unknown")
+            activation_counts[activation_mode] = activation_counts.get(activation_mode, 0) + 1
+            domain_counts[domain] = domain_counts.get(domain, 0) + 1
+            total_daily_budget += float(
+                agent.get("effective_daily_budget_usd", agent.get("default_daily_budget_usd", 0.0))
+            )
+            total_per_run_budget += float(
+                agent.get("effective_per_run_budget_usd", agent.get("default_per_run_budget_usd", 0.0))
+            )
+            if agent.get("name") == "ops_observability_agent":
+                observability_owner = str(agent.get("name"))
+
+        agent_runtime = {
+            "status": agent_runtime_status,
+            "reason": autopilot_status.get("agents_reason"),
+            "resource_guard": resource_guard,
+            "observability_owner": observability_owner,
+            "tree": agents,
+            "summary": {
+                "agents_total": len(agents),
+                "activation_mode_counts": activation_counts,
+                "domain_counts": domain_counts,
+                "stewards_total": sum(
+                    1 for agent in agents if str(agent.get("strategy_scope") or "").strip()
+                ),
+                "grafana_visible_total": sum(
+                    1 for agent in agents if bool(agent.get("grafana_visibility"))
+                ),
+                "operator_enabled_total": sum(
+                    1 for agent in agents if agent.get("enabled_override") is True
+                ),
+                "operator_disabled_total": sum(
+                    1 for agent in agents if agent.get("enabled_override") is False
+                ),
+                "total_daily_budget_usd": round(total_daily_budget, 4),
+                "total_per_run_budget_usd": round(total_per_run_budget, 4),
+                "active_core_agents": [
+                    str(agent.get("name"))
+                    for agent in agents
+                    if agent.get("activation_mode") == "always_on_guarded"
+                ],
+            },
         }
 
         return {
@@ -758,6 +816,7 @@ class ExecutiveReportService:
                 "workspaces": coding_workspaces,
                 "workspaces_by_task_id": workspaces_by_task_id,
             },
+            "agent_runtime": agent_runtime,
             "summary": {
                 "modules_by_status": modules_by_status,
                 "modules_total": len(modules),
@@ -781,6 +840,12 @@ class ExecutiveReportService:
                 "agents_disabled": 1 if agent_runtime_status == "agents_disabled" else 0,
                 "agents_guarded": 1 if agent_runtime_status == "agents_guarded" else 0,
                 "agents_active_limited": 1 if agent_runtime_status == "agents_active_limited" else 0,
+                "agents_total": agent_runtime["summary"]["agents_total"],
+                "agents_activation_mode_counts": activation_counts,
+                "strategy_stewards_total": agent_runtime["summary"]["stewards_total"],
+                "agent_budget_daily_total_usd": agent_runtime["summary"]["total_daily_budget_usd"],
+                "agent_budget_per_run_total_usd": agent_runtime["summary"]["total_per_run_budget_usd"],
+                "observability_owner_agent": observability_owner,
                 "dry_run_ready": 1 if dry_run_ready else 0,
                 "candidate_assessments_total": len(candidate_assessments),
                 "candidate_shipping_ready_total": sum(
