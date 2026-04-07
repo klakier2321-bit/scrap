@@ -429,3 +429,24 @@ coding_runtime:
             "low_available_memory",
         )
         self.assertIn("paused for safety", (status["last_error"] or "").lower())
+
+    def test_supersede_review_task_marks_it_terminal_and_updates_status_counts(self) -> None:
+        task = self.service.create_manual_task(module_id="control_layer_runtime")
+        self.store.update_coding_task(
+            task["task_id"],
+            status="review",
+            review_json={"decision": "human_review_required"},
+        )
+
+        updated = self.service.supersede_task(
+            task["task_id"],
+            reason="Regime detector fix landed separately.",
+            superseded_by_commit="d173092",
+        )
+        status = self.service.status()
+
+        self.assertEqual(updated["status"], "superseded")
+        self.assertEqual(updated["superseded_reason"], "Regime detector fix landed separately.")
+        self.assertEqual(updated["superseded_by_commit"], "d173092")
+        self.assertEqual(status["review_tasks"], 0)
+        self.assertEqual(status["superseded_tasks"], 1)

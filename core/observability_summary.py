@@ -12,6 +12,8 @@ from typing import Any
 
 from .config import AppSettings
 
+FUTURES_OPERATOR_FRESHNESS_SECONDS = 15 * 60
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -40,6 +42,22 @@ def _status_rank(status: str) -> int:
     return 3
 
 
+def _parse_iso(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _age_seconds(value: Any) -> float | None:
+    parsed = _parse_iso(value)
+    if parsed is None:
+        return None
+    return max(0.0, round((datetime.now(timezone.utc) - parsed).total_seconds(), 2))
+
+
 def _budget_block_count(runs: list[dict[str, Any]]) -> int:
     total = 0
     for run in runs:
@@ -62,6 +80,101 @@ def _active_agent_names(runs: list[dict[str, Any]]) -> set[str]:
         for run in runs
         if str(run.get("status") or "") in {"queued", "running", "awaiting_approval"}
         and run.get("agent_name")
+    }
+
+
+def _futures_cluster_state(bot_states: list[dict[str, Any]]) -> str:
+    futures_bots = [
+        bot
+        for bot in bot_states
+        if str(bot.get("runtime_group") or "") == "futures_canonical"
+    ]
+    if not futures_bots:
+        return "missing"
+    running = sum(1 for bot in futures_bots if str(bot.get("state") or "") == "running")
+    if running == len(futures_bots):
+        return "running"
+    if running == 0:
+        return "stopped"
+    return "degraded"
+
+
+def _coding_review_tasks(executive_report: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        dict(task)
+        for task in list(((executive_report.get("coding") or {}).get("tasks") or []))
+        if str(task.get("status") or "") == "review"
+    ]
+
+
+def _structured_futures_blocker(
+    *,
+    executive_report: dict[str, Any],
+    bot_states: list[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    dry_run_health = ((executive_report.get("dry_run") or {}).get("health") or {})
+    strategy_layer = executive_report.get("strategy_layer") or {}
+    cluster_state = _futures_cluster_state(bot_states)
+    snapshot_age_seconds = (
+        float(dry_run_health.get("snapshot_age_seconds"))
+        if dry_run_health.get("snapshot_age_seconds") is not None
+        else None
+    )
+    last_smoke_at = dry_run_health.get("last_smoke_at")
+    last_smoke_age_seconds = _age_seconds(last_smoke_at)
+    preferred_strategy_id = (
+        strategy_layer.get("preferred_risk_admitted_strategy_id")
+        or strategy_layer.get("preferred_strategy_id")
+    )
+    data_fresh = (
+        cluster_state == "running"
+        and snapshot_age_seconds is not None
+        and snapshot_age_seconds <= FUTURES_OPERATOR_FRESHNESS_SECONDS
+        and last_smoke_age_seconds is not None
+        and last_smoke_age_seconds <= FUTURES_OPERATOR_FRESHNESS_SECONDS
+    )
+    smoke_status = str(dry_run_health.get("last_smoke_status") or "").strip().lower()
+    smoke_healthy = smoke_status in {"pass", "ok"}
+
+    blocker_code = None
+    title = None
+    why_blocking = None
+    expected_action = None
+    if cluster_state == "stopped":
+        blocker_code = "futures_cluster_stopped"
+        title = "Futures cluster jest zatrzymany"
+        why_blocking = "Pięć kanonicznych botów futures nie działa, więc runtime nie produkuje świeżych artefaktów."
+        expected_action = "Podnieść klaster, odświeżyć snapshot i wykonać smoke dla całego futures_canonical."
+    elif not data_fresh or not preferred_strategy_id:
+        blocker_code = "futures_runtime_stale"
+        title = "Futures runtime jest nieświeży"
+        why_blocking = "Snapshot albo smoke są zbyt stare, albo brakuje aktualnej preferowanej strategii admitted przez risk."
+        expected_action = "Odświeżyć snapshot i smoke, a potem potwierdzić preferred_risk_admitted_strategy_id."
+    elif not smoke_healthy or not bool(dry_run_health.get("ready")):
+        blocker_code = "futures_smoke_degraded"
+        title = "Futures smoke jest zdegradowany"
+        why_blocking = "Któryś z botów canonical futures nie przechodzi pełnego smoke/health checku."
+        expected_action = "Sprawdzić member health i powtórzyć smoke dla 5 botów po usunięciu przyczyny degradacji."
+
+    blocker = None
+    if blocker_code:
+        blocker = {
+            "blocker_id": blocker_code,
+            "source": "Futures runtime",
+            "area": "futures_canonical",
+            "title": title,
+            "severity": "Wysoki",
+            "status": blocker_code,
+            "why_blocking": why_blocking,
+            "expected_action": expected_action,
+        }
+    return blocker, {
+        "cluster_state": cluster_state,
+        "data_fresh": data_fresh,
+        "snapshot_age_seconds": snapshot_age_seconds,
+        "last_smoke_at": last_smoke_at,
+        "last_smoke_age_seconds": last_smoke_age_seconds,
+        "preferred_strategy_id": preferred_strategy_id,
     }
 
 
@@ -388,11 +501,68 @@ def _build_recent_handoffs(executive_report: dict[str, Any]) -> list[dict[str, A
     return handoffs
 
 
-def _build_recent_errors(executive_report: dict[str, Any]) -> list[dict[str, Any]]:
+def _build_top_blockers(
+    *,
+    executive_report: dict[str, Any],
+    bot_states: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    blockers: list[dict[str, Any]] = []
+    stale_attention_items_count = 0
+    futures_blocker, futures_state = _structured_futures_blocker(
+        executive_report=executive_report,
+        bot_states=bot_states,
+    )
+    if futures_blocker is not None:
+        blockers.append(futures_blocker)
+        if not futures_state.get("data_fresh"):
+            stale_attention_items_count += 1
+
+    for task in _coding_review_tasks(executive_report)[:3]:
+        blockers.append(
+            {
+                "blocker_id": f"coding_review:{task.get('task_id')}",
+                "source": "Coding review",
+                "area": str(task.get("module_id") or "coding"),
+                "title": _safe_title(task.get("goal"), fallback="Coding review", limit=120),
+                "severity": "Średni",
+                "status": "review",
+                "why_blocking": "Task kodujący nadal czeka na decyzję review i nie powinien wracać jako aktywny blocker po zamknięciu.",
+                "expected_action": "Zatwierdzić, odrzucić albo oznaczyć task jako superseded, jeśli został już zastąpiony inną zmianą.",
+            }
+        )
+
+    coding_status = dict(((executive_report.get("coding") or {}).get("status") or {}))
+    if coding_status.get("attention_needed"):
+        blockers.append(
+            {
+                "blocker_id": "coding_supervisor_attention",
+                "source": "Coding supervisor",
+                "area": "control_layer_runtime",
+                "title": "Coding supervisor wymaga uwagi",
+                "severity": "Wysoki",
+                "status": str(coding_status.get("last_error") or "attention"),
+                "why_blocking": _safe_title(
+                    coding_status.get("last_error"),
+                    fallback="Supervisor wykrył stan wymagający interwencji operatora.",
+                    limit=180,
+                ),
+                "expected_action": "Sprawdzić aktywny task, worker context i resource guard przed wznowieniem kolejnych dispatchy.",
+            }
+        )
+
+    stale_attention_items_count += len(list(executive_report.get("blockers") or []))
+    return blockers[:6], {
+        **futures_state,
+        "coding_review_blockers": len(_coding_review_tasks(executive_report)),
+        "stale_attention_items_count": stale_attention_items_count,
+    }
+
+
+def _build_recent_errors(blockers: list[dict[str, Any]]) -> list[dict[str, Any]]:
     errors: list[dict[str, Any]] = []
-    for blocker in executive_report.get("blockers") or []:
-        severity = str(blocker.get("severity") or "")
-        if severity not in {"Wysoki", "Krytyczne"}:
+    for blocker in blockers:
+        severity = str(blocker.get("severity") or "").lower()
+        if severity not in {"wysoki", "krytyczne", "high", "critical"}:
             continue
         errors.append(
             {
@@ -517,6 +687,10 @@ def build_observability_summary(
     runs: list[dict[str, Any]],
 ) -> dict[str, Any]:
     summary = executive_report.get("summary") or {}
+    top_blockers, structured_state = _build_top_blockers(
+        executive_report=executive_report,
+        bot_states=bot_states,
+    )
     goals_and_direction = {
         "strategic_goal": _safe_title(executive_report.get("strategic_goal"), fallback="Brak strategicznego celu.", limit=180),
         "lead_note": _safe_title(
@@ -541,8 +715,10 @@ def build_observability_summary(
     }
     operator_attention = [
         _safe_title(blocker.get("title"), fallback="Bloker", limit=140)
-        for blocker in list(executive_report.get("blockers") or [])[:5]
+        for blocker in top_blockers[:5]
     ]
+    executive_generated_at = executive_report.get("generated_at")
+    executive_age_seconds = _age_seconds(executive_generated_at)
     built = {
         "generated_at": _utc_now(),
         "graph_nodes": _build_graph_nodes(
@@ -559,8 +735,8 @@ def build_observability_summary(
             runs=runs,
         ),
         "recent_handoffs": _build_recent_handoffs(executive_report),
-        "recent_errors": _build_recent_errors(executive_report),
-        "top_blockers": list(executive_report.get("blockers") or [])[:6],
+        "recent_errors": _build_recent_errors(top_blockers),
+        "top_blockers": top_blockers,
         "goals_and_direction": goals_and_direction,
         "operator_attention": operator_attention,
         "futures_runtime": {
@@ -572,6 +748,10 @@ def build_observability_summary(
             "built_signals_total": int(summary.get("strategy_layer_built_signals_total", 0) or 0),
             "risk_admitted_total": int(summary.get("strategy_layer_risk_admitted_total", 0) or 0),
             "risk_trading_mode": ((executive_report.get("regime") or {}).get("risk_decision") or {}).get("trading_mode"),
+            "data_fresh": bool(structured_state.get("data_fresh")),
+            "snapshot_age_seconds": structured_state.get("snapshot_age_seconds"),
+            "last_smoke_at": structured_state.get("last_smoke_at"),
+            "last_smoke_age_seconds": structured_state.get("last_smoke_age_seconds"),
         },
         "runtime_focus": _build_runtime_focus(executive_report),
         "cost_control": _build_cost_control(
@@ -579,10 +759,14 @@ def build_observability_summary(
             runs=runs,
         ),
         "freshness": {
-            "executive_generated_at": executive_report.get("generated_at"),
+            "executive_generated_at": executive_generated_at,
             "observability_generated_at": _utc_now(),
             "is_agent_stack_disabled": bool(summary.get("agents_disabled")),
             "is_runtime_ready": bool(summary.get("dry_run_ready")),
+            "ai_runtime_fresh": executive_age_seconds is None or executive_age_seconds <= FUTURES_OPERATOR_FRESHNESS_SECONDS,
+            "futures_data_fresh": bool(structured_state.get("data_fresh")),
+            "coding_review_blockers": int(structured_state.get("coding_review_blockers", 0) or 0),
+            "stale_attention_items_count": int(structured_state.get("stale_attention_items_count", 0) or 0),
         },
     }
     state_payload = dict(built)

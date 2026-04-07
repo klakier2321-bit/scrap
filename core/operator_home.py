@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+FUTURES_OPERATOR_FRESHNESS_SECONDS = 15 * 60
+
 
 def _bool_label(value: bool | None) -> str:
     if value is None:
@@ -61,39 +63,159 @@ def _action_state(*, enabled: bool, blocked_reason: str | None = None) -> dict[s
     }
 
 
+def _parse_iso(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _age_seconds(value: Any) -> float | None:
+    parsed = _parse_iso(value)
+    if parsed is None:
+        return None
+    return max(0.0, round((datetime.now(timezone.utc) - parsed).total_seconds(), 2))
+
+
+def _structured_blocker_summary(blocker_code: str) -> str:
+    messages = {
+        "futures_cluster_stopped": "Klaster futures nie działa. Trzeba podnieść 5 botów kanonicznych przed dalszą oceną gotowości.",
+        "futures_runtime_stale": "Artefakty runtime są nieświeże albo brakuje aktualnej preferowanej strategii admitted przez risk.",
+        "futures_smoke_degraded": "Smoke klastra futures jest zdegradowany albo któryś z botów nie przechodzi health checku.",
+    }
+    return messages.get(blocker_code, "Wymaga uwagi operatora.")
+
+
+def _structured_blocker_title(blocker_code: str) -> str:
+    titles = {
+        "futures_cluster_stopped": "Futures cluster jest zatrzymany",
+        "futures_runtime_stale": "Futures runtime jest nieświeży",
+        "futures_smoke_degraded": "Futures smoke jest zdegradowany",
+    }
+    return titles.get(blocker_code, blocker_code)
+
+
+def _build_futures_runtime_state(
+    *,
+    cluster_state: str,
+    futures_health: dict[str, Any],
+    strategy_layer_report: dict[str, Any],
+) -> dict[str, Any]:
+    snapshot_age_seconds = (
+        float(futures_health.get("snapshot_age_seconds"))
+        if futures_health.get("snapshot_age_seconds") is not None
+        else None
+    )
+    last_smoke_at = futures_health.get("last_smoke_at")
+    last_smoke_age_seconds = _age_seconds(last_smoke_at)
+    preferred_strategy_id = (
+        strategy_layer_report.get("preferred_risk_admitted_strategy_id")
+        or strategy_layer_report.get("preferred_strategy_id")
+    )
+    snapshot_fresh = (
+        snapshot_age_seconds is not None
+        and snapshot_age_seconds <= FUTURES_OPERATOR_FRESHNESS_SECONDS
+    )
+    smoke_fresh = (
+        last_smoke_age_seconds is not None
+        and last_smoke_age_seconds <= FUTURES_OPERATOR_FRESHNESS_SECONDS
+    )
+    data_fresh = cluster_state == "running" and snapshot_fresh and smoke_fresh
+    smoke_status = str(futures_health.get("last_smoke_status") or "").strip().lower()
+    smoke_healthy = smoke_status in {"pass", "ok"}
+    runtime_ready = (
+        cluster_state == "running"
+        and bool(futures_health.get("ready"))
+        and data_fresh
+        and bool(preferred_strategy_id)
+    )
+    blocker_code = None
+    if cluster_state == "stopped":
+        blocker_code = "futures_cluster_stopped"
+    elif not data_fresh or not preferred_strategy_id:
+        blocker_code = "futures_runtime_stale"
+    elif not smoke_healthy or not bool(futures_health.get("ready")):
+        blocker_code = "futures_smoke_degraded"
+    return {
+        "ready": runtime_ready,
+        "data_fresh": data_fresh,
+        "snapshot_age_seconds": snapshot_age_seconds,
+        "last_smoke_at": last_smoke_at,
+        "last_smoke_age_seconds": last_smoke_age_seconds,
+        "blocker_codes": [blocker_code] if blocker_code else [],
+    }
+
+
 def _normalize_attention_items(
     *,
     observability_summary: dict[str, Any],
+    futures_state: dict[str, Any],
     risk_decision: dict[str, Any] | None,
-    futures_health: dict[str, Any] | None,
 ) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
+    seen_titles: set[str] = set()
+    seen_summaries: set[str] = set()
+    futures_blocker_codes = set(str(code) for code in list(futures_state.get("blocker_codes") or []))
+    for blocker_code in list(futures_state.get("blocker_codes") or [])[:1]:
+        title = str(blocker_code)
+        summary = _structured_blocker_summary(blocker_code)
+        items.append(
+            {
+                "kind": "runtime",
+                "severity": "high",
+                "title": title,
+                "summary": summary,
+                "owner": "futures_runtime",
+            }
+        )
+        seen_titles.add(title)
+        seen_titles.add(_structured_blocker_title(blocker_code))
+        seen_summaries.add(summary)
     for blocker in list(observability_summary.get("top_blockers") or [])[:5]:
+        if str(blocker.get("source") or "") == "Futures runtime" and futures_blocker_codes:
+            continue
+        title = str(blocker.get("title") or blocker.get("source") or "Blocker")
+        summary = str(
+            blocker.get("why_blocking")
+            or blocker.get("expected_action")
+            or blocker.get("status")
+            or "Wymaga uwagi operatora."
+        )
+        if title in seen_titles:
+            continue
         items.append(
             {
                 "kind": "blocker",
                 "severity": str(blocker.get("severity") or "medium"),
-                "title": str(blocker.get("title") or blocker.get("source") or "Blocker"),
-                "summary": str(
-                    blocker.get("why_blocking")
-                    or blocker.get("expected_action")
-                    or blocker.get("status")
-                    or "Wymaga uwagi operatora."
-                ),
+                "title": title,
+                "summary": summary,
                 "owner": blocker.get("area"),
             }
         )
+        seen_titles.add(title)
+        seen_summaries.add(summary)
     for line in list(observability_summary.get("operator_attention") or [])[:5 - len(items)]:
+        title = "Wymaga uwagi"
+        if str(line) in seen_titles or str(line) in seen_summaries:
+            continue
         items.append(
             {
                 "kind": "attention",
                 "severity": "medium",
-                "title": "Wymaga uwagi",
+                "title": title,
                 "summary": str(line),
                 "owner": None,
             }
         )
-    if risk_decision and risk_decision.get("risk_reason_codes") and len(items) < 5:
+        seen_titles.add(str(line))
+    if (
+        risk_decision
+        and risk_decision.get("risk_reason_codes")
+        and len(items) < 5
+        and not list(futures_state.get("blocker_codes") or [])
+    ):
         items.append(
             {
                 "kind": "risk",
@@ -103,16 +225,7 @@ def _normalize_attention_items(
                 "owner": "risk",
             }
         )
-    if futures_health and futures_health.get("warnings") and len(items) < 5:
-        items.append(
-            {
-                "kind": "runtime",
-                "severity": "medium",
-                "title": "Ostrzeżenia klastra futures",
-                "summary": " | ".join(list(futures_health.get("warnings") or [])[:2]),
-                "owner": "futures_runtime",
-            }
-        )
+        seen_titles.add("Aktywne ograniczenia risk")
     return items[:5]
 
 
@@ -179,6 +292,11 @@ def build_operator_home(
     risk_decision = dict(risk_decision or {})
     strategy_layer_report = dict(strategy_layer_report or {})
     futures_cluster_state = _translate_cluster_state(futures_bots)
+    futures_state = _build_futures_runtime_state(
+        cluster_state=futures_cluster_state,
+        futures_health=futures_health,
+        strategy_layer_report=strategy_layer_report,
+    )
     any_bot_running = any(str(bot.get("state")) == "running" for bot in futures_bots)
     all_bots_running = bool(futures_bots) and all(str(bot.get("state")) == "running" for bot in futures_bots)
     effective_kill = bool((runtime_flags.get("kill_switch") or {}).get("effective_enabled"))
@@ -243,21 +361,26 @@ def build_operator_home(
         for run in recent_runs
         if str(run.get("blocked_reason") or "").startswith("host_resource_guard:")
     )
-    top_trading_blocks = list(dict.fromkeys(
-        list(risk_decision.get("risk_reason_codes") or [])[:3]
-        + list(futures_health.get("warnings") or [])[:2]
-    ))[:5]
+    top_trading_blocks = list(futures_state.get("blocker_codes") or [])[:1]
+    combined_freshness = dict(observability_summary.get("freshness") or {})
+    combined_freshness.setdefault("futures_data_fresh", bool(futures_state.get("data_fresh")))
+    combined_freshness.setdefault("ai_runtime_fresh", True)
+    combined_freshness.setdefault("coding_review_blockers", int(coding_status.get("review_tasks", 0) or 0))
+    combined_freshness.setdefault("stale_attention_items_count", 0)
     return {
         "generated_at": generated_at,
         "status": "ok",
-        "freshness": dict(observability_summary.get("freshness") or {}),
+        "freshness": combined_freshness,
         "futures": {
             "cluster_id": "futures_canonical",
             "cluster_state": futures_cluster_state,
             "bots": futures_bots,
-            "ready": bool(futures_health.get("ready")),
+            "ready": bool(futures_state.get("ready")),
+            "data_fresh": bool(futures_state.get("data_fresh")),
             "snapshot_age_seconds": futures_health.get("snapshot_age_seconds"),
             "last_smoke_status": futures_health.get("last_smoke_status"),
+            "last_smoke_at": futures_health.get("last_smoke_at"),
+            "last_smoke_age_seconds": futures_state.get("last_smoke_age_seconds"),
             "risk_mode": risk_decision.get("trading_mode"),
             "allow_trading": risk_decision.get("allow_trading"),
             "force_reduce_only": risk_decision.get("force_reduce_only"),
@@ -285,8 +408,8 @@ def build_operator_home(
         },
         "attention_items": _normalize_attention_items(
             observability_summary=observability_summary,
+            futures_state=futures_state,
             risk_decision=risk_decision,
-            futures_health=futures_health,
         ),
         "recent_errors": _normalize_recent_errors(observability_summary),
         "recent_actions": _normalize_recent_actions(observability_summary, recent_runs),

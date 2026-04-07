@@ -311,8 +311,11 @@ class OperatorHomeFutures(BaseModel):
     cluster_state: str
     bots: list[BotSummary] = Field(default_factory=list)
     ready: bool = False
+    data_fresh: bool = False
     snapshot_age_seconds: float | None = None
     last_smoke_status: str | None = None
+    last_smoke_at: datetime | str | None = None
+    last_smoke_age_seconds: float | None = None
     risk_mode: str | None = None
     allow_trading: bool | None = None
     force_reduce_only: bool | None = None
@@ -757,9 +760,12 @@ class CodingTaskRecord(BaseModel):
     review_cost_usd: float = 0.0
     total_cost_usd: float = 0.0
     last_error: str | None = None
+    superseded_reason: str | None = None
+    superseded_by_commit: str | None = None
     created_at: datetime | str
     started_at: datetime | str | None = None
     finished_at: datetime | str | None = None
+    resolved_at: datetime | str | None = None
     updated_at: datetime | str | None = None
 
 
@@ -799,6 +805,7 @@ class CodingStatusResponse(BaseModel):
     ready_tasks: int = 0
     review_tasks: int = 0
     committed_tasks: int = 0
+    superseded_tasks: int = 0
     modules: list[dict[str, Any]] = Field(default_factory=list)
     resource_guard: dict[str, Any] = Field(default_factory=dict)
 
@@ -807,3 +814,10 @@ class CodingReviewDecisionRequest(BaseModel):
     """Optional reason used when rejecting a reviewed coding task."""
 
     reason: str = "Manual review rejection."
+
+
+class CodingTaskSupersedeRequest(BaseModel):
+    """Operator-driven closure for stale or superseded coding tasks."""
+
+    reason: str = "Task was superseded by a later code change."
+    superseded_by_commit: str | None = None

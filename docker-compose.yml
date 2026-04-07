@@ -112,6 +112,8 @@ services:
     image: docker.litellm.ai/berriai/litellm:main-latest
     container_name: crypto_litellm
     restart: unless-stopped
+    mem_limit: 512m
+    cpus: 0.5
     env_file:
       - .env.ai.gateway.local
     command:
@@ -129,6 +131,8 @@ services:
       dockerfile: infrastructure/ai_control/Dockerfile
     container_name: crypto_ai_control
     restart: unless-stopped
+    mem_limit: 1200m
+    cpus: 1.0
     env_file:
       - .env.ai.control.local
     depends_on:

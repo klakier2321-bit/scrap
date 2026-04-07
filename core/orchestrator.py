@@ -362,6 +362,25 @@ class Orchestrator:
             for item in healths
             if item.get("snapshot_age_seconds") is not None
         ]
+        snapshot_timestamps = []
+        smoke_timestamps = []
+        for item in healths:
+            last_snapshot_at = item.get("last_snapshot_at")
+            if last_snapshot_at:
+                try:
+                    snapshot_timestamps.append(
+                        datetime.fromisoformat(str(last_snapshot_at).replace("Z", "+00:00"))
+                    )
+                except ValueError:
+                    pass
+            last_smoke_at = item.get("last_smoke_at")
+            if last_smoke_at:
+                try:
+                    smoke_timestamps.append(
+                        datetime.fromisoformat(str(last_smoke_at).replace("Z", "+00:00"))
+                    )
+                except ValueError:
+                    pass
         return {
             "bot_id": "futures_canonical_cluster",
             "runtime_group": "futures_canonical",
@@ -375,9 +394,9 @@ class Orchestrator:
             "blocking_reason": None if ready_all else "cluster_member_not_ready",
             "snapshot_available": all(bool(item.get("snapshot_available")) for item in healths),
             "snapshot_age_seconds": max(snapshot_ages) if snapshot_ages else None,
-            "last_snapshot_at": None,
+            "last_snapshot_at": min(snapshot_timestamps).isoformat() if snapshot_timestamps else None,
             "last_smoke_status": "pass" if all(item.get("last_smoke_status") == "pass" for item in healths) else "degraded",
-            "last_smoke_at": None,
+            "last_smoke_at": min(smoke_timestamps).isoformat() if smoke_timestamps else None,
             "warnings": list(dict.fromkeys(warnings))[:10],
             "members": healths,
         }
@@ -1234,6 +1253,19 @@ class Orchestrator:
 
     def reject_coding_review(self, task_id: str, reason: str = "Manual review rejection.") -> dict[str, Any]:
         return self.coding_supervisor.reject_review(task_id, reason=reason)
+
+    def supersede_coding_task(
+        self,
+        task_id: str,
+        *,
+        reason: str,
+        superseded_by_commit: str | None = None,
+    ) -> dict[str, Any]:
+        return self.coding_supervisor.supersede_task(
+            task_id,
+            reason=reason,
+            superseded_by_commit=superseded_by_commit,
+        )
 
     def list_workspaces(self) -> list[dict[str, Any]]:
         return self.coding_supervisor.list_workspaces()

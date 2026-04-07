@@ -40,6 +40,7 @@ from .schemas import (
     CodingStatusResponse,
     CodingTaskCreateRequest,
     CodingTaskRecord,
+    CodingTaskSupersedeRequest,
     CodingWorkspaceRecord,
     DryRunHealthResponse,
     DryRunSmokeResponse,
@@ -621,6 +622,29 @@ async def ops_reject_coding_review(
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.post(
+    "/ops/coding-tasks/{task_id}/supersede",
+    response_model=CodingTaskRecord,
+    include_in_schema=False,
+)
+async def ops_supersede_coding_task(
+    task_id: str,
+    request: CodingTaskSupersedeRequest,
+) -> CodingTaskRecord:
+    try:
+        return CodingTaskRecord(
+            **get_orchestrator().supersede_coding_task(
+                task_id,
+                reason=request.reason,
+                superseded_by_commit=request.superseded_by_commit,
+            )
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get(

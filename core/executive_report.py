@@ -675,6 +675,7 @@ class ExecutiveReportService:
             "ready_total": sum(1 for task in coding_tasks if task.get("status") == "ready"),
             "review_total": sum(1 for task in coding_tasks if task.get("status") == "review"),
             "committed_total": sum(1 for task in coding_tasks if task.get("status") == "committed"),
+            "superseded_total": sum(1 for task in coding_tasks if task.get("status") == "superseded"),
             "branch_only_committed_total": sum(
                 1 for task in coding_tasks if task.get("status") == "committed"
             ),
@@ -826,6 +827,7 @@ class ExecutiveReportService:
                 "coding_tasks_ready_total": coding_summary["ready_total"],
                 "coding_tasks_review_total": coding_summary["review_total"],
                 "coding_tasks_committed_total": coding_summary["committed_total"],
+                "coding_tasks_superseded_total": coding_summary["superseded_total"],
                 "coding_tasks_branch_only_total": coding_summary["branch_only_committed_total"],
                 "coding_tasks_merged_to_main_total": coding_summary["merged_to_main_total"],
                 "coding_tasks_waiting_ceo_total": coding_summary["tasks_waiting_ceo_total"],

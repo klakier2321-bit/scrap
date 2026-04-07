@@ -96,10 +96,13 @@ CREATE TABLE IF NOT EXISTS coding_tasks (
     review_cost_usd REAL DEFAULT 0,
     total_cost_usd REAL DEFAULT 0,
     last_error TEXT,
+    superseded_reason TEXT,
+    superseded_by_commit TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     started_at TEXT,
-    finished_at TEXT
+    finished_at TEXT,
+    resolved_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS coding_workspaces (
@@ -190,11 +193,19 @@ class RunStore:
                 "coding_cost_usd",
                 "review_cost_usd",
                 "total_cost_usd",
+                "superseded_reason",
+                "superseded_by_commit",
+                "resolved_at",
             ):
                 if column_name not in existing_task_columns:
-                    connection.execute(
-                        f"ALTER TABLE coding_tasks ADD COLUMN {column_name} REAL DEFAULT 0"
-                    )
+                    if column_name in {"planning_cost_usd", "coding_cost_usd", "review_cost_usd", "total_cost_usd"}:
+                        connection.execute(
+                            f"ALTER TABLE coding_tasks ADD COLUMN {column_name} REAL DEFAULT 0"
+                        )
+                    else:
+                        connection.execute(
+                            f"ALTER TABLE coding_tasks ADD COLUMN {column_name} TEXT"
+                        )
             connection.commit()
 
     def create_run(self, record: dict[str, Any]) -> None:
@@ -718,10 +729,13 @@ class RunStore:
             "review_cost_usd": float(record.get("review_cost_usd", 0)),
             "total_cost_usd": float(record.get("total_cost_usd", 0)),
             "last_error": record.get("last_error"),
+            "superseded_reason": record.get("superseded_reason"),
+            "superseded_by_commit": record.get("superseded_by_commit"),
             "created_at": record.get("created_at", now),
             "updated_at": record.get("updated_at", now),
             "started_at": record.get("started_at"),
             "finished_at": record.get("finished_at"),
+            "resolved_at": record.get("resolved_at"),
         }
         with self._lock, self._connection() as connection:
             connection.execute(
@@ -734,8 +748,8 @@ class RunStore:
                     worktree_path, branch_name, base_ref, base_commit, diff_summary,
                     check_results_json, review_json, commit_sha,
                     planning_cost_usd, coding_cost_usd, review_cost_usd, total_cost_usd,
-                    last_error,
-                    created_at, updated_at, started_at, finished_at
+                    last_error, superseded_reason, superseded_by_commit,
+                    created_at, updated_at, started_at, finished_at, resolved_at
                 ) VALUES (
                     :task_id, :module_id, :owner_agent, :goal, :business_reason,
                     :owned_scope_json, :read_only_context_json, :target_files_json, :forbidden_paths_json,
@@ -744,8 +758,8 @@ class RunStore:
                     :worktree_path, :branch_name, :base_ref, :base_commit, :diff_summary,
                     :check_results_json, :review_json, :commit_sha,
                     :planning_cost_usd, :coding_cost_usd, :review_cost_usd, :total_cost_usd,
-                    :last_error,
-                    :created_at, :updated_at, :started_at, :finished_at
+                    :last_error, :superseded_reason, :superseded_by_commit,
+                    :created_at, :updated_at, :started_at, :finished_at, :resolved_at
                 )
                 """,
                 values,

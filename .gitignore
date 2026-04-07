@@ -4,6 +4,7 @@ __pycache__/
 .env.ai.local
 .env.ai.gateway.local
 .env.ai.control.local
+.env.ai.*.bak_*
 .venv/
 logs/
 user_data/

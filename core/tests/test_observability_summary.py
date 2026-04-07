@@ -85,6 +85,9 @@ def _sample_report() -> dict:
             "health": {
                 "ready": True,
                 "bridge_status": "ok",
+                "snapshot_age_seconds": 120,
+                "last_smoke_status": "pass",
+                "last_smoke_at": "2026-03-29T11:58:00+00:00",
                 "members": [
                     {
                         "bot_id": "ft_trend_pullback_continuation_v1",
@@ -192,6 +195,12 @@ class ObservabilitySummaryTests(unittest.TestCase):
             summary["futures_runtime"]["preferred_risk_admitted_strategy_id"],
             "trend_pullback_continuation_v1",
         )
+        self.assertIn("futures_data_fresh", summary["freshness"])
+        self.assertIn("coding_review_blockers", summary["freshness"])
+        self.assertEqual(len(summary["top_blockers"]), 2)
+        self.assertEqual(summary["top_blockers"][0]["source"], "Futures runtime")
+        self.assertEqual(summary["top_blockers"][1]["source"], "Coding review")
+        self.assertEqual(summary["freshness"]["stale_attention_items_count"], 2)
 
     def test_persist_summary_writes_latest_history_and_log_without_duplicate_history(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

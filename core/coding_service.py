@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-FINAL_CODING_STATUSES = {"committed", "blocked", "rejected"}
+FINAL_CODING_STATUSES = {"committed", "blocked", "rejected", "superseded"}
 WORKER_CODING_STATUSES = {"dispatched", "coding"}
 IN_FLIGHT_CODING_STATUSES = {"dispatched", "coding", "review", "approved"}
 
@@ -173,6 +173,7 @@ class CodingSupervisorService:
             "ready_tasks": sum(1 for task in tasks if task.get("status") == "ready"),
             "review_tasks": sum(1 for task in tasks if task.get("status") == "review"),
             "committed_tasks": sum(1 for task in tasks if task.get("status") == "committed"),
+            "superseded_tasks": sum(1 for task in tasks if task.get("status") == "superseded"),
             "modules": [asdict(module) for module in self.modules_by_id.values()],
             "resource_guard": resource_guard,
         }
@@ -263,6 +264,49 @@ class CodingSupervisorService:
                 "event_type": "reject",
                 "payload": {"reason": reason},
                 "created_at": finished_at,
+            }
+        )
+        return self.get_coding_task(task_id)
+
+    def supersede_task(
+        self,
+        task_id: str,
+        *,
+        reason: str,
+        superseded_by_commit: str | None = None,
+    ) -> dict[str, Any]:
+        task = self.get_coding_task(task_id)
+        status = str(task.get("status") or "")
+        if status in FINAL_CODING_STATUSES:
+            return task
+        if status in WORKER_CODING_STATUSES:
+            raise RuntimeError("Active coding task cannot be superseded while a worker is still responsible for it.")
+        resolved_at = self._now()
+        payload = {
+            "status": "superseded",
+            "last_error": reason,
+            "superseded_reason": reason,
+            "superseded_by_commit": superseded_by_commit,
+            "finished_at": resolved_at,
+            "resolved_at": resolved_at,
+        }
+        self.store.update_coding_task(task_id, **payload)
+        workspace = self.store.get_coding_workspace(task_id)
+        if workspace is not None and str(workspace.get("status") or "") != "committed":
+            self.store.update_coding_workspace(
+                task_id,
+                status="superseded",
+            )
+        self.store.add_coding_task_event(
+            {
+                "event_id": str(uuid.uuid4()),
+                "task_id": task_id,
+                "event_type": "supersede",
+                "payload": {
+                    "reason": reason,
+                    "superseded_by_commit": superseded_by_commit,
+                },
+                "created_at": resolved_at,
             }
         )
         return self.get_coding_task(task_id)
