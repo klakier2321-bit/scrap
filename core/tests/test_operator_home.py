@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
 import unittest
 
@@ -282,3 +283,81 @@ class OperatorHomeBuilderTests(unittest.TestCase):
 
         self.assertEqual(len(home["attention_items"]), 1)
         self.assertEqual(home["attention_items"][0]["title"], "futures_runtime_stale")
+
+    def test_build_operator_home_marks_fresh_runtime_without_admitted_strategy_as_risk_blocked(self) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        home = build_operator_home(
+            health={
+                "agents_status": "agents_guarded",
+                "agents_reason": "manual_mode",
+                "docker_available": True,
+                "resource_guard": {
+                    "allow_new_runs": True,
+                    "allow_coding_dispatch": True,
+                    "primary_reason": None,
+                    "operator_message": "Host resource guard is healthy.",
+                    "notes": [],
+                },
+            },
+            futures_bots=[
+                {
+                    "bot_id": "ft_trend_pullback_continuation_v1",
+                    "state": "running",
+                    "strategy": "TrendPullbackContinuationV1RuntimeStrategy",
+                    "dry_run": True,
+                    "description": "trend",
+                }
+            ],
+            futures_health={
+                "ready": True,
+                "snapshot_age_seconds": 30,
+                "last_smoke_status": "pass",
+                "last_smoke_at": now,
+            },
+            futures_snapshot={"open_trades_count": 0},
+            risk_decision={
+                "trading_mode": "reduced_risk",
+                "allow_trading": True,
+                "new_entries_allowed": False,
+                "risk_reason_codes": ["REDUCED_EXPOSURE_ONLY", "LOW_REGIME_QUALITY"],
+                "allowed_strategy_ids": [],
+            },
+            strategy_layer_report={
+                "preferred_risk_admitted_strategy_id": None,
+            },
+            autopilot_status={"running": False},
+            coding_status={"running": False, "review_tasks": 0},
+            agents=[],
+            observability_summary={
+                "top_blockers": [],
+                "recent_errors": [],
+                "recent_handoffs": [],
+                "operator_attention": [],
+                "freshness": {},
+            },
+            runtime_flags={
+                "kill_switch": {
+                    "flag_name": "kill_switch",
+                    "env_enabled": False,
+                    "operator_enabled": False,
+                    "effective_enabled": False,
+                },
+                "runtime_freeze": {
+                    "flag_name": "runtime_freeze",
+                    "env_enabled": False,
+                    "operator_enabled": False,
+                    "effective_enabled": False,
+                },
+            },
+            recent_runs=[],
+            settings=SimpleNamespace(
+                agent_global_daily_budget_usd=1.5,
+                agent_global_per_run_budget_usd=0.12,
+            ),
+        )
+
+        self.assertFalse(home["futures"]["ready"])
+        self.assertTrue(home["futures"]["runtime_operational"])
+        self.assertEqual(home["futures"]["top_blockers"], ["futures_no_admitted_strategy"])
+        self.assertEqual(home["attention_items"][0]["title"], "futures_no_admitted_strategy")
+        self.assertIn("REDUCED_EXPOSURE_ONLY", home["attention_items"][0]["summary"])

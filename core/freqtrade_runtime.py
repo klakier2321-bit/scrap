@@ -58,13 +58,24 @@ class FreqtradeRuntimeClient:
     def status(self) -> Any:
         return self._request_json("status")
 
-    def _request_json(self, path: str, *, require_auth: bool = True) -> Any:
+    def token_login(self) -> dict[str, Any]:
+        """Issue a token login using the same HTTP Basic auth accepted by Freqtrade."""
+
+        return self._request_json("token/login", method="POST")
+
+    def _request_json(
+        self,
+        path: str,
+        *,
+        require_auth: bool = True,
+        method: str = "GET",
+    ) -> Any:
         url = f"{self.base_url}/{path.lstrip('/')}"
         headers = {"Accept": "application/json"}
         if require_auth:
             headers["Authorization"] = self._basic_auth_header()
 
-        http_request = request.Request(url, headers=headers, method="GET")
+        http_request = request.Request(url, headers=headers, method=method)
         try:
             with request.urlopen(http_request, timeout=self.timeout_seconds) as response:
                 payload = response.read().decode("utf-8")

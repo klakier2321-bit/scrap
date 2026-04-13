@@ -52,6 +52,8 @@ class AppSettings(BaseSettings):
     agent_git_author_name: str = "Crypto System Agent"
     agent_git_author_email: str = "agents@crypto-system.local"
     agent_coding_modules_config: str = "/app/ai_agents/config/coding_modules.yaml"
+    # Legacy single-bot bridge settings. Runtime auth should come from the
+    # per-bot registry/runtime config via BotManager, not from these globals.
     freqtrade_api_base_url: str = "http://freqtrade:8080/api/v1"
     freqtrade_api_username: str = ""
     freqtrade_api_password: str = ""

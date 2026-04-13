@@ -79,13 +79,30 @@ def _age_seconds(value: Any) -> float | None:
     return max(0.0, round((datetime.now(timezone.utc) - parsed).total_seconds(), 2))
 
 
-def _structured_blocker_summary(blocker_code: str) -> str:
+def _risk_reason_excerpt(risk_decision: dict[str, Any] | None) -> str:
+    reasons = [str(item) for item in list((risk_decision or {}).get("risk_reason_codes") or []) if str(item)]
+    if not reasons:
+        return ""
+    return ", ".join(reasons[:3])
+
+
+def _structured_blocker_summary(
+    blocker_code: str,
+    *,
+    risk_decision: dict[str, Any] | None = None,
+) -> str:
     messages = {
         "futures_cluster_stopped": "Klaster futures nie działa. Trzeba podnieść 5 botów kanonicznych przed dalszą oceną gotowości.",
-        "futures_runtime_stale": "Artefakty runtime są nieświeże albo brakuje aktualnej preferowanej strategii admitted przez risk.",
+        "futures_runtime_stale": "Artefakty runtime są nieświeże i trzeba odświeżyć snapshot albo smoke klastra futures.",
         "futures_smoke_degraded": "Smoke klastra futures jest zdegradowany albo któryś z botów nie przechodzi health checku.",
+        "futures_no_admitted_strategy": "Runtime jest świeży, ale centralny risk nie dopuszcza teraz żadnej z 5 kanonicznych strategii do nowych wejść.",
     }
-    return messages.get(blocker_code, "Wymaga uwagi operatora.")
+    message = messages.get(blocker_code, "Wymaga uwagi operatora.")
+    if blocker_code == "futures_no_admitted_strategy":
+        reason_excerpt = _risk_reason_excerpt(risk_decision)
+        if reason_excerpt:
+            return f"{message} Powody: {reason_excerpt}."
+    return message
 
 
 def _structured_blocker_title(blocker_code: str) -> str:
@@ -93,6 +110,7 @@ def _structured_blocker_title(blocker_code: str) -> str:
         "futures_cluster_stopped": "Futures cluster jest zatrzymany",
         "futures_runtime_stale": "Futures runtime jest nieświeży",
         "futures_smoke_degraded": "Futures smoke jest zdegradowany",
+        "futures_no_admitted_strategy": "Futures runtime nie ma dopuszczonej strategii",
     }
     return titles.get(blocker_code, blocker_code)
 
@@ -102,6 +120,7 @@ def _build_futures_runtime_state(
     cluster_state: str,
     futures_health: dict[str, Any],
     strategy_layer_report: dict[str, Any],
+    risk_decision: dict[str, Any],
 ) -> dict[str, Any]:
     snapshot_age_seconds = (
         float(futures_health.get("snapshot_age_seconds"))
@@ -125,25 +144,28 @@ def _build_futures_runtime_state(
     data_fresh = cluster_state == "running" and snapshot_fresh and smoke_fresh
     smoke_status = str(futures_health.get("last_smoke_status") or "").strip().lower()
     smoke_healthy = smoke_status in {"pass", "ok"}
+    runtime_operational = cluster_state == "running" and bool(futures_health.get("ready")) and data_fresh
     runtime_ready = (
-        cluster_state == "running"
-        and bool(futures_health.get("ready"))
-        and data_fresh
+        runtime_operational
         and bool(preferred_strategy_id)
     )
     blocker_code = None
     if cluster_state == "stopped":
         blocker_code = "futures_cluster_stopped"
-    elif not data_fresh or not preferred_strategy_id:
+    elif not data_fresh:
         blocker_code = "futures_runtime_stale"
     elif not smoke_healthy or not bool(futures_health.get("ready")):
         blocker_code = "futures_smoke_degraded"
+    elif not preferred_strategy_id:
+        blocker_code = "futures_no_admitted_strategy"
     return {
         "ready": runtime_ready,
+        "runtime_operational": runtime_operational,
         "data_fresh": data_fresh,
         "snapshot_age_seconds": snapshot_age_seconds,
         "last_smoke_at": last_smoke_at,
         "last_smoke_age_seconds": last_smoke_age_seconds,
+        "risk_reason_codes": list(risk_decision.get("risk_reason_codes") or []),
         "blocker_codes": [blocker_code] if blocker_code else [],
     }
 
@@ -160,7 +182,10 @@ def _normalize_attention_items(
     futures_blocker_codes = set(str(code) for code in list(futures_state.get("blocker_codes") or []))
     for blocker_code in list(futures_state.get("blocker_codes") or [])[:1]:
         title = str(blocker_code)
-        summary = _structured_blocker_summary(blocker_code)
+        summary = _structured_blocker_summary(
+            blocker_code,
+            risk_decision=risk_decision,
+        )
         items.append(
             {
                 "kind": "runtime",
@@ -296,6 +321,7 @@ def build_operator_home(
         cluster_state=futures_cluster_state,
         futures_health=futures_health,
         strategy_layer_report=strategy_layer_report,
+        risk_decision=risk_decision,
     )
     any_bot_running = any(str(bot.get("state")) == "running" for bot in futures_bots)
     all_bots_running = bool(futures_bots) and all(str(bot.get("state")) == "running" for bot in futures_bots)
@@ -376,6 +402,7 @@ def build_operator_home(
             "cluster_state": futures_cluster_state,
             "bots": futures_bots,
             "ready": bool(futures_state.get("ready")),
+            "runtime_operational": bool(futures_state.get("runtime_operational")),
             "data_fresh": bool(futures_state.get("data_fresh")),
             "snapshot_age_seconds": futures_health.get("snapshot_age_seconds"),
             "last_smoke_status": futures_health.get("last_smoke_status"),
@@ -383,6 +410,7 @@ def build_operator_home(
             "last_smoke_age_seconds": futures_state.get("last_smoke_age_seconds"),
             "risk_mode": risk_decision.get("trading_mode"),
             "allow_trading": risk_decision.get("allow_trading"),
+            "risk_reason_codes": list(risk_decision.get("risk_reason_codes") or []),
             "force_reduce_only": risk_decision.get("force_reduce_only"),
             "cooldown_active": risk_decision.get("cooldown_active"),
             "preferred_risk_admitted_strategy_id": strategy_layer_report.get(

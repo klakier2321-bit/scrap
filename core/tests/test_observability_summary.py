@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 import tempfile
 import unittest
@@ -231,3 +232,35 @@ class ObservabilitySummaryTests(unittest.TestCase):
             self.assertEqual(len(log_lines), 1)
             payload = json.loads(log_lines[0])
             self.assertEqual(payload["event_type"], "observability_summary")
+
+    def test_build_summary_distinguishes_risk_blocked_runtime_from_stale_runtime(self) -> None:
+        report = _sample_report()
+        now = datetime.now(timezone.utc).isoformat()
+        report["dry_run"]["health"]["snapshot_age_seconds"] = 30
+        report["dry_run"]["health"]["last_smoke_status"] = "pass"
+        report["dry_run"]["health"]["last_smoke_at"] = now
+        report["strategy_layer"]["preferred_risk_admitted_strategy_id"] = None
+        report["strategy_layer"]["preferred_strategy_id"] = None
+        report["regime"]["risk_decision"] = {
+            "trading_mode": "reduced_risk",
+            "new_entries_allowed": False,
+            "risk_reason_codes": ["REDUCED_EXPOSURE_ONLY", "LOW_REGIME_QUALITY"],
+        }
+
+        summary = build_observability_summary(
+            executive_report=report,
+            bot_states=[
+                {
+                    "bot_id": "ft_trend_pullback_continuation_v1",
+                    "state": "running",
+                    "runtime_group": "futures_canonical",
+                    "strategy_id": "trend_pullback_continuation_v1",
+                }
+            ],
+            runs=[],
+        )
+
+        self.assertEqual(summary["top_blockers"][0]["status"], "futures_no_admitted_strategy")
+        self.assertIn("REDUCED_EXPOSURE_ONLY", summary["top_blockers"][0]["why_blocking"])
+        self.assertTrue(summary["futures_runtime"]["runtime_operational"])
+        self.assertTrue(summary["futures_runtime"]["data_fresh"])

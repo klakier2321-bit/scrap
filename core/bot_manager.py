@@ -93,8 +93,11 @@ class BotManager:
         api_server = runtime_config.get("api_server") or {}
         return {
             "base_url": bot.get("runtime_api_base_url", "").rstrip("/"),
-            "username": bot.get("runtime_api_username") or api_server.get("username", ""),
-            "password": bot.get("runtime_api_password") or api_server.get("password", ""),
+            # The runtime config inside user_data is the closest thing to the bot's
+            # real API contract. Keep bots.yaml credentials only as a compatibility
+            # fallback when the embedded config is missing or incomplete.
+            "username": api_server.get("username") or bot.get("runtime_api_username", ""),
+            "password": api_server.get("password") or bot.get("runtime_api_password", ""),
             "timeout_seconds": int(bot.get("runtime_api_timeout_seconds", 5)),
             "strategy": runtime_config.get("strategy") or bot.get("strategy"),
         }

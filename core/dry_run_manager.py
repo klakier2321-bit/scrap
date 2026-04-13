@@ -248,7 +248,13 @@ class DryRunManager:
                 ping = self.client.ping()
                 steps.append(self._step("bridge_ping", ping.get("status") == "pong", "Bridge ping responded."))
                 config = self.client.show_config()
-                steps.append(self._step("api_auth", True, "Control layer authenticated to Freqtrade API."))
+                steps.append(
+                    self._step(
+                        "api_auth",
+                        True,
+                        "Control layer authenticated to Freqtrade API with HTTP Basic auth.",
+                    )
+                )
             except FreqtradeRuntimeError as exc:
                 blocking_reason = exc.code
                 steps.append(self._step("bridge_ping", False, exc.message))

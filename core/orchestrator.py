@@ -69,6 +69,7 @@ from monitoring.control_status import write_report_files as write_control_status
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+FUTURES_DECISION_STACK_FRESHNESS_SECONDS = 15 * 60
 
 
 class Orchestrator:
@@ -106,18 +107,9 @@ class Orchestrator:
             binance_period=settings.derivatives_binance_period,
             stale_after_seconds=settings.derivatives_stale_seconds,
         )
-        self.freqtrade_runtime_client = FreqtradeRuntimeClient(
-            base_url=settings.freqtrade_api_base_url,
-            username=settings.freqtrade_api_username,
-            password=settings.freqtrade_api_password,
-            timeout_seconds=settings.freqtrade_api_timeout_seconds,
-        )
-        self.dry_run_manager = DryRunManager(
-            client=self.freqtrade_runtime_client,
-            snapshots_dir=settings.dry_run_snapshots_dir,
-            smoke_dir=settings.dry_run_smoke_dir,
-            stale_after_seconds=settings.dry_run_snapshot_stale_seconds,
-        )
+        # Use the same per-bot runtime registry as smoke tests and snapshots so
+        # the control plane does not drift away from the actual Freqtrade bot config.
+        self.dry_run_manager = self._runtime_manager_for_bot("freqtrade")
         self.resource_guard = SystemResourceGuard(
             settings=settings,
             docker_base_url=settings.docker_socket_path,
@@ -338,6 +330,89 @@ class Orchestrator:
 
     def _is_canonical_futures_bot(self, bot_id: str) -> bool:
         return bot_id in set(self._canonical_futures_bot_ids())
+
+    @staticmethod
+    def _parse_generated_at(value: Any) -> datetime | None:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    def _artifact_is_stale(
+        self,
+        payload: dict[str, Any] | None,
+        *,
+        freshness_seconds: int = FUTURES_DECISION_STACK_FRESHNESS_SECONDS,
+    ) -> bool:
+        if not payload:
+            return True
+        generated_at = self._parse_generated_at(payload.get("generated_at"))
+        if generated_at is None:
+            return True
+        age_seconds = (datetime.now(timezone.utc) - generated_at).total_seconds()
+        return age_seconds > float(freshness_seconds)
+
+    def _refresh_futures_decision_stack(self) -> dict[str, Any]:
+        bot_ids = self._canonical_futures_bot_ids()
+        results: dict[str, Any] = {
+            "cluster_id": "futures_canonical",
+            "derivatives_report_generated_at": None,
+            "regime_report_generated_at": None,
+            "member_updates": {},
+            "failures": {},
+        }
+        derivatives_report = self.generate_derivatives_report()
+        results["derivatives_report_generated_at"] = derivatives_report.get("generated_at")
+        regime_report = self.regime_detector.generate_report(
+            derivatives_report=derivatives_report
+        )
+        results["regime_report_generated_at"] = regime_report.get("generated_at")
+        strategy_manifests = self.strategy_manager.list_strategy_manifests()
+        cluster_snapshot = self.get_futures_cluster_snapshot(refresh_if_stale=False)
+        portfolio_state = self.risk_manager.build_portfolio_state_from_snapshot(cluster_snapshot)
+        for bot_id in bot_ids:
+            try:
+                risk_decision = self.risk_manager.evaluate_risk(
+                    regime_report=regime_report,
+                    strategy_manifests=strategy_manifests,
+                    portfolio_state=portfolio_state,
+                    bot_id=bot_id,
+                )
+                publish_runtime_risk_decision(
+                    self.settings.futures_runtime_artifacts_dir,
+                    bot_id,
+                    risk_decision,
+                )
+                strategy_report = self.strategy_layer.generate_report(
+                    regime_report=regime_report,
+                    risk_decision=risk_decision,
+                    bot_id=bot_id,
+                    strategy_filter_ids=self._strategy_filter_for_bot(bot_id),
+                )
+                publish_runtime_strategy_report(
+                    self.settings.futures_runtime_artifacts_dir,
+                    bot_id,
+                    strategy_report,
+                )
+                results["member_updates"][bot_id] = {
+                    "risk_generated_at": risk_decision.get("generated_at"),
+                    "strategy_generated_at": strategy_report.get("generated_at"),
+                    "preferred_risk_admitted_strategy_id": strategy_report.get(
+                        "preferred_risk_admitted_strategy_id"
+                    ),
+                    "risk_admitted_strategy_ids": list(
+                        strategy_report.get("risk_admitted_strategy_ids") or []
+                    ),
+                    "blocked_by_risk_strategy_ids": list(
+                        strategy_report.get("blocked_by_risk_strategy_ids") or []
+                    ),
+                }
+            except Exception as exc:  # noqa: BLE001
+                results["failures"][bot_id] = str(exc)
+        results["accepted"] = not bool(results["failures"])
+        return results
 
     def _strategy_filter_for_bot(self, bot_id: str) -> list[str] | None:
         strategy_id = strategy_id_from_bot_id(bot_id)
@@ -1346,6 +1421,16 @@ class Orchestrator:
             except Exception as exc:  # noqa: BLE001
                 failures[bot_id] = str(exc)
         passed = all(str((results.get(bot_id) or {}).get("status")) == "pass" for bot_id in bot_ids if bot_id in results)
+        decision_stack = None
+        if not failures and passed:
+            decision_stack = self._refresh_futures_decision_stack()
+            if decision_stack.get("failures"):
+                failures.update(
+                    {
+                        f"decision_stack:{bot_id}": reason
+                        for bot_id, reason in dict(decision_stack.get("failures") or {}).items()
+                    }
+                )
         message = "Futures cluster smoke completed." if not failures else "Futures cluster smoke completed with failures."
         return {
             "accepted": not failures and passed,
@@ -1353,6 +1438,7 @@ class Orchestrator:
             "payload": {
                 "cluster_id": "futures_canonical",
                 "member_results": results,
+                "decision_stack": decision_stack,
                 "failures": failures,
             },
         }
@@ -1369,6 +1455,16 @@ class Orchestrator:
         aggregated = None
         if snapshots:
             aggregated = self.get_futures_cluster_snapshot(refresh_if_stale=False)
+        decision_stack = None
+        if aggregated is not None and not failures:
+            decision_stack = self._refresh_futures_decision_stack()
+            if decision_stack.get("failures"):
+                failures.update(
+                    {
+                        f"decision_stack:{bot_id}": reason
+                        for bot_id, reason in dict(decision_stack.get("failures") or {}).items()
+                    }
+                )
         message = "Futures snapshots refreshed." if not failures else "Futures snapshot refresh completed with failures."
         return {
             "accepted": not failures,
@@ -1378,6 +1474,7 @@ class Orchestrator:
                 "member_bot_ids": bot_ids,
                 "failures": failures,
                 "cluster_snapshot": aggregated,
+                "decision_stack": decision_stack,
             },
         }
 

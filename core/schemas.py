@@ -311,6 +311,7 @@ class OperatorHomeFutures(BaseModel):
     cluster_state: str
     bots: list[BotSummary] = Field(default_factory=list)
     ready: bool = False
+    runtime_operational: bool = False
     data_fresh: bool = False
     snapshot_age_seconds: float | None = None
     last_smoke_status: str | None = None
@@ -318,6 +319,7 @@ class OperatorHomeFutures(BaseModel):
     last_smoke_age_seconds: float | None = None
     risk_mode: str | None = None
     allow_trading: bool | None = None
+    risk_reason_codes: list[str] = Field(default_factory=list)
     force_reduce_only: bool | None = None
     cooldown_active: bool | None = None
     preferred_risk_admitted_strategy_id: str | None = None

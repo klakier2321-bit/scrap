@@ -267,6 +267,44 @@ class DryRunManagerTests(unittest.TestCase):
 
 
 class FreqtradeRuntimeClientTests(unittest.TestCase):
+    def test_token_login_uses_post_and_basic_auth(self) -> None:
+        client = FreqtradeRuntimeClient(
+            base_url="http://freqtrade:8080/api/v1",
+            username="freqtrader",
+            password="change_me_local",
+        )
+
+        captured_request = None
+
+        class _Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self) -> bytes:
+                return b'{"access_token":"abc","refresh_token":"def"}'
+
+        def _fake_urlopen(req, timeout=0):
+            nonlocal captured_request
+            captured_request = req
+            return _Response()
+
+        with patch("core.freqtrade_runtime.request.urlopen", side_effect=_fake_urlopen):
+            payload = client.token_login()
+
+        self.assertEqual(payload["access_token"], "abc")
+        self.assertIsNotNone(captured_request)
+        self.assertEqual(captured_request.get_method(), "POST")
+        self.assertEqual(
+            captured_request.full_url,
+            "http://freqtrade:8080/api/v1/token/login",
+        )
+        self.assertTrue(
+            str(captured_request.get_header("Authorization", "")).startswith("Basic ")
+        )
+
     def test_http_401_maps_to_auth_failed(self) -> None:
         client = FreqtradeRuntimeClient(
             base_url="http://freqtrade:8080/api/v1",

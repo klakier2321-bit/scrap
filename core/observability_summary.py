@@ -58,6 +58,13 @@ def _age_seconds(value: Any) -> float | None:
     return max(0.0, round((datetime.now(timezone.utc) - parsed).total_seconds(), 2))
 
 
+def _risk_reason_excerpt(risk_decision: dict[str, Any] | None) -> str:
+    reasons = [str(item) for item in list((risk_decision or {}).get("risk_reason_codes") or []) if str(item)]
+    if not reasons:
+        return ""
+    return ", ".join(reasons[:3])
+
+
 def _budget_block_count(runs: list[dict[str, Any]]) -> int:
     total = 0
     for run in runs:
@@ -114,6 +121,7 @@ def _structured_futures_blocker(
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     dry_run_health = ((executive_report.get("dry_run") or {}).get("health") or {})
     strategy_layer = executive_report.get("strategy_layer") or {}
+    risk_decision = ((executive_report.get("regime") or {}).get("risk_decision") or {})
     cluster_state = _futures_cluster_state(bot_states)
     snapshot_age_seconds = (
         float(dry_run_health.get("snapshot_age_seconds"))
@@ -135,6 +143,7 @@ def _structured_futures_blocker(
     )
     smoke_status = str(dry_run_health.get("last_smoke_status") or "").strip().lower()
     smoke_healthy = smoke_status in {"pass", "ok"}
+    runtime_operational = cluster_state == "running" and bool(dry_run_health.get("ready")) and data_fresh
 
     blocker_code = None
     title = None
@@ -145,16 +154,24 @@ def _structured_futures_blocker(
         title = "Futures cluster jest zatrzymany"
         why_blocking = "Pięć kanonicznych botów futures nie działa, więc runtime nie produkuje świeżych artefaktów."
         expected_action = "Podnieść klaster, odświeżyć snapshot i wykonać smoke dla całego futures_canonical."
-    elif not data_fresh or not preferred_strategy_id:
+    elif not data_fresh:
         blocker_code = "futures_runtime_stale"
         title = "Futures runtime jest nieświeży"
-        why_blocking = "Snapshot albo smoke są zbyt stare, albo brakuje aktualnej preferowanej strategii admitted przez risk."
-        expected_action = "Odświeżyć snapshot i smoke, a potem potwierdzić preferred_risk_admitted_strategy_id."
+        why_blocking = "Snapshot albo smoke są zbyt stare, więc dashboard nie może ufać bieżącej ocenie futures runtime."
+        expected_action = "Odświeżyć snapshot i smoke dla całego futures_canonical."
     elif not smoke_healthy or not bool(dry_run_health.get("ready")):
         blocker_code = "futures_smoke_degraded"
         title = "Futures smoke jest zdegradowany"
         why_blocking = "Któryś z botów canonical futures nie przechodzi pełnego smoke/health checku."
         expected_action = "Sprawdzić member health i powtórzyć smoke dla 5 botów po usunięciu przyczyny degradacji."
+    elif not preferred_strategy_id:
+        blocker_code = "futures_no_admitted_strategy"
+        title = "Futures runtime nie ma dopuszczonej strategii"
+        reason_excerpt = _risk_reason_excerpt(risk_decision)
+        why_blocking = "Runtime jest świeży, ale centralny risk nie dopuszcza teraz żadnej z 5 kanonicznych strategii do nowych wejść."
+        if reason_excerpt:
+            why_blocking = f"{why_blocking} Powody: {reason_excerpt}."
+        expected_action = "To nie wygląda na awarię. Sprawdzić aktualny reżim, risk_reason_codes i allowed_strategy_ids przed próbą wymuszania wejść."
 
     blocker = None
     if blocker_code:
@@ -171,10 +188,12 @@ def _structured_futures_blocker(
     return blocker, {
         "cluster_state": cluster_state,
         "data_fresh": data_fresh,
+        "runtime_operational": runtime_operational,
         "snapshot_age_seconds": snapshot_age_seconds,
         "last_smoke_at": last_smoke_at,
         "last_smoke_age_seconds": last_smoke_age_seconds,
         "preferred_strategy_id": preferred_strategy_id,
+        "risk_reason_codes": list(risk_decision.get("risk_reason_codes") or []),
     }
 
 
@@ -748,6 +767,13 @@ def build_observability_summary(
             "built_signals_total": int(summary.get("strategy_layer_built_signals_total", 0) or 0),
             "risk_admitted_total": int(summary.get("strategy_layer_risk_admitted_total", 0) or 0),
             "risk_trading_mode": ((executive_report.get("regime") or {}).get("risk_decision") or {}).get("trading_mode"),
+            "new_entries_allowed": bool(
+                ((executive_report.get("regime") or {}).get("risk_decision") or {}).get("new_entries_allowed")
+            ),
+            "risk_reason_codes": list(
+                (((executive_report.get("regime") or {}).get("risk_decision") or {}).get("risk_reason_codes") or [])
+            ),
+            "runtime_operational": bool(structured_state.get("runtime_operational")),
             "data_fresh": bool(structured_state.get("data_fresh")),
             "snapshot_age_seconds": structured_state.get("snapshot_age_seconds"),
             "last_smoke_at": structured_state.get("last_smoke_at"),
